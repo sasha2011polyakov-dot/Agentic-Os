@@ -2,11 +2,16 @@ import { AppCore, type AppCoreOptions } from '@aos/core';
 import { Router } from './http/router.ts';
 import { startServer, type RunningServer } from './http/server.ts';
 import { registerAppRoutes, registerSystemRoutes } from './routes/systems.ts';
+import { registerDocRoutes, registerFsRoutes, registerGraphRoutes, registerSourceRoutes } from './routes/knowledge.ts';
 
 export function createApiRouter(): Router {
   const r = new Router();
   registerAppRoutes(r);
   registerSystemRoutes(r);
+  registerFsRoutes(r);
+  registerSourceRoutes(r);
+  registerDocRoutes(r);
+  registerGraphRoutes(r);
   return r;
 }
 

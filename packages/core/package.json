@@ -6,7 +6,7 @@
   "description": "Agentic OS core: storage, indexing, graph, AI Core, agents, workflows.",
   "exports": {
     ".": "./src/index.ts",
-    "./api-types": "./src/api-types.ts"
+    "./internal": "./src/internal.ts"
   },
   "scripts": {
     "typecheck": "tsc -p . --noEmit"

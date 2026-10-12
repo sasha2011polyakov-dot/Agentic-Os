@@ -122,6 +122,7 @@ CREATE TABLE doc_links (
   line            INTEGER NOT NULL,
   col             INTEGER NOT NULL,
   is_external     INTEGER NOT NULL DEFAULT 0,
+  context         TEXT,
   resolved_doc_id TEXT REFERENCES documents(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_doc_links_src ON doc_links(src_doc_id);
