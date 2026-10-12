@@ -76,7 +76,8 @@ export function getPath(value: unknown, path: string): unknown {
       const idx = Number(part);
       cur = Number.isInteger(idx) ? cur[idx] : undefined;
     } else if (typeof cur === 'object') {
-      cur = (cur as Record<string, unknown>)[part];
+      // own properties only: paths come from definitions/templates and must not reach prototypes
+      cur = Object.hasOwn(cur as object, part) ? (cur as Record<string, unknown>)[part] : undefined;
     } else {
       return undefined;
     }

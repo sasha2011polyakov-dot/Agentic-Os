@@ -380,6 +380,7 @@ CREATE TABLE workflow_runs (
   limits           TEXT NOT NULL,
   totals           TEXT NOT NULL DEFAULT '{}',
   error            TEXT,
+  status_reason    TEXT,
   result           TEXT,
   created_at       TEXT NOT NULL,
   started_at       TEXT,

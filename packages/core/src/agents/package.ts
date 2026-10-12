@@ -90,6 +90,16 @@ const MANIFEST_SCHEMA = {
   },
 };
 
+/** Permissions each tool may require (the exact requirement can depend on the call, e.g. the vault needs none for propose). */
+export const TOOL_PERMISSIONS: Record<string, PermissionId[]> = {
+  search_documents: ['search.use', 'documents.read'], read_document: ['documents.read'], list_documents: ['documents.read'],
+  project_inventory: ['projects.read'], list_project_files: ['projects.read'], read_project_file: ['projects.read'], graph_neighbors: ['graph.read'],
+  create_document: ['documents.create'], web_search: ['web.search', 'network.fetch'], open_url: ['network.fetch'], extract_page_content: ['network.fetch'],
+  fetch_documentation: ['network.fetch'], search_github: ['external.api', 'network.fetch'], inspect_repository: ['external.api', 'network.fetch'],
+  save_research_note: ['documents.create'], create_source_links: ['graph.write'], verify_source_freshness: ['network.fetch'], compare_sources: [],
+  propose_file_change: ['changes.propose'], run_check: ['commands.run'], create_agent_definition: ['agents.create'],
+};
+
 /** Tool names a package may request. Kept in sync with tools/registry.ts (checked by a test). */
 export const KNOWN_TOOLS = new Set([
   'search_documents', 'read_document', 'list_documents', 'project_inventory', 'list_project_files', 'read_project_file', 'graph_neighbors',
@@ -164,15 +174,7 @@ export function validatePackageFiles(files: Map<string, Buffer>): { report: Vali
   } else warnings.push('Нет тестовых сценариев (tests/test-cases.json): тестовый запуск будет выполняться на минимальном входе.');
   if (manifest && tools.length) {
     const needed = new Set<string>();
-    const map: Record<string, PermissionId[]> = {
-      search_documents: ['search.use', 'documents.read'], read_document: ['documents.read'], list_documents: ['documents.read'],
-      project_inventory: ['projects.read'], list_project_files: ['projects.read'], read_project_file: ['projects.read'], graph_neighbors: ['graph.read'],
-      create_document: ['documents.create'], web_search: ['web.search', 'network.fetch'], open_url: ['network.fetch'], extract_page_content: ['network.fetch'],
-      fetch_documentation: ['network.fetch'], search_github: ['external.api', 'network.fetch'], inspect_repository: ['external.api', 'network.fetch'],
-      save_research_note: ['documents.create'], create_source_links: ['graph.write'], verify_source_freshness: ['network.fetch'], compare_sources: [],
-      propose_file_change: ['changes.propose'], run_check: ['commands.run'], create_agent_definition: ['agents.create'],
-    };
-    for (const t of tools) for (const p of map[t] ?? []) needed.add(p);
+    for (const t of tools) for (const p of TOOL_PERMISSIONS[t] ?? []) needed.add(p);
     const requested = new Set((manifest.permissions ?? []).map((p) => p.permission));
     for (const p of needed) if (!requested.has(p as PermissionId)) warnings.push(`Инструменты требуют разрешение ${p}, но пакет его не запрашивает: вызовы будут отклонены.`);
   }

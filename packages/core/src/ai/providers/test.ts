@@ -1,5 +1,6 @@
 import type { ChatRequest, ChatResponse, EmbedRequest, EmbedResponse, LocalModelProvider, ModelInfo, ProviderConfig, ProviderHealth } from '../types.ts';
 import { sha256 } from '../../util/hash.ts';
+import { AppError } from '../../util/errors.ts';
 
 /**
  * Deterministic provider for automated tests ONLY. It is registered exclusively when
@@ -47,9 +48,17 @@ export class TestProvider implements LocalModelProvider {
   async chat(req: ChatRequest): Promise<ChatResponse> {
     calls.push(req);
     let text: string | null = null;
+    // honour cancellation like real providers do (HTTP requests are aborted with the signal)
+    const aborted = new Promise<never>((_, reject) => {
+      if (!req.signal) return;
+      const fail = () => reject(new AppError('CANCELLED', 'Запрос к модели отменён.'));
+      if (req.signal.aborted) fail();
+      else req.signal.addEventListener('abort', fail, { once: true });
+    });
+    aborted.catch(() => undefined);
     for (const r of responders) {
       if (r.match(req)) {
-        text = await r.respond(req);
+        text = await Promise.race([Promise.resolve(r.respond(req)), aborted]);
         if (text !== null) break;
       }
     }

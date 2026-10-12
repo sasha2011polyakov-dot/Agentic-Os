@@ -104,3 +104,51 @@ describe('AI, agents and change sets over HTTP', () => {
     expect(usage.status).toBe(200);
   });
 });
+
+describe('workflows and tasks over HTTP', () => {
+  it('saves a workflow, runs it to an approval, approves and exports tasks', async () => {
+    const sys = await api<{ system: { systemId: string } }>('POST', '/api/systems', { name: 'WF API', storagePath: join(root, 'sys-wf'), template: 'empty' });
+    const sid = sys.data.system.systemId;
+    const list = await api<{ workflows: { id: string; builtin: boolean }[] }>('GET', `/api/systems/${sid}/workflows`);
+    expect(list.data.workflows.filter((w) => w.builtin).map((w) => w.id).sort()).toEqual(['spec-pipeline', 'web-research']);
+    const definition = {
+      id: 'check-only',
+      name: 'Проверка',
+      description: '',
+      version: 1,
+      inputSchema: { type: 'object' },
+      nodes: [
+        { id: 'v', type: 'function', fn: 'spec.validate_tasks', title: 'Проверка', input: { tasks: [], requirements: [{ id: 'REQ-001', statement: 'x', type: 'functional', sources: [], priority: 'must', acceptance_criteria: ['y'], depends_on: [], status: 'confirmed' }] } },
+        { id: 'ok', type: 'approval', title: 'Утвердить', dependsOn: ['v'], prompt: { findings: { $path: 'nodes.v.output.findings' } } },
+      ],
+      output: { coverage: { $path: 'nodes.v.output.metrics.coveragePct' } },
+    };
+    const bad = await api<{ error: { code: string } }>('PUT', `/api/systems/${sid}/workflows/check-only`, { definition: { ...definition, nodes: [{ ...definition.nodes[0], fn: 'shell.exec' }] } });
+    expect(bad.data.error.code).toBe('WORKFLOW_INVALID');
+    expect((await api('PUT', `/api/systems/${sid}/workflows/check-only`, { definition })).status).toBe(200);
+    const started = await api<{ run: { id: string } }>('POST', `/api/systems/${sid}/workflows/check-only/runs`, { input: {}, scope: { sourceIds: [], docIds: [], allowWeb: false } });
+    const runId = started.data.run.id;
+    type RunDto = { status: string; pendingApprovals: { id: string; approval: { prompt: { findings: { type: string }[] } } }[]; result: unknown };
+    let run: RunDto | null = null;
+    for (let i = 0; i < 100; i++) {
+      run = (await api<{ run: RunDto }>('GET', `/api/systems/${sid}/runs/${runId}`)).data.run;
+      if (run.status === 'waiting_for_approval') break;
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    expect(run!.pendingApprovals[0]!.approval.prompt.findings[0]!.type).toBe('uncovered');
+    const approved = await api<{ run: { status: string; result: unknown } }>('POST', `/api/systems/${sid}/runs/${runId}/steps/${run!.pendingApprovals[0]!.id}/approve`, { decision: 'approve' });
+    expect(approved.data.run.status).toBe('completed');
+    expect(approved.data.run.result).toEqual({ coverage: 0 });
+    const events = await api<{ events: { type: string }[] }>('GET', `/api/systems/${sid}/runs/${runId}/events`);
+    expect(events.data.events.map((e) => e.type)).toContain('approval.decided');
+
+    const task = await api<{ task: { id: string; key: string } }>('POST', `/api/systems/${sid}/tasks`, { title: 'Задача из API', acceptanceCriteria: ['готово'] });
+    expect(task.data.task.key).toBe('T-001');
+    const done = await api<{ error: { code: string } }>('POST', `/api/systems/${sid}/tasks/${task.data.task.id}/status`, { status: 'done' });
+    expect(done.data.error.code).toBe('CONFIRMATION_REQUIRED');
+    await api('POST', `/api/systems/${sid}/tasks/${task.data.task.id}/status`, { status: 'done', evidence: 'проверено вручную' });
+    const csv = await fetch(`${app.http.url}/api/systems/${sid}/tasks/export?format=csv`, { headers: { cookie } });
+    expect(csv.headers.get('content-type')).toContain('text/csv');
+    expect(await csv.text()).toContain('"T-001","Задача из API","done"');
+  });
+});

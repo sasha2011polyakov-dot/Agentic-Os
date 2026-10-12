@@ -16,3 +16,12 @@ export { KNOWN_TOOLS } from './agents/package.ts';
 export { TOOLS } from './tools/registry.ts';
 export { runCheck, validateChecks, type CheckDefinition, type CheckResult } from './missions/checks.ts';
 export type { ChangeSetStatus, ChangeSetView } from './changes/change-sets.ts';
+export { TASK_STATUSES, type TaskStatus, type TaskPriority, type TaskView } from './tasks/tasks.ts';
+export type { RunStatus, RunView, StepView, WorkflowSummary, PreflightReport, ApprovalDecision } from './workflows/engine.ts';
+export type { WorkflowDefinition, WorkflowNode, WorkflowLimits } from './workflows/definition.ts';
+export { BUILTIN_WORKFLOWS } from './workflows/builtin.ts';
+import { workflowFunctions } from './workflows/functions.ts';
+/** Deterministic functions available to workflow definitions (for the editor palette). */
+export function workflowFunctionList(): { name: string; label: string; description: string; sideEffects: boolean }[] {
+  return workflowFunctions().map((f) => ({ name: f.name, label: f.label, description: f.description, sideEffects: !!f.sideEffects }));
+}

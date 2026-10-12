@@ -11,6 +11,14 @@ import { AgentService } from './agents/service.ts';
 import { AgentRuntime } from './agents/runtime.ts';
 import { PermissionGuard } from './agents/permissions.ts';
 import { appAI } from './ai/app-ai.ts';
+import { TaskService } from './tasks/tasks.ts';
+import { WorkflowEngine } from './workflows/engine.ts';
+import { registerFunctions } from './workflows/functions.ts';
+import { BUILTIN_WORKFLOWS } from './workflows/builtin.ts';
+import { SPEC_FUNCTIONS } from './spec/functions.ts';
+import { RESEARCH_FUNCTIONS } from './research/functions.ts';
+
+registerFunctions([...SPEC_FUNCTIONS, ...RESEARCH_FUNCTIONS]);
 
 /** Typed accessors for the services attached to a runtime (one instance per system). */
 export interface SystemServices {
@@ -23,6 +31,8 @@ export interface SystemServices {
   guard: PermissionGuard;
   agentRuntime: AgentRuntime;
   agents: AgentService;
+  tasks: TaskService;
+  workflows: WorkflowEngine;
 }
 
 export function services(rt: SystemRuntime): SystemServices {
@@ -51,7 +61,10 @@ export async function wireSystemServices(core: AppCore): Promise<void> {
       const guard = new PermissionGuard(rt.db);
       const agentRuntime = new AgentRuntime(rt, ai.ai, { web: ai.web, systems: core.systems, guard });
       const agents = new AgentService(rt, ai.catalog, agentRuntime);
-      const s: SystemServices = { graph, indexer, sources, docs, search, changes, guard, agentRuntime, agents };
+      const tasks = new TaskService(rt, graph);
+      const workflows = rt.register('workflows', new WorkflowEngine(rt, agents, agentRuntime));
+      workflows.installBuiltins(BUILTIN_WORKFLOWS);
+      const s: SystemServices = { graph, indexer, sources, docs, search, changes, guard, agentRuntime, agents, tasks, workflows };
       rt.setOwned('services', s);
       for (const hook of extraHooks) await hook(rt, s);
     },
@@ -79,7 +92,11 @@ export async function wireSystemServices(core: AppCore): Promise<void> {
         (rt.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM missions WHERE status IN ('analyzing','researching','planning','executing','verifying','needs_fix')")?.c ?? 0)
       );
     },
-    async pauseRuns() {},
-    async cancelRuns() {},
+    async pauseRuns(rt: SystemRuntime) {
+      await services(rt).workflows.pauseAll('Приостановлено: система отключается или переключается.');
+    },
+    async cancelRuns(rt: SystemRuntime) {
+      await services(rt).workflows.cancelAll('Отменено: система отключается.');
+    },
   };
 }
