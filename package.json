@@ -1,0 +1,34 @@
+{
+  "name": "agentic-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first knowledge OS with AI agents: Markdown vaults, knowledge graph, project indexing and verifiable multi-agent workflows.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "workspaces": [
+    "packages/core",
+    "apps/server",
+    "apps/ui",
+    "apps/desktop"
+  ],
+  "scripts": {
+    "build": "npm run build -w @aos/ui && npm run build -w @aos/server",
+    "start": "node apps/server/dist/aos.mjs serve",
+    "dev:server": "npm run dev -w @aos/server",
+    "dev:ui": "npm run dev -w @aos/ui",
+    "typecheck": "tsc -b packages/core apps/server && npm run typecheck -w @aos/ui",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "lint:boundaries": "node scripts/check-boundaries.mjs",
+    "desktop": "npm run start -w @aos/desktop"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
