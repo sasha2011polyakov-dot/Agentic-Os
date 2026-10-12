@@ -39,8 +39,9 @@ CREATE TABLE sources (
   watch             INTEGER NOT NULL DEFAULT 1,
   -- user-defined verification commands for missions: [{name, program, args, timeoutSec}] (agents can only run these by name)
   checks            TEXT NOT NULL DEFAULT '[]',
-  -- user permission to APPLY approved change sets to this project's files (projects stay read-only otherwise)
-  allow_apply       INTEGER NOT NULL DEFAULT 0,
+  -- access mode (section 29.2): read_only «Только изучение» (default) → prepare «Подготовить изменения»
+  -- → workcopy «Работать в копии» → apply «Применить к исходному проекту» (privileged, never set automatically)
+  access_mode       TEXT NOT NULL DEFAULT 'read_only' CHECK (access_mode IN ('read_only','prepare','workcopy','apply')),
   status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','indexing','ready','error','unavailable')),
   status_message    TEXT,
   last_indexed_at   TEXT,
@@ -430,7 +431,9 @@ CREATE TABLE missions (
   key              TEXT NOT NULL UNIQUE,
   title            TEXT NOT NULL,
   original_request TEXT NOT NULL,
+  attachments      TEXT NOT NULL DEFAULT '[]',
   normalized       TEXT,
+  revision         INTEGER NOT NULL DEFAULT 0,
   mode             TEXT NOT NULL CHECK (mode IN ('plan','execute')),
   status           TEXT NOT NULL CHECK (status IN ('draft','analyzing','needs_input','researching','planning','awaiting_approval','ready','executing','paused','verifying','needs_fix','completed','partially_completed','failed','cancelled')),
   phase            TEXT NOT NULL DEFAULT 'analysis',
@@ -446,8 +449,12 @@ CREATE TABLE missions (
   plan_stale       INTEGER NOT NULL DEFAULT 0,
   criteria         TEXT NOT NULL DEFAULT '[]',
   extra_requirements TEXT NOT NULL DEFAULT '[]',
+  approved_checks  TEXT NOT NULL DEFAULT '[]',
+  baseline         TEXT,
+  limitations      TEXT NOT NULL DEFAULT '[]',
   pending          TEXT,
   fix_rounds       INTEGER NOT NULL DEFAULT 0,
+  review           TEXT,
   summary          TEXT,
   report_doc_id    TEXT,
   totals           TEXT NOT NULL DEFAULT '{}',
@@ -524,18 +531,28 @@ CREATE INDEX idx_mission_checks ON mission_checks(mission_id, round);
 
 -- Change sets: file changes proposed by agents. Nothing is written to disk until a user applies the set.
 CREATE TABLE change_sets (
-  id           TEXT PRIMARY KEY,
-  mission_id   TEXT,
-  run_id       TEXT,
-  step_id      TEXT,
-  title        TEXT NOT NULL,
-  status       TEXT NOT NULL CHECK (status IN ('proposed','applied','partially_applied','conflict','reverted','rejected')),
-  created_by   TEXT NOT NULL,
-  created_at   TEXT NOT NULL,
-  applied_at   TEXT,
-  applied_by   TEXT,
-  reverted_at  TEXT,
-  report       TEXT
+  id            TEXT PRIMARY KEY,
+  mission_id    TEXT,
+  run_id        TEXT,
+  step_id       TEXT,
+  title         TEXT NOT NULL,
+  status        TEXT NOT NULL CHECK (status IN ('proposed','applied','partially_applied','conflict','reverted','rejected')),
+  created_by    TEXT NOT NULL,
+  created_at    TEXT NOT NULL,
+  -- review (29.7): the user approves exactly this content; any later change makes the approval stale
+  content_hash  TEXT,
+  reviewed_hash TEXT,
+  reviewed_at   TEXT,
+  reviewed_by   TEXT,
+  -- checks passed in a work copy for exactly this content
+  verified_hash TEXT,
+  verification  TEXT,
+  work_copy_id  TEXT,
+  backup_id     TEXT,
+  applied_at    TEXT,
+  applied_by    TEXT,
+  reverted_at   TEXT,
+  report        TEXT
 );
 CREATE INDEX idx_change_sets_mission ON change_sets(mission_id);
 
@@ -597,6 +614,57 @@ CREATE TABLE project_profiles (
   files_hash  TEXT NOT NULL,
   computed_at TEXT NOT NULL
 );
+
+-- Isolated work copies of projects (29.3): physically separate folders in the app data directory
+CREATE TABLE work_copies (
+  id          TEXT PRIMARY KEY,
+  source_id   TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  mission_id  TEXT,
+  root_path   TEXT NOT NULL UNIQUE,
+  status      TEXT NOT NULL CHECK (status IN ('creating','ready','stale','discarded','error')),
+  files       INTEGER NOT NULL DEFAULT 0,
+  bytes       INTEGER NOT NULL DEFAULT 0,
+  excluded    TEXT NOT NULL DEFAULT '[]',
+  applied_sets TEXT NOT NULL DEFAULT '[]',
+  error       TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE INDEX idx_work_copies_source ON work_copies(source_id, status);
+
+-- Verified restore points taken before changes reach an original project (29.8)
+CREATE TABLE change_backups (
+  id            TEXT PRIMARY KEY,
+  source_id     TEXT NOT NULL,
+  change_set_id TEXT,
+  mission_id    TEXT,
+  path          TEXT NOT NULL UNIQUE,
+  status        TEXT NOT NULL CHECK (status IN ('creating','verified','failed','restored','pruned')),
+  files         TEXT NOT NULL DEFAULT '[]',
+  created_at    TEXT NOT NULL,
+  verified_at   TEXT,
+  restored_at   TEXT,
+  error         TEXT
+);
+
+-- Security journal (29.15): append-only (triggers) and hash-chained, so history cannot be rewritten silently
+CREATE TABLE security_log (
+  id         INTEGER PRIMARY KEY,
+  ts         TEXT NOT NULL,
+  actor      TEXT NOT NULL,
+  action     TEXT NOT NULL,
+  outcome    TEXT NOT NULL CHECK (outcome IN ('ok','denied','error','warning')),
+  source_id  TEXT,
+  task_id    TEXT,
+  resources  TEXT NOT NULL DEFAULT '[]',
+  message    TEXT NOT NULL,
+  details    TEXT,
+  prev_hash  TEXT NOT NULL,
+  hash       TEXT NOT NULL
+);
+CREATE INDEX idx_security_log_ts ON security_log(ts);
+CREATE TRIGGER security_log_no_update BEFORE UPDATE ON security_log BEGIN SELECT RAISE(ABORT, 'security_log is append-only'); END;
+CREATE TRIGGER security_log_no_delete BEFORE DELETE ON security_log BEGIN SELECT RAISE(ABORT, 'security_log is append-only'); END;
 
 -- Audit journal of this system (every mutating operation, agent tool call, permission decision)
 CREATE TABLE audit_log (

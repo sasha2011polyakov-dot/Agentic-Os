@@ -2,6 +2,7 @@ import { openDb, currentSchemaVersion, integrityCheck, type Db } from '../db/db.
 import { SYSTEM_MIGRATIONS } from '../db/system-migrations.ts';
 import { SafeFs } from '../fs/safe-fs.ts';
 import { SystemAudit } from '../log/audit.ts';
+import { SecurityLog } from '../security/log.ts';
 import type { Logger } from '../log/logger.ts';
 import { SystemSettings } from '../settings/settings.ts';
 import { AppError } from '../util/errors.ts';
@@ -29,6 +30,8 @@ export class SystemRuntime {
   readonly db: Db;
   readonly settings: SystemSettings;
   readonly audit: SystemAudit;
+  /** Append-only, hash-chained security journal of this system (29.15). */
+  readonly security: SecurityLog;
   readonly history: HistoryStore;
   readonly fs: SafeFs;
   readonly log: Logger;
@@ -49,6 +52,7 @@ export class SystemRuntime {
     this.migrationBackup = args.migrationBackup;
     this.settings = new SystemSettings(this.db, args.app.appSettings);
     this.audit = new SystemAudit(this.db);
+    this.security = new SecurityLog(this.db, args.systemId);
     this.history = new HistoryStore(this.db, this.settings.get<number>('history.maxVersions'));
     this.fs = new SafeFs(this.history);
     this.log = args.app.logger.child({ systemId: args.systemId });

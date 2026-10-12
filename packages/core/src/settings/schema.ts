@@ -33,6 +33,9 @@ export const SETTINGS: SettingDef[] = [
   { key: 'ai.budget', level: 'app', default: { monthlyCostUsd: null, maxCloudRequestsPerDay: null, maxConcurrentRequests: 2 }, label: 'Лимиты облачных AI', description: 'Месячный лимит стоимости, запросов в день и параллельных запросов.', validate: isObj },
   { key: 'web.search', level: 'app', default: { provider: 'none', searxngUrl: '', braveSecretRef: null, githubSecretRef: null, allowHttp: false }, label: 'Веб-поиск', description: 'Поисковый провайдер для агентов-исследователей.', validate: isObj },
   { key: 'security.gitDetails', level: 'app', default: true, label: 'Подробные сведения Git', description: 'Запускать git status/log (только чтение, с защитными флагами).', validate: isBool },
+  { key: 'security.workCopyMaxBytes', level: 'app', default: 2 * 1024 * 1024 * 1024, label: 'Максимальный размер рабочей копии', description: 'Проекты больше этого размера не копируются целиком: зависимости исключаются, а если и без них слишком много — копия не создаётся.', validate: isNum },
+  { key: 'security.backupsKeep', level: 'app', default: 50, label: 'Хранить точек восстановления на проект', description: 'Старые резервные копии изменений удаляются после создания новой.', validate: isNum },
+  { key: 'security.sandbox', level: 'app', default: 'auto', label: 'Изоляция проверок', description: 'auto — использовать песочницу (bubblewrap в Linux), если она доступна; limited — только ограниченный режим.', validate: oneOf('auto', 'limited') },
 
   // Both levels: app default, system may override
   { key: 'ai.mode', level: 'both', default: 'local', label: 'Режим AI', description: 'local — только локальные модели; hybrid — облако по политике; cloud — облако разрешено.', validate: oneOf('local', 'hybrid', 'cloud') },

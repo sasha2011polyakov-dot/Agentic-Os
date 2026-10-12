@@ -9,6 +9,7 @@ import type { ProviderRegistry } from './registry.ts';
 import type { SecretStore } from './secrets.ts';
 import type { ChatMessage, ChatResponse, LocalModelProvider, PullProgress, TaskType } from './types.ts';
 import { StructuredUnsupportedError } from './types.ts';
+import { secretKindsIn } from '../security/egress.ts';
 
 export interface CallContext {
   rt: SystemRuntime;
@@ -125,6 +126,15 @@ export class AICore {
     } catch (e) {
       this.recordUsage(ctx, route, route.model, { inputTokens: null, outputTokens: null, latencyMs: 0, cost: null, status: 'denied', errorCode: 'BUDGET_EXCEEDED' });
       throw e;
+    }
+    if (route.locality === 'cloud') {
+      // nothing secret-looking leaves the computer, whatever the documents contain
+      const kinds = secretKindsIn([input.system ?? '', ...input.messages.map((m) => m.content)].join('\n'));
+      if (kinds.length) {
+        this.recordUsage(ctx, route, route.model, { inputTokens: null, outputTokens: null, latencyMs: 0, cost: null, status: 'denied', errorCode: 'SECRET_EGRESS_BLOCKED' });
+        ctx.rt.security.record({ actor: ctx.agentId ? `agent:${ctx.agentId}` : ctx.purpose, action: 'secret.blocked', outcome: 'denied', taskId: ctx.runId ?? null, resources: [route.providerId], message: `Запрос к облачной модели заблокирован: в данных найдено ${kinds.join(', ')}. Данные не отправлены.` });
+        throw new AppError('SECRET_EGRESS_BLOCKED', `Запрос к облачной модели не отправлен: в данных найдено ${kinds.join(', ')}.`);
+      }
     }
     const provider = await this.providers.instance(route.providerId);
     const release = await this.semaphore(route.providerId).acquire(ctx.signal);

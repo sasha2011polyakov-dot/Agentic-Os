@@ -6,6 +6,8 @@
     "search_documents",
     "propose_file_change",
     "create_document",
-    "run_check"
+    "run_check",
+    "create_agent_definition",
+    "create_workflow_definition"
   ]
 }

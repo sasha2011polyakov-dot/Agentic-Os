@@ -2,6 +2,7 @@ import type { AppServices } from '../systems/context.ts';
 import type { SystemRuntime } from '../systems/runtime.ts';
 import type { SecretStore } from '../ai/secrets.ts';
 import { AppError } from '../util/errors.ts';
+import { secretKindsIn } from '../security/egress.ts';
 import { sha256 } from '../util/hash.ts';
 import { newId } from '../util/ids.ts';
 import { nowIso } from '../util/time.ts';
@@ -71,12 +72,19 @@ export class WebResearch {
 
   async search(query: string, limit: number, signal?: AbortSignal, systemId?: string): Promise<WebSearchResult[]> {
     if (!query.trim()) throw new AppError('VALIDATION_FAILED', 'Пустой поисковый запрос.');
+    const kinds = secretKindsIn(query);
+    if (kinds.length) throw new AppError('SECRET_EGRESS_BLOCKED', `Поисковый запрос не отправлен: в нём найдено ${kinds.join(', ')}.`);
     const p = await this.provider();
     return p.search(query.slice(0, 400), { limit: Math.min(limit, 20), ...(signal ? { signal } : {}), ...(systemId ? { systemId } : {}) });
   }
 
   /** Fetches, extracts and stores a page in the system's web_sources (content kept for later grounding). */
   async fetchAndStore(rt: SystemRuntime, url: string, opts: { signal?: AbortSignal; maxChars?: number; provider?: string } = {}): Promise<StoredPage> {
+    const kinds = secretKindsIn(url);
+    if (kinds.length) {
+      rt.security.record({ actor: 'web', action: 'secret.blocked', outcome: 'denied', resources: [new URL(url).hostname], message: `Загрузка адреса заблокирована: в URL найдено ${kinds.join(', ')}. Данные не отправлены.` });
+      throw new AppError('SECRET_EGRESS_BLOCKED', `Адрес не загружен: в URL найдено ${kinds.join(', ')}.`);
+    }
     const page = await this.fetcher.fetch(url, { systemId: rt.systemId, allowHttp: this.settings().allowHttp, ...(opts.signal ? { signal: opts.signal } : {}) });
     const raw = page.body.toString('utf8');
     const extracted = page.contentType.includes('html') ? extractPage(raw, page.finalUrl) : { title: null, text: raw, markdown: raw, publishedAt: null, canonicalUrl: null, description: null, links: [] };

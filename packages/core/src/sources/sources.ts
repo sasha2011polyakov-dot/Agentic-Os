@@ -11,6 +11,7 @@ import { isInside, normalizeRelPath, realpathLoose } from '../fs/guard.ts';
 import { classifyFile } from '../fs/file-kinds.ts';
 import { readGitDetails, readGitInfo, type GitInfo } from './git.ts';
 import { validateChecks, type CheckDefinition } from '../missions/checks.ts';
+import { modeAtLeast, modeLabel, ACCESS_MODES, type AccessMode } from '../security/policy.ts';
 import { AppError, errorMessage } from '../util/errors.ts';
 import { newId } from '../util/ids.ts';
 import { parseJson } from '../util/json.ts';
@@ -35,8 +36,9 @@ export interface SourceInfo {
   watchMode: 'native' | 'polling' | 'off';
   /** User-defined verification commands (missions may run them by name after approval). */
   checks: CheckDefinition[];
-  /** Whether the user allows applying approved change sets to this project's files. */
-  allowApply: boolean;
+  /** Access mode (29.2): only the user changes it; never raised automatically. */
+  accessMode: AccessMode;
+  accessModeLabel: string;
   status: string;
   statusMessage: string | null;
   lastIndexedAt: string | null;
@@ -74,7 +76,7 @@ export interface SourcePreview {
 
 interface FullRow extends SourceRow {
   checks: string;
-  allow_apply: number;
+  access_mode: AccessMode;
   purpose: string;
   category: string;
   git_root: string | null;
@@ -122,7 +124,8 @@ export class SourceService implements RuntimeService {
       watch: !!r.watch,
       watchMode: this.watchers.get(r.id)?.mode ?? 'off',
       checks: parseJson<CheckDefinition[]>(r.checks, []),
-      allowApply: !!r.allow_apply,
+      accessMode: r.kind === 'vault' ? 'apply' : r.access_mode,
+      accessModeLabel: r.kind === 'vault' ? 'Хранилище системы' : modeLabel(r.access_mode),
       status: r.status,
       statusMessage: r.status_message,
       lastIndexedAt: r.last_indexed_at,
@@ -235,13 +238,14 @@ export class SourceService implements RuntimeService {
     );
     this.graph.upsertNode({ id: projectNodeId(id), type: git.isRepo ? 'repository' : 'project', label: name, refId: id, sourceId: id, props: { path: abs, purpose: input.purpose ?? '' } });
     this.rt.audit.record({ actor: 'user', action: 'source.connect', target: id, details: { path: abs, name, isGit: git.isRepo } });
+    this.rt.security.record({ actor: 'user', action: 'project.connect', outcome: 'ok', sourceId: id, resources: [abs], message: `Подключён проект «${name}» в режиме «Только изучение»${git.isRepo ? ' (Git-репозиторий; операции Git приложение не выполняет)' : ''}` });
     this.rt.emit('source.updated', { sourceId: id, status: 'pending' });
     this.startWatcher(id);
     void this.indexer.indexSource(id).catch((e) => this.rt.log.warn('initial indexing failed', { sourceId: id, error: e as Error }));
     return this.get(id);
   }
 
-  async update(id: string, patch: Partial<Omit<ConnectInput, 'path'>> & { writable?: boolean; checks?: unknown; allowApply?: boolean }): Promise<SourceInfo> {
+  async update(id: string, patch: Partial<Omit<ConnectInput, 'path'>> & { writable?: boolean; checks?: unknown }): Promise<SourceInfo> {
     const r = this.row(id);
     const sets: string[] = [];
     const params: (string | number)[] = [];
@@ -275,10 +279,6 @@ export class SourceService implements RuntimeService {
       if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Проверки задаются только для подключённых проектов.');
       set('checks', JSON.stringify(validateChecks(patch.checks)));
     }
-    if (patch.allowApply !== undefined) {
-      if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Разрешение на применение изменений задаётся для проектов.');
-      set('allow_apply', patch.allowApply ? 1 : 0);
-    }
     if (patch.writable !== undefined && r.kind === 'project' && patch.writable) {
       throw new AppError('READ_ONLY_SOURCE', 'Подключённые проекты открываются только для чтения.', { hint: 'Создавайте и изменяйте документы в хранилище системы.' });
     }
@@ -293,6 +293,30 @@ export class SourceService implements RuntimeService {
       if (patch.watch) this.startWatcher(id);
     }
     if (rulesChanged) void this.indexer.indexSource(id, { force: true }).catch(() => undefined);
+    this.rt.emit('source.updated', { sourceId: id });
+    return this.get(id);
+  }
+
+  /**
+   * Changes a project's access mode (29.2). A user-only action: no tool exposes it, so agents can never raise it.
+   * The privileged mode «Применить к исходному проекту» needs an explicit confirmation.
+   */
+  setAccessMode(id: string, mode: AccessMode, opts: { actor: string; confirm?: boolean }): SourceInfo {
+    const r = this.row(id);
+    if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Режим доступа задаётся для подключённых проектов.');
+    if (!ACCESS_MODES.some((m) => m.id === mode)) throw new AppError('VALIDATION_FAILED', `Неизвестный режим: ${mode}`);
+    if (opts.actor !== 'user') {
+      this.rt.security.record({ actor: opts.actor, action: 'project.mode', outcome: 'denied', sourceId: id, message: `Попытка изменить режим проекта не пользователем (${opts.actor}) отклонена` });
+      throw new AppError('PERMISSION_DENIED', 'Режим доступа к проекту меняет только пользователь.');
+    }
+    const raising = !modeAtLeast(r.access_mode, mode);
+    if (mode === 'apply' && raising && !opts.confirm) {
+      throw new AppError('CONFIRMATION_REQUIRED', 'Режим «Применить к исходному проекту» позволит переносить проверенные изменения в ваши файлы. Каждое применение по-прежнему потребует просмотра изменений, прохождения проверок и резервной копии. Подтвердите включение.');
+    }
+    if (mode === r.access_mode) return this.get(id);
+    this.rt.db.run('UPDATE sources SET access_mode = ?, updated_at = ? WHERE id = ?', mode, nowIso(), id);
+    this.rt.security.record({ actor: opts.actor, action: 'project.mode', outcome: 'ok', sourceId: id, resources: [r.root_path], message: `Режим проекта «${r.name}»: «${modeLabel(r.access_mode)}» → «${modeLabel(mode)}»` });
+    this.rt.audit.record({ actor: opts.actor, action: 'source.access_mode', target: id, details: { from: r.access_mode, to: mode } });
     this.rt.emit('source.updated', { sourceId: id });
     return this.get(id);
   }

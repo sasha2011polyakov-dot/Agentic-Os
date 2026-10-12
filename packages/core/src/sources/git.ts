@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { AppError } from '../util/errors.ts';
 
 export interface GitInfo {
   isRepo: boolean;
@@ -106,9 +107,22 @@ let emptyHooksDir: string | null = null;
  * Runs an allow-listed READ-ONLY git command with hardening against repository-controlled code execution:
  * fsmonitor disabled, hooks pointed at an empty folder, no system config, no prompts, no protocols.
  */
+const GIT_ALLOWED = new Set(['status', 'log']);
+/** Options that could redirect git to other repositories, run programs or change configuration. */
+const GIT_FORBIDDEN_FLAGS = /^(-c|-C|--git-dir|--work-tree|--exec-path|--namespace|--config-env|--output|-o|--ext-diff|--textconv)(=|$)/;
+
+/**
+ * The only git commands the application ever runs: read-only `status` and `log` (29.6). Anything else —
+ * commit, push, reset, clean, checkout, rebase, config… — is refused before a process is started.
+ */
+export function assertSafeGitArgs(args: string[]): void {
+  const sub = args[0] ?? '';
+  if (!GIT_ALLOWED.has(sub)) throw new AppError('COMMAND_BLOCKED', `Команда git ${sub} не выполняется приложением: разрешены только просмотр состояния и истории.`);
+  for (const a of args.slice(1)) if (GIT_FORBIDDEN_FLAGS.test(a)) throw new AppError('COMMAND_BLOCKED', `Параметр git ${a} запрещён.`);
+}
+
 async function gitReadOnly(cwd: string, args: string[], timeoutMs = 8000): Promise<string> {
-  const ALLOWED = new Set(['status', 'log']);
-  if (!ALLOWED.has(args[0]!)) throw new Error(`git ${args[0]} is not allowed`);
+  assertSafeGitArgs(args);
   emptyHooksDir ??= await mkdtemp(join(tmpdir(), 'aos-nohooks-'));
   const hardened = ['-c', 'core.fsmonitor=false', '-c', `core.hooksPath=${emptyHooksDir}`, '-c', 'core.untrackedCache=false', '-c', 'protocol.allow=never', '-c', 'diff.external=', '-c', 'core.pager=cat', '--no-optional-locks', ...args];
   return new Promise((resolvePromise, reject) => {
@@ -147,4 +161,22 @@ export async function readGitDetails(root: string): Promise<Pick<GitInfo, 'statu
     const msg = e instanceof Error ? e.message : String(e);
     return { status: null, recentCommits: null, detailsError: /ENOENT/.test(msg) ? 'Git не установлен: доступны только базовые сведения из папки .git.' : `Не удалось получить сведения Git: ${msg.split('\n')[0]}` };
   }
+}
+
+/** Plain-language description of a repository state for users who do not know Git (29.6, 29.16). */
+export function describeRepository(info: GitInfo): { summary: string; points: string[]; warnings: string[] } {
+  if (!info.isRepo) return { summary: 'Обычная папка (не Git-репозиторий).', points: ['История изменений Git отсутствует: перед применением изменений приложение само создаёт резервную копию затронутых файлов.'], warnings: [] };
+  const points: string[] = [];
+  const warnings: string[] = [];
+  points.push(info.detached ? 'Репозиторий находится в состоянии «отсоединённой головы» (выбран конкретный коммит, а не ветка).' : `Текущая ветка: ${info.branch ?? 'не определена'}.`);
+  if (info.status) {
+    if (info.status.changed) {
+      points.push(`Есть несохранённые в Git изменения: ${info.status.changed} файл(ов).`);
+      warnings.push('В проекте есть ваши незакоммиченные изменения. Приложение их не сбрасывает и не перезаписывает без проверки: при применении изменений конфликтующие файлы будут показаны отдельно.');
+    } else points.push('Незакоммиченных изменений нет.');
+    if (info.status.untracked) points.push(`Неотслеживаемых файлов (не добавленных в Git): ${info.status.untracked}. Приложение их не удаляет.`);
+  } else if (info.detailsError) points.push(info.detailsError);
+  if (info.remotes.length) points.push(`Удалённые источники: ${info.remotes.map((r) => `${r.name} → ${r.url}`).join('; ')} (учётные данные скрыты).`);
+  points.push('Приложение не выполняет команды Git, изменяющие репозиторий (commit, push, reset, clean, checkout): только чтение состояния и истории.');
+  return { summary: `Git-репозиторий${info.branch ? `, ветка ${info.branch}` : ''}.`, points, warnings };
 }

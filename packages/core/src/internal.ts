@@ -25,3 +25,6 @@ import { workflowFunctions } from './workflows/functions.ts';
 export function workflowFunctionList(): { name: string; label: string; description: string; sideEffects: boolean }[] {
   return workflowFunctions().map((f) => ({ name: f.name, label: f.label, description: f.description, sideEffects: !!f.sideEffects }));
 }
+export { ACCESS_MODES, analyzeRisks, categorize, type AccessMode, type RiskItem } from './security/policy.ts';
+export { describeRepository, assertSafeGitArgs } from './sources/git.ts';
+export type { SecurityEntry } from './security/log.ts';

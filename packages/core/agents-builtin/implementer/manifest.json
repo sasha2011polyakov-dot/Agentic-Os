@@ -38,13 +38,23 @@
           "Reports",
           "Specs",
           "Research",
-          "Notes"
+          "Notes",
+          "Missions",
+          "Docs"
         ]
       }
     },
     {
       "permission": "commands.run",
       "reason": "Запуск проверок, заданных пользователем"
+    },
+    {
+      "permission": "agents.create",
+      "reason": "Черновики специализированных агентов, если подходящего нет (включает только пользователь)"
+    },
+    {
+      "permission": "workflows.create",
+      "reason": "Черновики процессов для повторяющихся задач (запускает только пользователь)"
     }
   ],
   "dependencies": [],

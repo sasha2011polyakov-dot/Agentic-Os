@@ -97,7 +97,7 @@ export const TOOL_PERMISSIONS: Record<string, PermissionId[]> = {
   create_document: ['documents.create'], web_search: ['web.search', 'network.fetch'], open_url: ['network.fetch'], extract_page_content: ['network.fetch'],
   fetch_documentation: ['network.fetch'], search_github: ['external.api', 'network.fetch'], inspect_repository: ['external.api', 'network.fetch'],
   save_research_note: ['documents.create'], create_source_links: ['graph.write'], verify_source_freshness: ['network.fetch'], compare_sources: [],
-  propose_file_change: ['changes.propose'], run_check: ['commands.run'], create_agent_definition: ['agents.create'],
+  propose_file_change: ['changes.propose'], run_check: ['commands.run'], create_agent_definition: ['agents.create'], create_workflow_definition: ['workflows.create'],
 };
 
 /** Tool names a package may request. Kept in sync with tools/registry.ts (checked by a test). */
@@ -105,7 +105,7 @@ export const KNOWN_TOOLS = new Set([
   'search_documents', 'read_document', 'list_documents', 'project_inventory', 'list_project_files', 'read_project_file', 'graph_neighbors',
   'create_document', 'web_search', 'open_url', 'extract_page_content', 'fetch_documentation', 'search_github', 'inspect_repository',
   'compare_sources', 'save_research_note', 'create_source_links', 'verify_source_freshness',
-  'propose_file_change', 'run_check', 'create_agent_definition',
+  'propose_file_change', 'run_check', 'create_agent_definition', 'create_workflow_definition',
 ]);
 
 function parseJsonFile(files: Map<string, Buffer>, path: string, errors: string[]): unknown {

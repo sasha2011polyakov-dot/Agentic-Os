@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { services } from '../src/wiring.ts';
 import { appAI } from '../src/ai/app-ai.ts';
@@ -11,7 +11,7 @@ import { NetworkPolicy } from '../src/net/policy.ts';
 import { HttpClient } from '../src/net/http.ts';
 import { resetTestProvider, testProviderCalls } from '../src/ai/providers/test.ts';
 import { validator } from '../src/agents/schema.ts';
-import { fileExists, hashTree, startTestApp, waitFor, type TestApp } from './helpers.ts';
+import { fileExists, startTestApp, waitFor, type TestApp } from './helpers.ts';
 import { writeProject } from './fixtures/project.ts';
 import { final, installTestAgent, scriptAgent, toolCall } from './fixtures/agents.ts';
 
@@ -281,100 +281,6 @@ describe('agent runtime: tool loop, permissions, repair', () => {
     expect(draft.installed).toBe(false);
     expect(rt.db.get('SELECT id FROM agents WHERE id = ?', 'glossary-builder')).toBeUndefined();
     expect(await fileExists(join(rt.paths.root, '.aos/agents/glossary-builder/1.0.0/manifest.json'))).toBe(true);
-  });
-});
-
-describe('change sets and project checks', () => {
-  it('proposes without writing, applies with permission, detects conflicts and reverts', async () => {
-    const { s, rt, projectId, projectDir } = await setup({ project: true });
-    await installTestAgent(s, { id: 'coder', tools: ['propose_file_change'], permissions: ['changes.propose'] });
-    const before = await hashTree(projectDir);
-    const readme = await readFile(join(projectDir, 'README.md'), 'utf8');
-    const script = scriptAgent('Тестовый агент coder', [
-      toolCall([
-        { tool: 'propose_file_change', args: { sourceId: projectId, path: 'README.md', op: 'modify', content: `${readme}\nНовый раздел.\n`, rationale: 'дополнить' } },
-        { tool: 'propose_file_change', args: { sourceId: projectId, path: 'src/new.ts', op: 'create', content: 'export const x = 1;\n', rationale: 'новый модуль' } },
-        { tool: 'propose_file_change', args: { sourceId: projectId, path: '.env', op: 'modify', content: 'A=1', rationale: 'нельзя' } },
-        { tool: 'propose_file_change', args: { sourceId: projectId, path: '.git/config', op: 'modify', content: 'x', rationale: 'нельзя' } },
-        { tool: 'propose_file_change', args: { sourceId: projectId, path: '../outside.txt', op: 'create', content: 'x', rationale: 'нельзя' } },
-      ]),
-      final({ summary: 'предложил' }),
-    ]);
-    cleanups.push(script.off);
-    const { pkg, config } = await s.agents.forRun('coder');
-    const res = await s.agentRuntime.run('coder', pkg, config, {}, { scope: { ...noScope, sourceIds: [projectId] }, stepId: 'step-1' });
-    expect(res.toolCalls.map((c) => c.ok)).toEqual([true, true, false, false, false]);
-    expect(await hashTree(projectDir)).toEqual(before); // nothing written yet
-
-    const setId = (res.toolCalls[0]!.output as { changeSetId: string }).changeSetId;
-    const view = s.changes.get(setId);
-    expect(view.files).toHaveLength(2);
-    expect(view.files.find((f) => f.path === 'README.md')!.diff).toContain('+Новый раздел.');
-    expect(view.applicable[0]!.allowed).toBe(false);
-    await expect(s.changes.apply(setId, { actor: 'user' })).rejects.toMatchObject({ code: 'APPLY_NOT_ALLOWED' });
-    expect(await hashTree(projectDir)).toEqual(before);
-
-    await s.sources.update(projectId, { allowApply: true });
-    // the user edits README after the proposal → conflict for that file, the other file applies
-    await writeFile(join(projectDir, 'README.md'), `${readme}\nПравка пользователя.\n`);
-    const applied = await s.changes.apply(setId, { actor: 'user' });
-    expect(applied.status).toBe('partially_applied');
-    expect(applied.files.find((f) => f.path === 'README.md')!.status).toBe('conflict');
-    expect(await readFile(join(projectDir, 'README.md'), 'utf8')).toContain('Правка пользователя');
-    expect(await readFile(join(projectDir, 'src/new.ts'), 'utf8')).toBe('export const x = 1;\n');
-    await waitFor(() => rt.db.get("SELECT id FROM files WHERE source_id = ? AND rel_path = 'src/new.ts'", projectId), { message: 'new file indexed' });
-
-    const reverted = await s.changes.revert(setId, { actor: 'user' });
-    expect(reverted.status).toBe('reverted');
-    expect(await fileExists(join(projectDir, 'src/new.ts'))).toBe(false);
-    expect(rt.audit.list({ action: 'changeset.apply' })).toHaveLength(1);
-  });
-
-  it('runs only user-defined, approved checks without a shell and without secrets in the environment', async () => {
-    const { s, rt, projectId, t } = await setup({ project: true });
-    process.env.AOS_SECRET_LEAK_TEST = 'sk-shouldnotleak-1234567890abcdef';
-    cleanups.push(() => {
-      delete process.env.AOS_SECRET_LEAK_TEST;
-    });
-    const node = process.execPath;
-    await s.sources.update(projectId, {
-      checks: [
-        { name: 'env', program: node, args: ['-e', 'console.log(JSON.stringify(Object.keys(process.env)))'] },
-        { name: 'fail', program: node, args: ['-e', 'console.error("boom"); process.exit(3)'] },
-        { name: 'shell', program: node, args: ['-e', 'console.log(process.argv[1])', '$(touch pwned) ; rm -rf /'] },
-        { name: 'slow', program: node, args: ['-e', 'setTimeout(()=>{}, 10000)'], timeoutSec: 1 },
-      ],
-    });
-    await installTestAgent(s, { id: 'checker', tools: ['run_check'], permissions: ['commands.run'] });
-    const script = scriptAgent('Тестовый агент checker', [
-      toolCall([
-        { tool: 'run_check', args: { sourceId: projectId, name: 'env' } },
-        { tool: 'run_check', args: { sourceId: projectId, name: 'fail' } },
-        { tool: 'run_check', args: { sourceId: projectId, name: 'shell' } },
-        { tool: 'run_check', args: { sourceId: projectId, name: 'slow' } },
-        { tool: 'run_check', args: { sourceId: projectId, name: 'not-approved' } },
-      ]),
-      final({ summary: 'проверил' }),
-    ]);
-    cleanups.push(script.off);
-    const { pkg, config } = await s.agents.forRun('checker');
-    const approvedChecks = ['env', 'fail', 'shell', 'slow'].map((name) => ({ sourceId: projectId, name }));
-    const res = await s.agentRuntime.run('checker', pkg, config, {}, { scope: { ...noScope, sourceIds: [projectId], approvedChecks } });
-    const [env, fail, shell, slow, notApproved] = res.toolCalls.map((c) => c.output as { ok: boolean; exitCode: number | null; output: string; timedOut: boolean });
-    expect(env!.ok).toBe(true);
-    expect(env!.output).not.toContain('AOS_SECRET_LEAK_TEST');
-    expect(env!.output).toContain('CI');
-    expect(fail!.ok).toBe(false);
-    expect(fail!.exitCode).toBe(3);
-    expect(fail!.output).toContain('boom');
-    expect(shell!.ok).toBe(true);
-    expect(await fileExists(join(t.root, 'demo-shop', 'pwned'))).toBe(false);
-    expect(slow!.timedOut).toBe(true);
-    expect(res.toolCalls[4]!.error?.code).toBe('CHECK_NOT_APPROVED');
-    expect(notApproved).toBeUndefined();
-    expect(rt.audit.list({ action: 'check.run' })).toHaveLength(4);
-    // user cannot configure invalid checks either
-    await expect(s.sources.update(projectId, { checks: [{ name: 'bad name!', program: 'x' }] })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 });
 

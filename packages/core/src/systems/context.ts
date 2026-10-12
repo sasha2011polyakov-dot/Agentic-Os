@@ -6,6 +6,7 @@ import type { HttpClient } from '../net/http.ts';
 import type { NetworkPolicy } from '../net/policy.ts';
 import type { AppSettings } from '../settings/settings.ts';
 import type { AppPaths } from './paths.ts';
+import type { SecurityLog } from '../security/log.ts';
 
 /**
  * Application-wide services shared by all systems. Nothing here holds system content: system data is
@@ -20,6 +21,8 @@ export interface AppServices {
   registryAudit: RegistryAudit;
   policy: NetworkPolicy;
   http: HttpClient;
+  /** Application-level security journal (extensions, keys, policies). */
+  security: SecurityLog;
   /** Late-bound application services (AI Core, agent catalog, secrets) — set by the composition root. */
   ext: Record<string, unknown>;
 }

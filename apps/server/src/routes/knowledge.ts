@@ -72,7 +72,7 @@ export function registerSourceRoutes(r: Router): void {
     const b = body(ctx);
     const patch: Record<string, unknown> = {};
     for (const k of ['name', 'purpose', 'category'] as const) if (typeof b[k] === 'string') patch[k] = b[k];
-    for (const k of ['confidential', 'watch', 'respectGitignore', 'writable', 'allowApply'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
+    for (const k of ['confidential', 'watch', 'respectGitignore', 'writable'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
     if (b.checks !== undefined) patch.checks = b.checks;
     if (typeof b.maxFileBytes === 'number') patch.maxFileBytes = b.maxFileBytes;
     const inc = strArray(b.includeGlobs);

@@ -1,5 +1,5 @@
 import { AppError } from '@aos/core';
-import { appAI, services, PROVIDER_PRESETS, TASK_TYPES, PERMISSIONS, TOOLS, runCheck, type AgentScope, type GrantScope, type PermissionId, type ModelPolicy, type ProviderKind, type Locality, type TaskType, type ChangeSetStatus } from '@aos/core/internal';
+import { appAI, services, PROVIDER_PRESETS, TASK_TYPES, PERMISSIONS, TOOLS, runCheck, ACCESS_MODES, describeRepository, type AccessMode, type AgentScope, type GrantScope, type PermissionId, type ModelPolicy, type ProviderKind, type Locality, type TaskType, type ChangeSetStatus } from '@aos/core/internal';
 import type { RouteContext, Router } from '../http/router.ts';
 import { raw } from '../http/router.ts';
 import { body, bool, int, optStr, str, sys } from './util.ts';
@@ -287,17 +287,81 @@ export function registerChangeRoutes(r: Router): void {
     return { changeSets: services(await sys(ctx)).changes.list(opts) };
   });
   r.get(`${base}/:id`, async (ctx) => ({ changeSet: services(await sys(ctx)).changes.get(ctx.params.id!) }));
-  r.get(`${base}/:id/patch`, async (ctx) => raw(services(await sys(ctx)).changes.patch(ctx.params.id!), { 'content-type': 'text/x-diff; charset=utf-8', 'content-disposition': `attachment; filename="${ctx.params.id}.patch"` }));
+  r.get(`${base}/:id/patch`, async (ctx) => raw(services(await sys(ctx)).changes.patch(ctx.params.id!, 'user'), { 'content-type': 'text/x-diff; charset=utf-8', 'content-disposition': `attachment; filename="${ctx.params.id}.patch"` }));
   r.get(`${base}/files/:fileId/content`, async (ctx) => services(await sys(ctx)).changes.proposedContent(ctx.params.fileId!));
+  // review screen actions (29.7)
+  r.post(`${base}/:id/review`, async (ctx) => ({ changeSet: services(await sys(ctx)).changes.review(ctx.params.id!, 'user') }));
+  r.post(`${base}/:id/reject-files`, async (ctx) => {
+    const ids = body(ctx).fileIds;
+    if (!Array.isArray(ids) || !ids.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', 'fileIds — список идентификаторов файлов.');
+    return { changeSet: services(await sys(ctx)).changes.rejectFiles(ctx.params.id!, ids as string[], 'user') };
+  });
+  r.get(`${base}/:id/check-plan`, async (ctx) => ({ plan: await services(await sys(ctx)).changes.checkPlan(ctx.params.id!, 'user') }));
+  r.post(`${base}/:id/verify`, async (ctx) => {
+    const approved = body(ctx).approvedScripts;
+    const approvedScripts: Record<string, string> = {};
+    if (approved && typeof approved === 'object' && !Array.isArray(approved)) for (const [k, v] of Object.entries(approved)) if (typeof v === 'string') approvedScripts[k] = v;
+    return { changeSet: await services(await sys(ctx)).changes.verifyInWorkCopy(ctx.params.id!, { actor: 'user', approvedScripts }) };
+  });
   r.post(`${base}/:id/apply`, async (ctx) => {
     const b = body(ctx);
     const fileIds = Array.isArray(b.fileIds) ? b.fileIds.map(String) : undefined;
-    return { changeSet: await services(await sys(ctx)).changes.apply(ctx.params.id!, { actor: 'user', ...(fileIds ? { fileIds } : {}) }) };
+    const confirmRisks = Array.isArray(b.confirmRisks) ? b.confirmRisks.map(String) : [];
+    return { changeSet: await services(await sys(ctx)).changes.apply(ctx.params.id!, { actor: 'user', confirmRisks, ...(fileIds ? { fileIds } : {}) }) };
   });
-  r.post(`${base}/:id/revert`, async (ctx) => ({ changeSet: await services(await sys(ctx)).changes.revert(ctx.params.id!, { actor: 'user' }) }));
-  r.post(`${base}/:id/reject`, async (ctx) => ({ changeSet: services(await sys(ctx)).changes.reject(ctx.params.id!, { actor: 'user', ...(optStr(body(ctx).reason, 'reason', 1000) ? { reason: optStr(body(ctx).reason, 'reason', 1000)! } : {}) }) }));
-  // Manual run of a project check by the user (to try the configuration). Agents use run_check with approval.
-  r.post('/api/systems/:systemId/sources/:id/checks/:name/run', async (ctx) => ({ result: await runCheck(await sys(ctx), ctx.params.id!, ctx.params.name!, { actor: 'user' }) }));
+  r.post(`${base}/:id/revert`, async (ctx) => ({ changeSet: await services(await sys(ctx)).changes.revert(ctx.params.id!, { actor: 'user', confirmOverwrite: bool(body(ctx).confirmOverwrite) }) }));
+  r.post(`${base}/:id/reject`, async (ctx) => {
+    const reason = optStr(body(ctx).reason, 'reason', 1000);
+    return { changeSet: services(await sys(ctx)).changes.reject(ctx.params.id!, { actor: 'user', ...(reason ? { reason } : {}) }) };
+  });
+}
+
+export function registerSecurityRoutes(r: Router): void {
+  const s = '/api/systems/:systemId';
+  r.get('/api/security/modes', () => ({ modes: ACCESS_MODES }));
+  r.post(`${s}/sources/:id/access-mode`, async (ctx) => {
+    const b = body(ctx);
+    return { source: services(await sys(ctx)).sources.setAccessMode(ctx.params.id!, str(b.mode, 'mode') as AccessMode, { actor: 'user', confirm: bool(b.confirm) }) };
+  });
+  r.get(`${s}/sources/:id/repository`, async (ctx) => {
+    const info = await services(await sys(ctx)).sources.gitInfo(ctx.params.id!);
+    return { git: info, description: describeRepository(info) };
+  });
+  // work copies
+  r.get(`${s}/workcopies`, async (ctx) => ({ workCopies: services(await sys(ctx)).workcopies.list(ctx.query.get('sourceId') ?? undefined) }));
+  r.post(`${s}/sources/:id/workcopies`, async (ctx) => ({ workCopy: await services(await sys(ctx)).workcopies.create(ctx.params.id!, { actor: 'user' }) }));
+  r.delete(`${s}/workcopies/:wcId`, async (ctx) => {
+    await services(await sys(ctx)).workcopies.discard(ctx.params.wcId!, 'user');
+    return { ok: true };
+  });
+  r.post(`${s}/sources/:id/checks/:name/run`, async (ctx) => {
+    const svc = services(await sys(ctx));
+    const wc = svc.workcopies.current(ctx.params.id!, null) ?? (await svc.workcopies.create(ctx.params.id!, { actor: 'user' }));
+    const approved = optStr(body(ctx).approvedContentHash, 'approvedContentHash', 200);
+    return { result: await runCheck(await sys(ctx), ctx.params.id!, ctx.params.name!, { workCopy: { id: wc.id, rootPath: wc.rootPath }, actor: 'user', approvedContentHash: approved ?? null }) };
+  });
+  // backups and restore
+  r.get(`${s}/backups`, async (ctx) => ({ backups: services(await sys(ctx)).backups.list({ ...(ctx.query.get('sourceId') ? { sourceId: ctx.query.get('sourceId')! } : {}) }) }));
+  r.get(`${s}/backups/:id`, async (ctx) => {
+    const b = services(await sys(ctx)).backups;
+    return { backup: b.get(ctx.params.id!), integrity: await b.verify(ctx.params.id!), editedSinceApply: await b.changedSinceApply(ctx.params.id!) };
+  });
+  r.post(`${s}/backups/:id/restore`, async (ctx) => services(await sys(ctx)).backups.restore(ctx.params.id!, { actor: 'user', confirmOverwrite: bool(body(ctx).confirmOverwrite) }));
+  // security journal
+  r.get(`${s}/security-log`, async (ctx) => {
+    const rt = await sys(ctx);
+    const f: Parameters<typeof rt.security.list>[0] = { limit: int(ctx.query.get('limit'), 200, 2000) };
+    const before = ctx.query.get('before');
+    if (before) f.before = int(before, 0, Number.MAX_SAFE_INTEGER);
+    for (const k of ['action', 'sourceId', 'taskId'] as const) {
+      const v = ctx.query.get(k);
+      if (v) f[k] = v;
+    }
+    const o = ctx.query.get('outcome');
+    if (o) f.outcome = o as 'ok' | 'denied' | 'error' | 'warning';
+    return { entries: rt.security.list(f), integrity: rt.security.verify() };
+  });
+  r.get('/api/security-log', (ctx) => ({ entries: ctx.core.services.security.list({ limit: int(ctx.query.get('limit'), 200, 2000) }), integrity: ctx.core.services.security.verify() }));
 }
 
 export function registerWebRoutes(r: Router): void {

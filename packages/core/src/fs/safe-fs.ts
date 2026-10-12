@@ -1,4 +1,4 @@
-import { copyFile, mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
+import { copyFile, mkdir, open, readFile, realpath, rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { AppError } from '../util/errors.ts';
@@ -77,6 +77,9 @@ export class SafeFs {
       this.history.snapshot({ ...opts.history, content: previous, reason: `before:${opts.reason}`, actor: opts.actor });
     }
     await atomicWrite(real, text);
+    // check-then-use race (29.11): the folder must still be the one that was checked
+    const dirAfter = await realpath(dirname(real)).catch(() => null);
+    if (dirAfter !== dirname(real)) throw new AppError('PATH_OUTSIDE_SCOPE', 'Путь изменился во время записи (возможна подмена каталога). Операция остановлена.', { details: { target: real } });
     return { path: real, hash: newHash, created: previous === null, previousHash };
   }
 
@@ -114,7 +117,7 @@ export class SafeFs {
 export async function atomicWrite(target: string, content: string | Uint8Array): Promise<void> {
   await mkdir(dirname(target), { recursive: true });
   const tmp = join(dirname(target), `.${basename(target)}.aos-tmp-${randomBytes(6).toString('hex')}`);
-  const fh = await open(tmp, 'w');
+  const fh = await open(tmp, 'wx'); // O_EXCL: never reuse or follow a pre-existing temp path
   try {
     await fh.writeFile(content);
     await fh.sync();

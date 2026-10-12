@@ -10,15 +10,21 @@ const SECRET_NAME_PATTERNS: RegExp[] = [
   /^service[-_]?account.*\.json$/i,
 ];
 
-const SECRET_CONTENT_PATTERNS: RegExp[] = [
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-  /\bAKIA[0-9A-Z]{16}\b/,
-  /\bgh[pousr]_[A-Za-z0-9]{30,}\b/,
-  /\bgithub_pat_[A-Za-z0-9_]{30,}\b/,
-  /\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}\b/,
-  /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/,
-  /\bAIza[0-9A-Za-z_-]{35}\b/,
+const NAMED_SECRET_PATTERNS: { name: string; re: RegExp }[] = [
+  { name: 'приватный ключ', re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  { name: 'ключ доступа AWS', re: /\bAKIA[0-9A-Z]{16}\b/ },
+  { name: 'токен GitHub', re: /\bgh[pousr]_[A-Za-z0-9]{30,}\b/ },
+  { name: 'токен GitHub', re: /\bgithub_pat_[A-Za-z0-9_]{30,}\b/ },
+  { name: 'API-ключ (OpenAI/Anthropic)', re: /\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}\b/ },
+  { name: 'токен Slack', re: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/ },
+  { name: 'ключ Google API', re: /\bAIza[0-9A-Za-z_-]{35}\b/ },
 ];
+const SECRET_CONTENT_PATTERNS: RegExp[] = NAMED_SECRET_PATTERNS.map((p) => p.re);
+
+/** Names of secret kinds found in text (never the values themselves). */
+export function findSecretKinds(text: string): string[] {
+  return [...new Set(NAMED_SECRET_PATTERNS.filter((p) => p.re.test(text)).map((p) => p.name))];
+}
 
 export function isSecretFileName(relPath: string): boolean {
   const name = basename(relPath);

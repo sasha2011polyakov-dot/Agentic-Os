@@ -7,6 +7,8 @@ import { SourceService } from './sources/sources.ts';
 import { DocumentService } from './vault/documents.ts';
 import { SearchService } from './search/search.ts';
 import { ChangeSetService } from './changes/change-sets.ts';
+import { WorkCopyService } from './security/workcopy.ts';
+import { BackupService } from './security/backup.ts';
 import { AgentService } from './agents/service.ts';
 import { AgentRuntime } from './agents/runtime.ts';
 import { PermissionGuard } from './agents/permissions.ts';
@@ -28,6 +30,8 @@ export interface SystemServices {
   docs: DocumentService;
   search: SearchService;
   changes: ChangeSetService;
+  workcopies: WorkCopyService;
+  backups: BackupService;
   guard: PermissionGuard;
   agentRuntime: AgentRuntime;
   agents: AgentService;
@@ -57,14 +61,16 @@ export async function wireSystemServices(core: AppCore): Promise<void> {
       const sources = rt.register('sources', new SourceService(rt, indexer, graph));
       const docs = new DocumentService(rt, indexer);
       const search = new SearchService(rt.db);
-      const changes = new ChangeSetService(rt, indexer);
+      const workcopies = new WorkCopyService(rt);
+      const backups = new BackupService(rt);
+      const changes = new ChangeSetService(rt, indexer, workcopies, backups);
       const guard = new PermissionGuard(rt.db);
       const agentRuntime = new AgentRuntime(rt, ai.ai, { web: ai.web, systems: core.systems, guard });
       const agents = new AgentService(rt, ai.catalog, agentRuntime);
       const tasks = new TaskService(rt, graph);
       const workflows = rt.register('workflows', new WorkflowEngine(rt, agents, agentRuntime));
       workflows.installBuiltins(BUILTIN_WORKFLOWS);
-      const s: SystemServices = { graph, indexer, sources, docs, search, changes, guard, agentRuntime, agents, tasks, workflows };
+      const s: SystemServices = { graph, indexer, sources, docs, search, changes, workcopies, backups, guard, agentRuntime, agents, tasks, workflows };
       rt.setOwned('services', s);
       for (const hook of extraHooks) await hook(rt, s);
     },

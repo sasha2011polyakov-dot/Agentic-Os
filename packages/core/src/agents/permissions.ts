@@ -20,6 +20,7 @@ export type PermissionId =
   | 'commands.run'
   | 'changes.propose'
   | 'agents.create'
+  | 'workflows.create'
   | 'systems.read';
 
 export const PERMISSIONS: { id: PermissionId; label: string; description: string; risk: 'low' | 'medium' | 'high' }[] = [
@@ -38,6 +39,7 @@ export const PERMISSIONS: { id: PermissionId; label: string; description: string
   { id: 'commands.run', label: 'Запуск проверок проекта', description: 'Запуск ТОЛЬКО тех команд проверки (например, тестов), которые пользователь задал в настройках проекта. Произвольные команды недоступны.', risk: 'high' },
   { id: 'changes.propose', label: 'Предложение изменений файлов', description: 'Подготовка наборов изменений для проектов и документов. Файлы не меняются, пока пользователь не применит набор.', risk: 'medium' },
   { id: 'agents.create', label: 'Создание агентов', description: 'Создание черновиков новых агентов в системе (включает их только пользователь).', risk: 'medium' },
+  { id: 'workflows.create', label: 'Создание процессов', description: 'Сохранение черновиков процессов (workflow). Запускает их только пользователь.', risk: 'medium' },
   { id: 'systems.read', label: 'Чтение других систем', description: 'Чтение данных систем, явно выбранных при запуске процесса.', risk: 'high' },
 ];
 
@@ -72,8 +74,11 @@ export interface RunScope {
   deniedTools?: string[];
   /** Mission id when the run belongs to a mission (for change sets and checks). */
   missionId?: string;
-  /** Project checks the user approved for this run (run_check refuses anything else). */
-  approvedChecks?: { sourceId: string; name: string }[];
+  /** Project checks the user approved for this run (run_check refuses anything else). contentHash binds an
+   * approval of a check with risky scripts to exactly the content the user saw. */
+  approvedChecks?: { sourceId: string; name: string; contentHash?: string | null }[];
+  /** Groups proposed file changes into one change set (e.g. one per mission round). */
+  changeGroup?: string;
 }
 
 export interface PermissionRequirement {

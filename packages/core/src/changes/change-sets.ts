@@ -1,8 +1,13 @@
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SystemRuntime } from '../systems/runtime.ts';
 import type { Indexer } from '../index/indexer.ts';
+import type { WorkCopyService } from '../security/workcopy.ts';
+import type { BackupService } from '../security/backup.ts';
 import { normalizeRelPath } from '../fs/guard.ts';
-import { detectSecretContent, isSecretFileName } from '../fs/secrets.ts';
+import { detectSecretContent } from '../fs/secrets.ts';
+import { analyzeRisks, categorize, modeAtLeast, modeLabel, NEVER_WRITE, CATEGORY_TEXT, type AccessMode, type RiskItem } from '../security/policy.ts';
+import { inspectCheck, projectChecks, runCheck, type CheckResult } from '../missions/checks.ts';
 import { AppError, toAppError } from '../util/errors.ts';
 import { sha256 } from '../util/hash.ts';
 import { newId } from '../util/ids.ts';
@@ -33,7 +38,30 @@ export interface ChangeFileView {
   statusDetail: string | null;
   added: number;
   removed: number;
+  categories: string[];
   diff?: string;
+}
+
+/** What still stands between the set and the original project, per source (shown on the review screen). */
+export interface ApplyGate {
+  sourceId: string;
+  sourceName: string;
+  kind: 'vault' | 'project';
+  mode: AccessMode | 'vault';
+  modeLabel: string;
+  modeAllows: boolean;
+  checksConfigured: string[];
+  checksPassed: boolean;
+  allowed: boolean;
+  reasons: string[];
+}
+
+export interface Verification {
+  hash: string;
+  at: string;
+  allPassed: boolean;
+  results: (Pick<CheckResult, 'name' | 'sourceId' | 'ok' | 'exitCode' | 'timedOut' | 'durationMs' | 'output' | 'isolation' | 'workCopyId'> & { blocked?: string })[];
+  notes: string[];
 }
 
 export interface ChangeSetView {
@@ -50,7 +78,13 @@ export interface ChangeSetView {
   revertedAt: string | null;
   report: unknown;
   files: ChangeFileView[];
-  /** Per source: may this set be applied by the user (vault: yes; project: only with allow_apply). */
+  summary: { files: number; create: number; modify: number; delete: number; added: number; removed: number };
+  review: { contentHash: string | null; reviewed: boolean; stale: boolean; reviewedAt: string | null; reviewedBy: string | null };
+  verification: (Verification & { current: boolean }) | null;
+  risks: RiskItem[];
+  gates: ApplyGate[];
+  backupId: string | null;
+  /** Backwards-compatible short form of gates. */
   applicable: { sourceId: string; allowed: boolean; reason: string | null }[];
 }
 
@@ -63,6 +97,14 @@ interface SetRow {
   status: ChangeSetStatus;
   created_by: string;
   created_at: string;
+  content_hash: string | null;
+  reviewed_hash: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  verified_hash: string | null;
+  verification: string | null;
+  work_copy_id: string | null;
+  backup_id: string | null;
   applied_at: string | null;
   applied_by: string | null;
   reverted_at: string | null;
@@ -91,7 +133,7 @@ interface SourceRowLite {
   name: string;
   root_path: string;
   writable: number;
-  allow_apply: number;
+  access_mode: AccessMode;
 }
 
 const MAX_FILE_CHARS = 1_000_000;
@@ -99,19 +141,25 @@ const MAX_FILES_PER_SET = 200;
 const PROTECTED = new Set(['.git', 'node_modules', '.aos', '.trash']);
 
 /**
- * Change sets: agents only PROPOSE file changes (stored as content-addressed blobs with the hash of the file
- * they were based on). Applying is a separate user action with conflict detection, history snapshots and a
- * revert path. Projects stay read-only unless the user enabled "allow apply" for that project.
+ * Change sets (29.2 mode 2 / 29.7): agents only PROPOSE file changes; content is stored separately from the project
+ * with the hash of the file it was based on. The user reviews exactly that content; any later change makes the
+ * review stale. Changes reach a work copy for checks, and the ORIGINAL project only through `apply`, which requires:
+ * mode «Применить к исходному проекту», fresh review, passed checks, confirmed risks and a verified backup.
  */
 export class ChangeSetService {
+  /** Test hook (fault injection): the write of this relative path fails during apply. */
+  simulateWriteFailure: string | null = null;
+
   constructor(
     private readonly rt: SystemRuntime,
     private readonly indexer: Indexer,
+    private readonly workcopies: WorkCopyService,
+    private readonly backups: BackupService,
   ) {}
 
   private source(id: string): SourceRowLite {
-    const s = this.rt.db.get<SourceRowLite>('SELECT id, kind, name, root_path, writable, allow_apply FROM sources WHERE id = ?', id);
-    if (!s) throw new AppError('NOT_FOUND', `Источник ${id} не найден.`);
+    const s = this.rt.db.get<SourceRowLite>('SELECT id, kind, name, root_path, writable, access_mode FROM sources WHERE id = ?', id);
+    if (!s) throw new AppError('NOT_FOUND', `Источник ${id} не найден в этой системе.`);
     return s;
   }
 
@@ -125,15 +173,28 @@ export class ChangeSetService {
     return this.rt.db.all<FileRow>('SELECT * FROM change_set_files WHERE change_set_id = ? ORDER BY source_id, rel_path', setId);
   }
 
-  applyDenial(s: SourceRowLite): string | null {
-    if (s.kind === 'vault') return s.writable ? null : 'хранилище открыто только для чтения';
-    return s.allow_apply ? null : `применение изменений к проекту «${s.name}» не разрешено в его настройках`;
+  /** Hash of the set's effective content (non-skipped files). Reviews and verifications are bound to it. */
+  private contentHash(setId: string): string {
+    const parts = this.files(setId)
+      .filter((f) => f.status !== 'skipped')
+      .map((f) => `${f.source_id}|${f.rel_path}|${f.op}|${f.base_hash ?? ''}|${f.new_hash ?? ''}`)
+      .sort();
+    return sha256(parts.join('\n'));
+  }
+
+  private refreshHash(setId: string, actor: string): void {
+    const s = this.setRow(setId);
+    const hash = this.contentHash(setId);
+    this.rt.db.run('UPDATE change_sets SET content_hash = ? WHERE id = ?', hash, setId);
+    if (s.reviewed_hash && s.reviewed_hash !== hash) {
+      this.rt.security.record({ actor, action: 'review.stale', outcome: 'warning', taskId: s.mission_id ?? setId, message: `Набор «${s.title}» изменился после проверки — прежнее согласование недействительно, нужна повторная проверка.`, details: { changeSetId: setId } });
+    }
   }
 
   create(args: { title: string; createdBy: string; missionId?: string | null; runId?: string | null; stepId?: string | null }): string {
     const id = newId('cs');
     this.rt.db.run(
-      "INSERT INTO change_sets(id, mission_id, run_id, step_id, title, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'proposed', ?, ?)",
+      "INSERT INTO change_sets(id, mission_id, run_id, step_id, title, status, created_by, created_at, content_hash) VALUES (?, ?, ?, ?, ?, 'proposed', ?, ?, ?)",
       id,
       args.missionId ?? null,
       args.runId ?? null,
@@ -141,28 +202,37 @@ export class ChangeSetService {
       args.title.slice(0, 300),
       args.createdBy,
       nowIso(),
+      sha256(''),
     );
     return id;
   }
 
-  /** The open (proposed) set of a mission step — created on first use so one step yields one reviewable set. */
+  /** The open (proposed) set for a step / change group — created on first use so one unit of work yields one set. */
   forStep(args: { missionId?: string | null; runId?: string | null; stepId: string; title: string; createdBy: string }): string {
     const existing = this.rt.db.get<{ id: string }>("SELECT id FROM change_sets WHERE step_id = ? AND status = 'proposed' ORDER BY created_at DESC LIMIT 1", args.stepId);
     return existing?.id ?? this.create(args);
   }
 
-  /** Adds (or replaces) one file change in a proposed set. Never touches the disk. */
-  async propose(setId: string, input: ProposeFileInput): Promise<ChangeFileView> {
+  /** Adds (or replaces) one file change in a proposed set. Never touches the project. */
+  async propose(setId: string, input: ProposeFileInput, actor = 'user'): Promise<ChangeFileView> {
     const set = this.setRow(setId);
     if (set.status !== 'proposed') throw new AppError('INVALID_STATE_TRANSITION', 'Набор изменений уже применён или отклонён — создайте новый.');
     const src = this.source(input.sourceId);
     const rel = normalizeRelPath(input.path);
-    for (const seg of rel.split('/')) if (PROTECTED.has(seg)) throw new AppError('PATH_OUTSIDE_SCOPE', `Изменения в служебной папке «${seg}» запрещены.`);
-    if (isSecretFileName(rel)) throw new AppError('PERMISSION_DENIED', 'Изменение файлов с секретами (.env, ключи, учётные данные) не допускается.');
+    const deny = (message: string, code: 'MODE_FORBIDS' | 'PATH_OUTSIDE_SCOPE' | 'PERMISSION_DENIED') => {
+      this.rt.security.record({ actor, action: 'policy.denied', outcome: 'denied', sourceId: src.id, taskId: set.mission_id ?? setId, resources: [rel], message });
+      throw new AppError(code, message);
+    };
+    if (src.kind === 'project' && !modeAtLeast(src.access_mode, 'prepare')) {
+      deny(`Проект «${src.name}» в режиме «${modeLabel(src.access_mode)}»: подготовка изменений не разрешена.`, 'MODE_FORBIDS');
+    }
+    for (const seg of rel.split('/')) if (PROTECTED.has(seg)) deny(`Изменения в служебной папке «${seg}» запрещены.`, 'PATH_OUTSIDE_SCOPE');
+    const cats = categorize(rel);
+    for (const c of cats) if (NEVER_WRITE.includes(c)) deny(`${CATEGORY_TEXT[c].label}: ${CATEGORY_TEXT[c].risk}`, 'PERMISSION_DENIED');
     if (input.op !== 'delete') {
       if (typeof input.content !== 'string') throw new AppError('VALIDATION_FAILED', 'Для создания или изменения файла нужно новое содержимое (content).');
       if (input.content.length > MAX_FILE_CHARS) throw new AppError('FILE_TOO_LARGE', 'Предлагаемое содержимое больше 1 млн символов.');
-      if (detectSecretContent(input.content)) throw new AppError('PERMISSION_DENIED', 'Предлагаемое содержимое похоже на секрет (ключ, токен, приватный ключ). Такие изменения не принимаются.');
+      if (detectSecretContent(input.content)) deny('Предлагаемое содержимое похоже на секрет (ключ, токен, приватный ключ). Такие изменения не принимаются.', 'PERMISSION_DENIED');
     }
     const count = this.rt.db.get<{ c: number }>('SELECT COUNT(*) AS c FROM change_set_files WHERE change_set_id = ?', setId)!.c;
     const replacing = this.rt.db.get<{ id: string }>('SELECT id FROM change_set_files WHERE change_set_id = ? AND source_id = ? AND rel_path = ?', setId, src.id, rel);
@@ -203,6 +273,7 @@ export class ChangeSetService {
         rationale,
       );
     }
+    this.refreshHash(setId, actor);
     this.rt.emit('changes.changed', { changeSetId: setId, missionId: set.mission_id });
     return this.fileView(this.rt.db.get<FileRow>('SELECT * FROM change_set_files WHERE id = ?', id)!, src.name, true);
   }
@@ -225,21 +296,69 @@ export class ChangeSetService {
       statusDetail: f.status_detail,
       added: stats.added,
       removed: stats.removed,
+      categories: categorize(f.rel_path).map((c) => CATEGORY_TEXT[c].label),
       ...(diff !== undefined ? { diff } : {}),
     };
   }
 
+  private dirCounts(sourceId: string): Map<string, number> {
+    const m = new Map<string, number>();
+    for (const r of this.rt.db.all<{ rel_path: string }>('SELECT rel_path FROM files WHERE source_id = ?', sourceId)) {
+      const parts = r.rel_path.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        const dir = parts.slice(0, i).join('/');
+        m.set(dir, (m.get(dir) ?? 0) + 1);
+      }
+    }
+    return m;
+  }
+
+  private gates(s: SetRow, files: FileRow[]): ApplyGate[] {
+    const verification = parseJson<Verification | null>(s.verification, null);
+    const verifiedNow = !!s.verified_hash && s.verified_hash === s.content_hash && !!verification?.allPassed;
+    const out: ApplyGate[] = [];
+    for (const sid of new Set(files.filter((f) => f.status !== 'skipped').map((f) => f.source_id))) {
+      const src = this.rt.db.get<SourceRowLite>('SELECT id, kind, name, root_path, writable, access_mode FROM sources WHERE id = ?', sid);
+      if (!src) {
+        out.push({ sourceId: sid, sourceName: '(источник отключён)', kind: 'project', mode: 'read_only', modeLabel: '—', modeAllows: false, checksConfigured: [], checksPassed: false, allowed: false, reasons: ['источник отключён от системы'] });
+        continue;
+      }
+      const reasons: string[] = [];
+      if (src.kind === 'vault') {
+        if (!src.writable) reasons.push('хранилище открыто только для чтения');
+        if (s.reviewed_hash !== s.content_hash) reasons.push(s.reviewed_hash ? 'набор изменился после проверки' : 'изменения не просмотрены');
+        out.push({ sourceId: sid, sourceName: src.name, kind: 'vault', mode: 'vault', modeLabel: 'Хранилище системы', modeAllows: !!src.writable, checksConfigured: [], checksPassed: true, allowed: reasons.length === 0, reasons });
+        continue;
+      }
+      const required = projectChecks(this.rt, sid).filter((c) => c.required !== false).map((c) => c.name);
+      const modeAllows = src.access_mode === 'apply';
+      if (!modeAllows) reasons.push(`режим проекта «${modeLabel(src.access_mode)}» не разрешает применение к исходным файлам`);
+      if (s.reviewed_hash !== s.content_hash) reasons.push(s.reviewed_hash ? 'набор изменился после проверки — нужна повторная проверка' : 'изменения не просмотрены');
+      const checksPassed = !required.length || verifiedNow;
+      if (!checksPassed) reasons.push(verification && s.verified_hash === s.content_hash ? 'проверки в рабочей копии не пройдены' : `нужно пройти проверки (${required.join(', ')}) в рабочей копии для текущего содержимого`);
+      out.push({ sourceId: sid, sourceName: src.name, kind: 'project', mode: src.access_mode, modeLabel: modeLabel(src.access_mode), modeAllows, checksConfigured: required, checksPassed, allowed: reasons.length === 0, reasons });
+    }
+    return out;
+  }
+
   get(id: string, opts: { withDiff?: boolean } = {}): ChangeSetView {
     const s = this.setRow(id);
-    const names = new Map<string, SourceRowLite>();
-    const files = this.files(id).map((f) => {
-      let src = names.get(f.source_id);
-      if (!src) {
-        src = this.rt.db.get<SourceRowLite>('SELECT id, kind, name, root_path, writable, allow_apply FROM sources WHERE id = ?', f.source_id) ?? { id: f.source_id, kind: 'project', name: '(источник отключён)', root_path: '', writable: 0, allow_apply: 0 };
-        names.set(f.source_id, src);
-      }
-      return this.fileView(f, src.name, opts.withDiff ?? true);
+    const all = this.files(id);
+    const names = new Map<string, string>();
+    const files = all.map((f) => {
+      if (!names.has(f.source_id)) names.set(f.source_id, this.rt.db.get<{ name: string }>('SELECT name FROM sources WHERE id = ?', f.source_id)?.name ?? '(источник отключён)');
+      return this.fileView(f, names.get(f.source_id)!, opts.withDiff ?? true);
     });
+    const active = all.filter((f) => f.status !== 'skipped');
+    const risks: RiskItem[] = [];
+    for (const sid of new Set(active.map((f) => f.source_id))) {
+      const src = this.rt.db.get<SourceRowLite>('SELECT id, kind, name, root_path, writable, access_mode FROM sources WHERE id = ?', sid);
+      const own = active.filter((f) => f.source_id === sid).map((f) => ({ path: f.rel_path, op: f.op }));
+      for (const r of analyzeRisks(own, { original: src?.kind === 'project', dirFileCounts: this.dirCounts(sid) })) risks.push({ ...r, id: `${sid}:${r.id}` });
+    }
+    const verification = parseJson<Verification | null>(s.verification, null);
+    const gates = this.gates(s, all);
+    const sum = (op: ChangeOp) => active.filter((f) => f.op === op).length;
     return {
       id: s.id,
       missionId: s.mission_id,
@@ -254,7 +373,13 @@ export class ChangeSetService {
       revertedAt: s.reverted_at,
       report: parseJson(s.report, null),
       files,
-      applicable: [...names.values()].map((src) => ({ sourceId: src.id, allowed: src.root_path !== '' && this.applyDenial(src) === null, reason: src.root_path === '' ? 'источник отключён' : this.applyDenial(src) })),
+      summary: { files: active.length, create: sum('create'), modify: sum('modify'), delete: sum('delete'), added: files.filter((f) => f.status !== 'skipped').reduce((a, f) => a + f.added, 0), removed: files.filter((f) => f.status !== 'skipped').reduce((a, f) => a + f.removed, 0) },
+      review: { contentHash: s.content_hash, reviewed: !!s.reviewed_hash && s.reviewed_hash === s.content_hash, stale: !!s.reviewed_hash && s.reviewed_hash !== s.content_hash, reviewedAt: s.reviewed_at, reviewedBy: s.reviewed_by },
+      verification: verification ? { ...verification, current: s.verified_hash === s.content_hash } : null,
+      risks,
+      gates,
+      backupId: s.backup_id,
+      applicable: gates.map((g) => ({ sourceId: g.sourceId, allowed: g.allowed, reason: g.reasons[0] ?? null })),
     };
   }
 
@@ -273,42 +398,181 @@ export class ChangeSetService {
     return rows.map((r) => this.get(r.id, { withDiff: false }));
   }
 
-  /** The whole set as one unified diff (for review or for applying manually with `git apply`). */
-  patch(id: string): string {
-    return this.get(id, { withDiff: true })
-      .files.map((f) => f.diff ?? '')
+  /** The whole set as one unified diff (review, or applying manually with `git apply`). Export is logged. */
+  patch(id: string, actor = 'user'): string {
+    const view = this.get(id, { withDiff: true });
+    this.rt.security.record({ actor, action: 'patch.export', outcome: 'ok', taskId: view.missionId ?? id, resources: view.files.filter((f) => f.status !== 'skipped').map((f) => f.path), message: `Экспортирован патч набора «${view.title}»` });
+    return view.files
+      .filter((f) => f.status !== 'skipped')
+      .map((f) => f.diff ?? '')
       .join('');
   }
 
+  /** The user confirms they reviewed exactly the current content (29.7). */
+  review(id: string, actor = 'user'): ChangeSetView {
+    const s = this.setRow(id);
+    if (s.status !== 'proposed' && s.status !== 'conflict' && s.status !== 'partially_applied') throw new AppError('INVALID_STATE_TRANSITION', 'Набор уже применён или отклонён.');
+    const hash = this.contentHash(id);
+    this.rt.db.run('UPDATE change_sets SET content_hash = ?, reviewed_hash = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?', hash, hash, nowIso(), actor, id);
+    this.rt.security.record({ actor, action: 'review.approve', outcome: 'ok', taskId: s.mission_id ?? id, resources: this.files(id).filter((f) => f.status !== 'skipped').map((f) => f.rel_path), message: `Набор «${s.title}» просмотрен и отмечен как проверенный`, details: { contentHash: hash } });
+    this.rt.emit('changes.changed', { changeSetId: id, missionId: s.mission_id });
+    return this.get(id);
+  }
+
+  /** «Отклонить выбранные изменения»: the files are excluded; the review must be repeated for the rest. */
+  rejectFiles(id: string, fileIds: string[], actor = 'user'): ChangeSetView {
+    const s = this.setRow(id);
+    if (s.status !== 'proposed' && s.status !== 'conflict') throw new AppError('INVALID_STATE_TRANSITION', 'Отклонять файлы можно только в неприменённом наборе.');
+    for (const f of fileIds) this.rt.db.run("UPDATE change_set_files SET status = 'skipped', status_detail = 'отклонено пользователем' WHERE id = ? AND change_set_id = ?", f, id);
+    this.refreshHash(id, actor);
+    this.rt.audit.record({ actor, action: 'changeset.reject_files', target: id, details: { fileIds } });
+    this.rt.emit('changes.changed', { changeSetId: id, missionId: s.mission_id });
+    return this.get(id);
+  }
+
+  /** Proposed + base content of all active files (for applying to work copies, reviewers, verifiers). */
+  contents(id: string): { sourceId: string; path: string; op: ChangeOp; content: string | null; base: string | null }[] {
+    return this.files(id)
+      .filter((f) => f.status !== 'skipped')
+      .map((f) => ({ sourceId: f.source_id, path: f.rel_path, op: f.op, content: f.new_blob ? this.rt.history.getBlob(f.new_blob) : null, base: f.base_blob ? this.rt.history.getBlob(f.base_blob) : null }));
+  }
+
+  /** What each project check of the set would execute (shown before running, with risk findings). */
+  async checkPlan(id: string, actor = 'user'): Promise<{ sourceId: string; workCopyId: string; checks: { name: string; required: boolean; autoRun: boolean; findings: unknown[]; executes: unknown[]; contentHash: string; notes: string[] }[] }[]> {
+    const out = [];
+    for (const sid of new Set(this.contents(id).map((f) => f.sourceId))) {
+      const src = this.source(sid);
+      if (src.kind !== 'project') continue;
+      const wc = await this.ensureWorkCopy(id, sid, actor);
+      const checks = [];
+      for (const def of projectChecks(this.rt, sid)) {
+        const { vetting } = await inspectCheck(this.rt, sid, def.name, wc.rootPath);
+        checks.push({ name: def.name, required: def.required !== false, autoRun: vetting.autoRun, findings: vetting.findings, executes: vetting.executes, contentHash: vetting.contentHash, notes: vetting.notes });
+      }
+      out.push({ sourceId: sid, workCopyId: wc.id, checks });
+    }
+    return out;
+  }
+
+  private async ensureWorkCopy(setId: string, sourceId: string, actor: string): Promise<{ id: string; rootPath: string }> {
+    const s = this.setRow(setId);
+    const existing = this.workcopies.current(sourceId, s.mission_id);
+    const wc = existing && existing.status !== 'error' ? existing : await this.workcopies.create(sourceId, { missionId: s.mission_id, actor });
+    const own = this.contents(setId).filter((f) => f.sourceId === sourceId);
+    await this.workcopies.applySet(wc.id, own.map((f) => ({ path: f.path, op: f.op, content: f.content })), { changeSetId: setId, actor, missionId: s.mission_id });
+    this.rt.db.run('UPDATE change_sets SET work_copy_id = ? WHERE id = ?', wc.id, setId);
+    return { id: wc.id, rootPath: wc.rootPath };
+  }
+
   /**
-   * Applies pending files of a set. Each file is checked against the hash it was proposed on: if the file was
-   * changed since, it is marked "conflict" and left untouched. Previous content goes to version history.
+   * «Повторно проверить»: applies the set to a work copy and runs the project's checks there. The original
+   * project is not touched. The result is bound to the current content hash.
    */
-  async apply(id: string, opts: { actor: string; fileIds?: string[] }): Promise<ChangeSetView> {
+  async verifyInWorkCopy(id: string, opts: { actor: string; approvedScripts?: Record<string, string>; signal?: AbortSignal }): Promise<ChangeSetView> {
+    const s = this.setRow(id);
+    if (s.status !== 'proposed' && s.status !== 'conflict') throw new AppError('INVALID_STATE_TRANSITION', 'Проверять можно только неприменённый набор.');
+    const hash = this.contentHash(id);
+    const results: Verification['results'] = [];
+    const notes: string[] = [];
+    for (const sid of new Set(this.contents(id).map((f) => f.sourceId))) {
+      const src = this.source(sid);
+      if (src.kind !== 'project') continue;
+      const wc = await this.ensureWorkCopy(id, sid, opts.actor);
+      const defs = projectChecks(this.rt, sid);
+      if (!defs.length) notes.push(`Для проекта «${src.name}» проверки не настроены: корректность изменений не подтверждена автоматически.`);
+      for (const def of defs) {
+        try {
+          const r = await runCheck(this.rt, sid, def.name, { workCopy: wc, actor: opts.actor, runId: s.mission_id ?? id, approvedContentHash: opts.approvedScripts?.[`${sid}:${def.name}`] ?? null, ...(opts.signal ? { signal: opts.signal } : {}) });
+          results.push({ name: r.name, sourceId: sid, ok: r.ok || def.required === false, exitCode: r.exitCode, timedOut: r.timedOut, durationMs: r.durationMs, output: r.output, isolation: r.isolation, workCopyId: wc.id });
+        } catch (e) {
+          const err = toAppError(e);
+          results.push({ name: def.name, sourceId: sid, ok: def.required === false, exitCode: null, timedOut: false, durationMs: 0, output: '', isolation: { level: 'limited', tool: null, network: 'not_blocked', files: '—', limits: [], notes: [] }, workCopyId: wc.id, blocked: err.message });
+        }
+      }
+    }
+    const verification: Verification = { hash, at: nowIso(), allPassed: results.every((r) => r.ok), results, notes };
+    this.rt.db.run('UPDATE change_sets SET content_hash = ?, verified_hash = ?, verification = ? WHERE id = ?', hash, verification.allPassed ? hash : null, JSON.stringify(verification), id);
+    this.rt.emit('changes.changed', { changeSetId: id, missionId: s.mission_id });
+    return this.get(id);
+  }
+
+  /**
+   * Applies reviewed files to the ORIGINAL sources. Every gate is checked before anything is written; a verified
+   * backup of the affected files is taken first; a write error stops the operation without "repair" attempts.
+   */
+  async apply(id: string, opts: { actor: string; fileIds?: string[]; confirmRisks?: string[] }): Promise<ChangeSetView> {
     const s = this.setRow(id);
     if (!['proposed', 'partially_applied', 'conflict'].includes(s.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Набор уже применён, отменён или отклонён.');
     const all = this.files(id);
     const targets = all.filter((f) => (f.status === 'pending' || f.status === 'conflict' || f.status === 'failed') && (!opts.fileIds || opts.fileIds.includes(f.id)));
     if (!targets.length) throw new AppError('VALIDATION_FAILED', 'В наборе нет файлов для применения.');
-    // permission check for every touched source BEFORE writing anything
-    for (const sid of new Set(targets.map((f) => f.source_id))) {
-      const src = this.source(sid);
-      const denial = this.applyDenial(src);
-      if (denial) throw new AppError('APPLY_NOT_ALLOWED', `Нельзя применить набор: ${denial}.`, { details: { sourceId: sid } });
+    const hash = this.contentHash(id);
+    if (hash !== s.content_hash) this.rt.db.run('UPDATE change_sets SET content_hash = ? WHERE id = ?', hash, id);
+    const view = this.get(id, { withDiff: false });
+    const deny = (code: 'MODE_FORBIDS' | 'REVIEW_REQUIRED' | 'REVIEW_STALE' | 'CHECKS_REQUIRED' | 'CONFIRMATION_REQUIRED', message: string, details?: unknown) => {
+      this.rt.security.record({ actor: opts.actor, action: 'files.apply', outcome: 'denied', taskId: s.mission_id ?? id, resources: targets.map((t) => t.rel_path), message: `Применение заблокировано: ${message}` });
+      throw new AppError(code, message, details ? { details } : undefined);
+    };
+    // 1. every gate for every touched source, before writing anything
+    for (const g of view.gates.filter((x) => targets.some((t) => t.source_id === x.sourceId))) {
+      if (!g.modeAllows) deny('MODE_FORBIDS', g.kind === 'vault' ? 'Хранилище открыто только для чтения.' : `Проект «${g.sourceName}» в режиме «${g.modeLabel}»: применение к исходным файлам не разрешено.`);
     }
+    if (!view.review.reviewed) deny(view.review.stale ? 'REVIEW_STALE' : 'REVIEW_REQUIRED', view.review.stale ? 'Набор изменился после проверки: просмотрите изменения снова.' : 'Сначала просмотрите изменения и отметьте набор как проверенный.');
+    for (const g of view.gates.filter((x) => targets.some((t) => t.source_id === x.sourceId))) {
+      if (!g.checksPassed) deny('CHECKS_REQUIRED', `Проект «${g.sourceName}»: изменения должны пройти проверки (${g.checksConfigured.join(', ')}) в рабочей копии.`);
+    }
+    const targetRisks = view.risks.filter((r) => r.files.some((p) => targets.some((t) => t.rel_path === p && r.id.startsWith(`${t.source_id}:`))));
+    const missing = targetRisks.filter((r) => !(opts.confirmRisks ?? []).includes(r.id));
+    if (missing.length) deny('CONFIRMATION_REQUIRED', `Требуется отдельное подтверждение: ${missing.map((r) => r.title).join('; ')}.`, { risks: missing });
+    if (targetRisks.length) this.rt.security.record({ actor: opts.actor, action: 'confirm.risky', outcome: 'ok', taskId: s.mission_id ?? id, resources: targetRisks.flatMap((r) => r.files), message: `Подтверждены рискованные изменения: ${targetRisks.map((r) => r.title).join('; ')}` });
+
+    // 2. conflicts: the original must still be what the proposal was based on
+    const conflicts: string[] = [];
+    for (const f of targets) {
+      const src = this.source(f.source_id);
+      let cur: string | null = null;
+      let notFile = false;
+      try {
+        cur = sha256(await readFile(join(src.root_path, ...f.rel_path.split('/'))));
+      } catch (e) {
+        notFile = (e as NodeJS.ErrnoException).code === 'EISDIR';
+        cur = null;
+      }
+      const expected = f.op === 'create' ? null : f.base_hash;
+      if (cur !== expected || notFile) {
+        conflicts.push(f.rel_path);
+        this.rt.db.run("UPDATE change_set_files SET status = 'conflict', status_detail = ? WHERE id = ?", notFile ? 'На месте файла находится папка.' : cur === null ? 'Файл удалён после подготовки изменения.' : f.op === 'create' ? 'Файл с таким именем уже появился.' : 'Файл изменён после подготовки изменения.', f.id);
+      }
+    }
+    if (conflicts.length) {
+      this.rt.db.run("UPDATE change_sets SET status = 'conflict' WHERE id = ?", id);
+      this.rt.security.record({ actor: opts.actor, action: 'files.apply', outcome: 'denied', taskId: s.mission_id ?? id, resources: conflicts, message: `Применение остановлено: файлы изменились после подготовки (${conflicts.length}). Ничего не записано.` });
+      throw new AppError('WRITE_CONFLICT', `Файлы изменились после подготовки изменений: ${conflicts.join(', ')}. Ничего не записано — подготовьте изменения заново или исключите эти файлы.`, { details: { conflicts } });
+    }
+
+    // 3. verified backup per project (vault files are covered by version history)
+    const backupIds: string[] = [];
+    for (const sid of new Set(targets.map((t) => t.source_id))) {
+      const src = this.source(sid);
+      if (src.kind !== 'project') continue;
+      const b = await this.backups.create({ sourceId: sid, paths: targets.filter((t) => t.source_id === sid).map((t) => t.rel_path), changeSetId: id, missionId: s.mission_id, actor: opts.actor });
+      backupIds.push(b.id);
+    }
+    if (backupIds.length) this.rt.db.run('UPDATE change_sets SET backup_id = ? WHERE id = ?', backupIds[0]!, id);
+
+    // 4. write; stop at the first failure and report the actual state (no automatic destructive repair)
     const touched = new Map<string, string[]>();
+    const appliedHashes = new Map<string, { path: string; hash: string | null }[]>();
+    let failure: { path: string; message: string } | null = null;
     for (const f of targets) {
       const src = this.source(f.source_id);
       const abs = join(src.root_path, f.rel_path);
       const scope = { roots: [src.root_path], writable: true };
       const history = { sourceId: src.id, relPath: f.rel_path, docId: null };
       try {
+        if (this.simulateWriteFailure === f.rel_path) throw new AppError('SOURCE_NOT_ACCESSIBLE', 'Ошибка записи на диск (имитация для тестов).');
         if (f.op === 'delete') {
-          const cur = await this.rt.fs.readText(abs, { roots: [src.root_path], writable: false }).catch((e) => {
-            if (toAppError(e).code === 'NOT_FOUND') return null;
-            throw e;
-          });
-          if (!cur || cur.hash !== f.base_hash) throw new AppError('WRITE_CONFLICT', cur ? 'Файл изменён после предложения.' : 'Файл уже удалён.');
+          const cur = await this.rt.fs.readText(abs, { roots: [src.root_path], writable: false });
           this.rt.history.snapshot({ ...history, content: cur.text, reason: 'before:changeset-delete', actor: opts.actor });
           const trashed = await this.rt.fs.trash(abs, `${src.kind === 'vault' ? '' : `_projects/${src.id}/`}${f.rel_path}`, this.rt.paths.trashDir, scope);
           this.rt.db.run("UPDATE change_set_files SET status = 'applied', status_detail = NULL, trash_path = ? WHERE id = ?", trashed, f.id);
@@ -318,35 +582,61 @@ export class ChangeSetService {
           await this.rt.fs.writeText(abs, content, { scope, expectedHash: f.op === 'create' ? null : f.base_hash!, reason: 'changeset', actor: opts.actor, history });
           this.rt.db.run("UPDATE change_set_files SET status = 'applied', status_detail = NULL WHERE id = ?", f.id);
         }
-        const list = touched.get(src.id) ?? [];
-        list.push(f.rel_path);
-        touched.set(src.id, list);
+        touched.set(src.id, [...(touched.get(src.id) ?? []), f.rel_path]);
+        appliedHashes.set(src.id, [...(appliedHashes.get(src.id) ?? []), { path: f.rel_path, hash: f.op === 'delete' ? null : f.new_hash }]);
       } catch (e) {
         const err = toAppError(e);
-        const status: ChangeFileStatus = err.code === 'WRITE_CONFLICT' ? 'conflict' : 'failed';
-        this.rt.db.run('UPDATE change_set_files SET status = ?, status_detail = ? WHERE id = ?', status, err.code === 'WRITE_CONFLICT' ? `Конфликт: ${err.message} Файл не изменён.` : err.message, f.id);
+        this.rt.db.run("UPDATE change_set_files SET status = ?, status_detail = ? WHERE id = ?", err.code === 'WRITE_CONFLICT' ? 'conflict' : 'failed', err.message, f.id);
+        failure = { path: f.rel_path, message: err.message };
+        break;
       }
+    }
+    for (const bid of backupIds) {
+      const b = this.backups.get(bid);
+      this.backups.recordApplied(bid, appliedHashes.get(b.sourceId) ?? []);
     }
     for (const [sid, paths] of touched) await this.indexer.indexPaths(sid, paths).catch(() => undefined);
     const after = this.files(id);
     const applied = after.filter((f) => f.status === 'applied').length;
-    const status: ChangeSetStatus = applied === after.length ? 'applied' : applied > 0 ? 'partially_applied' : 'conflict';
-    const report = { applied, conflicts: after.filter((f) => f.status === 'conflict').map((f) => f.rel_path), failed: after.filter((f) => f.status === 'failed').map((f) => ({ path: f.rel_path, error: f.status_detail })) };
+    const activeCount = after.filter((f) => f.status !== 'skipped').length;
+    const status: ChangeSetStatus = applied === activeCount ? 'applied' : applied > 0 ? 'partially_applied' : 'conflict';
+    const report = { applied, written: [...touched.values()].flat(), failed: failure, backups: backupIds, notApplied: after.filter((f) => f.status !== 'applied' && f.status !== 'skipped').map((f) => f.rel_path) };
     this.rt.db.run('UPDATE change_sets SET status = ?, applied_at = ?, applied_by = ?, report = ? WHERE id = ?', status, nowIso(), opts.actor, JSON.stringify(report), id);
-    this.rt.audit.record({ actor: opts.actor, action: 'changeset.apply', target: id, outcome: status === 'conflict' ? 'error' : 'ok', details: report });
+    this.rt.audit.record({ actor: opts.actor, action: 'changeset.apply', target: id, outcome: failure ? 'error' : 'ok', details: report });
+    this.rt.security.record({
+      actor: opts.actor,
+      action: 'files.apply',
+      outcome: failure ? 'error' : 'ok',
+      taskId: s.mission_id ?? id,
+      resources: report.written,
+      message: failure
+        ? `Применение остановлено на файле ${failure.path}: ${failure.message}. Записано ${applied} файлов; исходное состояние сохранено в резервной копии — восстановление доступно в разделе «Резервные копии».`
+        : `Применено к исходным файлам: ${applied}. Резервная копия: ${backupIds.join(', ') || 'история версий хранилища'}.`,
+      details: report,
+    });
     this.rt.emit('changes.changed', { changeSetId: id, missionId: s.mission_id, status });
     this.rt.emit('docs.changed', { changeSetId: id });
     return this.get(id);
   }
 
-  /** Reverts applied files, but only those still unchanged since applying (never clobbers later edits). */
-  async revert(id: string, opts: { actor: string }): Promise<ChangeSetView> {
+  /**
+   * Reverts applied files. Projects: restore from the verified backup (files edited after applying are only
+   * overwritten with explicit confirmation). Vault: restore previous content where unchanged since applying.
+   */
+  async revert(id: string, opts: { actor: string; confirmOverwrite?: boolean }): Promise<ChangeSetView> {
     const s = this.setRow(id);
     if (s.status !== 'applied' && s.status !== 'partially_applied') throw new AppError('INVALID_STATE_TRANSITION', 'Откатить можно только применённый набор.');
+    const report = parseJson<{ backups?: string[] }>(s.report, {});
+    for (const bid of report.backups ?? []) await this.backups.restore(bid, { actor: opts.actor, ...(opts.confirmOverwrite ? { confirmOverwrite: true } : {}) });
     const touched = new Map<string, string[]>();
     let conflicts = 0;
     for (const f of this.files(id).filter((x) => x.status === 'applied')) {
       const src = this.source(f.source_id);
+      if (src.kind === 'project') {
+        this.rt.db.run("UPDATE change_set_files SET status = 'reverted', status_detail = 'восстановлено из резервной копии' WHERE id = ?", f.id);
+        touched.set(src.id, [...(touched.get(src.id) ?? []), f.rel_path]);
+        continue;
+      }
       const abs = join(src.root_path, f.rel_path);
       const scope = { roots: [src.root_path], writable: true };
       const history = { sourceId: src.id, relPath: f.rel_path, docId: null };
@@ -355,20 +645,14 @@ export class ChangeSetService {
           const cur = await this.rt.fs.readText(abs, { roots: [src.root_path], writable: false });
           if (cur.hash !== f.new_hash) throw new AppError('WRITE_CONFLICT', 'Файл изменён после применения — откат пропущен.');
           this.rt.history.snapshot({ ...history, content: cur.text, reason: 'before:changeset-revert', actor: opts.actor });
-          await this.rt.fs.trash(abs, `${src.kind === 'vault' ? '' : `_projects/${src.id}/`}${f.rel_path}`, this.rt.paths.trashDir, scope);
-        } else if (f.op === 'modify') {
-          const base = this.rt.history.getBlob(f.base_blob!);
-          if (base === null) throw new AppError('INTEGRITY_CHECK_FAILED');
-          await this.rt.fs.writeText(abs, base, { scope, expectedHash: f.new_hash!, reason: 'changeset-revert', actor: opts.actor, history });
+          await this.rt.fs.trash(abs, f.rel_path, this.rt.paths.trashDir, scope);
         } else {
           const base = this.rt.history.getBlob(f.base_blob!);
           if (base === null) throw new AppError('INTEGRITY_CHECK_FAILED');
-          await this.rt.fs.writeText(abs, base, { scope, expectedHash: null, reason: 'changeset-revert', actor: opts.actor, history });
+          await this.rt.fs.writeText(abs, base, { scope, expectedHash: f.op === 'modify' ? f.new_hash! : null, reason: 'changeset-revert', actor: opts.actor, history });
         }
         this.rt.db.run("UPDATE change_set_files SET status = 'reverted', status_detail = NULL WHERE id = ?", f.id);
-        const list = touched.get(src.id) ?? [];
-        list.push(f.rel_path);
-        touched.set(src.id, list);
+        touched.set(src.id, [...(touched.get(src.id) ?? []), f.rel_path]);
       } catch (e) {
         conflicts++;
         this.rt.db.run('UPDATE change_set_files SET status_detail = ? WHERE id = ?', `Откат не выполнен: ${toAppError(e).message}`, f.id);

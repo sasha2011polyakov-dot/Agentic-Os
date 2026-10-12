@@ -10,6 +10,7 @@ import { compareSources } from '../research/grounding.ts';
 import { docNodeId } from '../graph/graph.ts';
 import { shortHash } from '../util/hash.ts';
 import { redactValue } from '../util/redact.ts';
+import { detectInjection } from '../security/injection.ts';
 import { newId } from '../util/ids.ts';
 import { nowIso } from '../util/time.ts';
 import { runCheck } from '../missions/checks.ts';
@@ -61,6 +62,20 @@ function docSource(rt: SystemRuntime, docId: string): { sourceId: string; kind: 
 function readableSources(ctx: ToolContext): string[] | null {
   if (!ctx.scope.sourceIds.length) return null;
   return [...new Set([...ctx.scope.sourceIds, ctx.rt.primaryVaultId()])];
+}
+
+/** Latest version of a file proposed in this mission's still-unapplied change sets, if any. */
+function proposedVersion(ctx: ToolContext, sourceId: string, path: string): { op: string; text: string } | null {
+  if (!ctx.scope.missionId) return null;
+  const row = ctx.rt.db.get<{ op: string; new_blob: string | null }>(
+    `SELECT f.op, f.new_blob FROM change_set_files f JOIN change_sets s ON s.id = f.change_set_id
+      WHERE s.mission_id = ? AND s.status = 'proposed' AND f.source_id = ? AND f.rel_path = ? ORDER BY s.created_at DESC LIMIT 1`,
+    ctx.scope.missionId,
+    sourceId,
+    path,
+  );
+  if (!row) return null;
+  return { op: row.op, text: row.new_blob ? (ctx.rt.history.getBlob(row.new_blob) ?? '') : '' };
 }
 
 export const TOOLS: ToolDefinition<any, any>[] = [
@@ -132,9 +147,20 @@ export const TOOLS: ToolDefinition<any, any>[] = [
     permissions: (i: { sourceId: string }) => [{ permission: 'projects.read', sourceId: i.sourceId }],
     async execute(i: { sourceId: string; path: string; maxChars?: number }, ctx) {
       const f = ctx.rt.db.get<{ status: string; skip_reason: string | null }>('SELECT status, skip_reason FROM files WHERE source_id = ? AND rel_path = ?', i.sourceId, i.path);
-      if (!f) throw new AppError('NOT_FOUND', `Файл ${i.path} не найден в индексе.`);
+      if (!f) {
+        const created = proposedVersion(ctx, i.sourceId, i.path);
+        if (created && created.op === 'create') return { sourceId: i.sourceId, path: i.path, content: clip(created.text, i.maxChars ?? 20000).text, proposed: true, note: 'Файл создан в предложенном наборе изменений (ещё не применён).' };
+        throw new AppError('NOT_FOUND', `Файл ${i.path} не найден в индексе.`);
+      }
       if (f.status !== 'indexed') throw new AppError('PERMISSION_DENIED', `Файл не читается: ${f.skip_reason ?? f.status}.`);
       const r = await services(ctx.rt).sources.readFile(i.sourceId, i.path);
+      // inside a mission, later steps see the version proposed by earlier steps (not yet applied to disk)
+      const overlay = proposedVersion(ctx, i.sourceId, i.path);
+      if (overlay) {
+        if (overlay.op === 'delete') return { sourceId: i.sourceId, path: i.path, content: '', deletedInProposal: true, note: 'Файл предложено удалить в текущем наборе изменений (не применено).' };
+        const c = clip(overlay.text, i.maxChars ?? 20000);
+        return { sourceId: i.sourceId, path: i.path, content: c.text, truncated: c.truncated, proposed: true, note: 'Показана предложенная в этом поручении версия (ещё не применена к диску).' };
+      }
       const c = clip(r.text, i.maxChars ?? 20000);
       return { sourceId: i.sourceId, path: i.path, content: c.text, truncated: c.truncated };
     },
@@ -292,9 +318,9 @@ export const TOOLS: ToolDefinition<any, any>[] = [
     permissions: (i: { sourceId: string }, ctx) => [{ permission: 'changes.propose', ...(i.sourceId === ctx.rt.primaryVaultId() ? {} : { sourceId: i.sourceId }) }],
     async execute(i: { sourceId: string; path: string; op: 'create' | 'modify' | 'delete'; content?: string; rationale: string }, ctx) {
       const changes = services(ctx.rt).changes;
-      const stepKey = ctx.stepId ?? ctx.runId ?? `adhoc:${ctx.agentId}`;
+      const stepKey = ctx.scope.changeGroup ?? ctx.stepId ?? ctx.runId ?? `adhoc:${ctx.agentId}`;
       const setId = changes.forStep({ missionId: ctx.scope.missionId ?? null, runId: ctx.runId, stepId: stepKey, title: `Изменения агента ${ctx.agentId}`, createdBy: `agent:${ctx.agentId}` });
-      const f = await changes.propose(setId, { sourceId: i.sourceId, path: i.path, op: i.op, ...(i.content !== undefined ? { content: i.content } : {}), rationale: i.rationale });
+      const f = await changes.propose(setId, { sourceId: i.sourceId, path: i.path, op: i.op, ...(i.content !== undefined ? { content: i.content } : {}), rationale: i.rationale }, `agent:${ctx.agentId}`);
       return { changeSetId: setId, fileId: f.id, path: f.path, op: f.op, added: f.added, removed: f.removed, applied: false, note: 'Изменение предложено и не применено. Применяет пользователь после просмотра.' };
     },
   },
@@ -304,9 +330,12 @@ export const TOOLS: ToolDefinition<any, any>[] = [
     inputSchema: { type: 'object', required: ['sourceId', 'name'], additionalProperties: false, properties: { sourceId: str('ID проекта'), name: str('Имя проверки из настроек проекта', { maxLength: 41 }) } },
     permissions: (i: { sourceId: string }) => [{ permission: 'commands.run', sourceId: i.sourceId }],
     async execute(i: { sourceId: string; name: string }, ctx) {
-      const approved = ctx.scope.approvedChecks ?? [];
-      if (!approved.some((c) => c.sourceId === i.sourceId && c.name === i.name)) throw new AppError('CHECK_NOT_APPROVED', `Проверка «${i.name}» не подтверждена пользователем для этого запуска.`);
-      const res = await runCheck(ctx.rt, i.sourceId, i.name, { actor: `agent:${ctx.agentId}`, runId: ctx.runId, ...(ctx.signal ? { signal: ctx.signal } : {}) });
+      const approved = (ctx.scope.approvedChecks ?? []).find((c) => c.sourceId === i.sourceId && c.name === i.name);
+      if (!approved) throw new AppError('CHECK_NOT_APPROVED', `Проверка «${i.name}» не подтверждена пользователем для этого запуска.`);
+      // checks never run in the original project: only in this mission's/run's work copy
+      const wc = services(ctx.rt).workcopies.current(i.sourceId, ctx.scope.missionId ?? null);
+      if (!wc) throw new AppError('MODE_FORBIDS', 'Рабочая копия проекта не создана: проверки запускаются только в рабочей копии, исходный проект не используется.');
+      const res = await runCheck(ctx.rt, i.sourceId, i.name, { workCopy: { id: wc.id, rootPath: wc.rootPath }, actor: `agent:${ctx.agentId}`, runId: ctx.scope.missionId ?? ctx.runId, approvedContentHash: approved.contentHash ?? null, ...(ctx.signal ? { signal: ctx.signal } : {}) });
       if (ctx.scope.missionId) {
         const round = ctx.rt.db.get<{ fix_rounds: number }>('SELECT fix_rounds FROM missions WHERE id = ?', ctx.scope.missionId)?.fix_rounds ?? 0;
         ctx.rt.db.run(
@@ -367,9 +396,28 @@ export const TOOLS: ToolDefinition<any, any>[] = [
       return { ...res, installed: false, enabled: false, note: 'Черновик агента сохранён в системе. Установка, выдача разрешений и включение выполняются только пользователем.' };
     },
   },
+  {
+    name: 'create_workflow_definition',
+    description: 'Сохраняет ЧЕРНОВИК процесса (workflow) из узлов agent/function/approval/loop. Определение проверяется; процесс не запускается — это делает пользователь.',
+    inputSchema: { type: 'object', required: ['definition'], additionalProperties: false, properties: { definition: { type: 'object', description: 'Определение процесса (id, name, version, inputSchema, nodes)' } } },
+    permissions: () => [{ permission: 'workflows.create' }],
+    async execute(i: { definition: Record<string, unknown> }, ctx) {
+      const engine = services(ctx.rt).workflows;
+      const def = { description: '', version: 1, ...i.definition };
+      const check = engine.check(def);
+      if (!check.ok) return { saved: false, errors: check.errors, warnings: check.warnings, note: 'Определение не прошло проверку и не сохранено.' };
+      const draft = { ...def, description: `[Черновик от агента ${ctx.agentId}] ${String(def.description ?? '')}`.trim() };
+      const res = engine.save(draft, `agent:${ctx.agentId}`);
+      return { saved: true, id: res.definition.id, version: res.definition.version, warnings: res.check.warnings, note: 'Черновик процесса сохранён. Запуск — только пользователем.' };
+    },
+  },
 ];
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
+
+/** Tools whose output is external/untrusted content: scanned for instructions aimed at AI (29.10). */
+const CONTENT_TOOLS = new Set(['read_document', 'read_project_file', 'search_documents', 'open_url', 'extract_page_content', 'fetch_documentation', 'inspect_repository']);
+const SECURITY_DENIALS = new Set(['PERMISSION_DENIED', 'CROSS_SYSTEM_DENIED', 'FETCH_BLOCKED', 'MODE_FORBIDS', 'PATH_OUTSIDE_SCOPE', 'COMMAND_BLOCKED', 'SECRET_EGRESS_BLOCKED', 'CHECK_NOT_APPROVED', 'READ_ONLY_SOURCE', 'NETWORK_POLICY_DENIED', 'OFFLINE_MODE']);
 
 export interface ToolCallRecord {
   tool: string;
@@ -399,12 +447,20 @@ export async function executeTool(name: string, input: unknown, allowedTools: st
     if (ctx.signal?.aborted) throw new AppError('CANCELLED');
     const output = await tool.execute(input as never, ctx);
     audit(true, { durationMs: Date.now() - started }, 'ok');
+    if (CONTENT_TOOLS.has(name)) {
+      const signals = detectInjection(JSON.stringify(output));
+      if (signals.length) {
+        ctx.rt.security.record({ actor: `agent:${ctx.agentId}`, action: 'injection.suspected', outcome: 'warning', taskId: ctx.scope.missionId ?? ctx.runId, resources: [String((input as { path?: string; docId?: string; url?: string }).path ?? (input as { docId?: string }).docId ?? (input as { url?: string }).url ?? name)], message: `В данных, полученных инструментом ${name}, найдены инструкции для AI (${signals.join(', ')}). Они обработаны как данные и не выполнялись.` });
+        ctx.onEvent?.({ type: 'security.injection', message: `Подозрительные инструкции в данных (${signals.join(', ')}) — обработаны как данные`, data: { tool: name, signals } });
+      }
+    }
     ctx.onEvent?.({ type: 'tool.ok', message: `Инструмент ${name}: выполнено`, data: { tool: name, input } });
     return { tool: name, input, ok: true, output, durationMs: Date.now() - started };
   } catch (e) {
     const err = toAppError(e);
-    const outcome = err.code === 'PERMISSION_DENIED' || err.code === 'CROSS_SYSTEM_DENIED' || err.code === 'FETCH_BLOCKED' ? 'denied' : 'error';
+    const outcome = SECURITY_DENIALS.has(err.code) ? 'denied' : 'error';
     audit(false, { error: err.code, message: err.message }, outcome);
+    if (outcome === 'denied') ctx.rt.security.record({ actor: `agent:${ctx.agentId}`, action: err.code === 'SECRET_EGRESS_BLOCKED' ? 'secret.blocked' : err.code === 'PATH_OUTSIDE_SCOPE' ? 'path.denied' : err.code === 'COMMAND_BLOCKED' ? 'command.blocked' : 'policy.denied', outcome: 'denied', taskId: ctx.scope.missionId ?? ctx.runId, resources: [name], message: `Отказ инструменту ${name}: ${err.message}`, details: { input: redactValue(input) } });
     ctx.onEvent?.({ type: outcome === 'denied' ? 'tool.denied' : 'tool.error', message: `Инструмент ${name}: ${err.message}`, data: { tool: name, code: err.code } });
     if (err.code === 'CANCELLED') throw err;
     return { tool: name, input, ok: false, error: { code: err.code, message: errorMessage(err) }, durationMs: Date.now() - started };

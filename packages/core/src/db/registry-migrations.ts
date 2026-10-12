@@ -119,6 +119,42 @@ CREATE TABLE registry_audit (
   details   TEXT
 );
 CREATE INDEX idx_registry_audit_ts ON registry_audit(ts);
+
+-- Application-level security journal (extensions, keys, policies): append-only and hash-chained (29.15)
+CREATE TABLE security_log (
+  id         INTEGER PRIMARY KEY,
+  ts         TEXT NOT NULL,
+  actor      TEXT NOT NULL,
+  action     TEXT NOT NULL,
+  outcome    TEXT NOT NULL CHECK (outcome IN ('ok','denied','error','warning')),
+  source_id  TEXT,
+  task_id    TEXT,
+  resources  TEXT NOT NULL DEFAULT '[]',
+  message    TEXT NOT NULL,
+  details    TEXT,
+  prev_hash  TEXT NOT NULL,
+  hash       TEXT NOT NULL
+);
+CREATE INDEX idx_app_security_log_ts ON security_log(ts);
+CREATE TRIGGER security_log_no_update BEFORE UPDATE ON security_log BEGIN SELECT RAISE(ABORT, 'security_log is append-only'); END;
+CREATE TRIGGER security_log_no_delete BEFORE DELETE ON security_log BEGIN SELECT RAISE(ABORT, 'security_log is append-only'); END;
+
+-- Extensions (section 30): installed outside the application code, verified by file hashes on every load
+CREATE TABLE extensions (
+  id               TEXT PRIMARY KEY,
+  version          TEXT NOT NULL,
+  previous_version TEXT,
+  kind             TEXT NOT NULL,
+  name             TEXT NOT NULL,
+  manifest         TEXT NOT NULL,
+  install_path     TEXT NOT NULL,
+  file_hashes      TEXT NOT NULL,
+  status           TEXT NOT NULL CHECK (status IN ('disabled','enabled','broken')),
+  status_detail    TEXT,
+  granted          TEXT NOT NULL DEFAULT '[]',
+  installed_at     TEXT NOT NULL,
+  updated_at       TEXT NOT NULL
+);
 `,
   },
 ];

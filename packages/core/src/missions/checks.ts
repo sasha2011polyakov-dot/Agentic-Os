@@ -1,14 +1,16 @@
-import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import type { SystemRuntime } from '../systems/runtime.ts';
 import { assertInScope, normalizeRelPath } from '../fs/guard.ts';
 import { AppError } from '../util/errors.ts';
 import { parseJson } from '../util/json.ts';
 import { redact } from '../util/redact.ts';
+import { runSandboxed, type Isolation } from '../security/sandbox.ts';
+import { vetCheck, type ScriptVetting } from '../security/scripts.ts';
 
 /**
  * User-defined verification commands of a project (e.g. "tests": npm test). Agents can only ask to run a
- * check BY NAME; the program and arguments come exclusively from the user's project settings.
+ * check BY NAME; the program and arguments come exclusively from the user's project settings. Checks run only
+ * inside a work copy (never in the original project), without a shell, in the strongest available sandbox.
  */
 export interface CheckDefinition {
   name: string;
@@ -18,11 +20,16 @@ export interface CheckDefinition {
   cwd?: string;
   timeoutSec: number;
   description?: string;
+  /** Must pass before changes may be applied to the original project (default true). */
+  required?: boolean;
+  /** Network access during the run (default false: blocked where the sandbox can enforce it). */
+  allowNetwork?: boolean;
 }
 
 export interface CheckResult {
   name: string;
   sourceId: string;
+  workCopyId: string;
   command: string;
   ok: boolean;
   exitCode: number | null;
@@ -32,11 +39,12 @@ export interface CheckResult {
   output: string;
   truncated: boolean;
   startedAt: string;
+  isolation: Isolation;
+  vetting: { findings: ScriptVetting['findings']; contentHash: string };
 }
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,40}$/;
 const MAX_OUTPUT = 20_000;
-const ENV_ALLOW = ['PATH', 'Path', 'HOME', 'USER', 'USERNAME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'PATHEXT', 'WINDIR', 'APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'SHELL', 'TERM'];
 
 export function validateChecks(input: unknown): CheckDefinition[] {
   if (!Array.isArray(input)) throw new AppError('VALIDATION_FAILED', 'Проверки задаются списком.');
@@ -55,7 +63,16 @@ export function validateChecks(input: unknown): CheckDefinition[] {
     const timeoutSec = c.timeoutSec ?? 300;
     if (!Number.isInteger(timeoutSec) || timeoutSec < 1 || timeoutSec > 3600) throw new AppError('VALIDATION_FAILED', `${where}: тайм-аут от 1 до 3600 секунд.`);
     const cwd = c.cwd ? normalizeRelPath(c.cwd) : undefined;
-    return { name: c.name, program: c.program.trim(), args: args as string[], timeoutSec, ...(cwd ? { cwd } : {}), ...(c.description ? { description: String(c.description).slice(0, 300) } : {}) };
+    return {
+      name: c.name,
+      program: c.program.trim(),
+      args: args as string[],
+      timeoutSec,
+      required: c.required !== false,
+      allowNetwork: c.allowNetwork === true,
+      ...(cwd ? { cwd } : {}),
+      ...(c.description ? { description: String(c.description).slice(0, 300) } : {}),
+    };
   });
 }
 
@@ -65,47 +82,58 @@ export function projectChecks(rt: SystemRuntime, sourceId: string): CheckDefinit
   return parseJson<CheckDefinition[]>(r.checks, []);
 }
 
-/** Environment without the parent's secrets: only basic variables needed to find and run tools. */
-export function sanitizedEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = { CI: '1', NO_COLOR: '1', FORCE_COLOR: '0' };
-  for (const k of ENV_ALLOW) if (env[k] !== undefined) out[k] = env[k];
-  return out;
-}
+export { sanitizedEnv } from '../security/sandbox.ts';
 
 function tail(s: string): { text: string; truncated: boolean } {
   return s.length > MAX_OUTPUT ? { text: `…[начало вывода опущено]\n${s.slice(-MAX_OUTPUT)}`, truncated: true } : { text: s, truncated: false };
 }
 
-/**
- * Runs one user-defined check with execFile (no shell: arguments are never interpreted), a timeout,
- * bounded output and a sanitized environment. Never throws for a failing check — that is a result.
- */
-export async function runCheck(rt: SystemRuntime, sourceId: string, name: string, opts: { signal?: AbortSignal; actor: string; runId?: string | null } = { actor: 'user' }): Promise<CheckResult> {
+/** What a check would execute in a work copy, with risk findings (shown to the user before approval). */
+export async function inspectCheck(rt: SystemRuntime, sourceId: string, name: string, workCopyRoot: string): Promise<{ def: CheckDefinition; vetting: ScriptVetting }> {
   const def = projectChecks(rt, sourceId).find((c) => c.name === name);
   if (!def) throw new AppError('CHECK_NOT_DEFINED', `Проверка «${name}» не задана для этого проекта.`);
-  const src = rt.db.get<{ root_path: string }>('SELECT root_path FROM sources WHERE id = ?', sourceId)!;
-  const cwd = await assertInScope(def.cwd ? join(src.root_path, def.cwd) : src.root_path, { roots: [src.root_path], writable: false });
+  const cwd = await assertInScope(def.cwd ? join(workCopyRoot, def.cwd) : workCopyRoot, { roots: [workCopyRoot], writable: false });
+  return { def, vetting: await vetCheck(def, cwd) };
+}
+
+/**
+ * Runs one user-defined check in a WORK COPY. Never throws for a failing check — that is a result. Refuses
+ * (COMMAND_BLOCKED) when the vetting found risky content and the user did not approve exactly this content.
+ */
+export async function runCheck(
+  rt: SystemRuntime,
+  sourceId: string,
+  name: string,
+  opts: { workCopy: { id: string; rootPath: string }; actor: string; runId?: string | null; signal?: AbortSignal; approvedContentHash?: string | null },
+): Promise<CheckResult> {
+  const { def, vetting } = await inspectCheck(rt, sourceId, name, opts.workCopy.rootPath);
+  const cwd = await assertInScope(def.cwd ? join(opts.workCopy.rootPath, def.cwd) : opts.workCopy.rootPath, { roots: [opts.workCopy.rootPath], writable: false });
   const command = [def.program, ...def.args].join(' ');
+  if (!vetting.autoRun && opts.approvedContentHash !== vetting.contentHash) {
+    const why = vetting.findings.filter((f) => f.severity === 'high').map((f) => `${f.text} (${f.where})`).join('; ');
+    rt.security.record({ actor: opts.actor, action: 'command.blocked', outcome: 'denied', sourceId, taskId: opts.runId ?? null, resources: [command], message: `Проверка «${name}» не запущена: ${why}. Требуется отдельное подтверждение именно этого содержимого.`, details: { contentHash: vetting.contentHash, approved: opts.approvedContentHash ?? null } });
+    throw new AppError('COMMAND_BLOCKED', `Проверка «${name}» не запущена автоматически: ${why}.`, { hint: 'Откройте проверку, изучите, что она выполнит, и подтвердите запуск отдельно. Подтверждение действует только для текущего содержимого скриптов.', details: { vetting } });
+  }
   const startedAt = new Date().toISOString();
   const started = Date.now();
-  const result = await new Promise<{ exitCode: number | null; timedOut: boolean; out: string }>((resolve) => {
-    execFile(
-      def.program,
-      def.args,
-      { cwd, env: sanitizedEnv(), timeout: def.timeoutSec * 1000, maxBuffer: 8 * 1024 * 1024, windowsHide: true, shell: false, ...(opts.signal ? { signal: opts.signal } : {}) },
-      (error, stdout, stderr) => {
-        const out = `${stdout ?? ''}${stderr ? `${stdout ? '\n' : ''}${stderr}` : ''}`;
-        if (!error) return resolve({ exitCode: 0, timedOut: false, out });
-        const e = error as NodeJS.ErrnoException & { code?: number | string; killed?: boolean; signal?: string };
-        if (e.code === 'ENOENT') return resolve({ exitCode: null, timedOut: false, out: `Программа «${def.program}» не найдена. Проверьте, что она установлена и доступна в PATH.` });
-        if (e.code === 'ABORT_ERR') return resolve({ exitCode: null, timedOut: false, out: `${out}\n[проверка отменена]` });
-        const timedOut = !!e.killed && e.signal === 'SIGTERM' && Date.now() - started >= def.timeoutSec * 1000 - 50;
-        resolve({ exitCode: typeof e.code === 'number' ? e.code : null, timedOut, out: timedOut ? `${out}\n[превышен тайм-аут ${def.timeoutSec} с]` : out || e.message });
-      },
-    );
-  });
-  const t = tail(redact(result.out));
-  const res: CheckResult = { name, sourceId, command, ok: result.exitCode === 0, exitCode: result.exitCode, timedOut: result.timedOut, durationMs: Date.now() - started, output: t.text, truncated: t.truncated, startedAt };
-  rt.audit.record({ actor: opts.actor, action: 'check.run', target: `${sourceId}:${name}`, outcome: res.ok ? 'ok' : 'error', details: { command, exitCode: res.exitCode, timedOut: res.timedOut, durationMs: res.durationMs }, runId: opts.runId ?? null });
-  return res;
+  const res = await runSandboxed({ program: def.program, args: def.args, cwd, timeoutMs: def.timeoutSec * 1000, allowNetwork: !!def.allowNetwork, mode: rt.app.appSettings.get<'auto' | 'limited'>('security.sandbox'), ...(opts.signal ? { signal: opts.signal } : {}) });
+  const t = tail(redact(res.output));
+  const result: CheckResult = {
+    name,
+    sourceId,
+    workCopyId: opts.workCopy.id,
+    command,
+    ok: res.exitCode === 0,
+    exitCode: res.exitCode,
+    timedOut: res.timedOut,
+    durationMs: Date.now() - started,
+    output: t.text,
+    truncated: t.truncated,
+    startedAt,
+    isolation: res.isolation,
+    vetting: { findings: vetting.findings, contentHash: vetting.contentHash },
+  };
+  rt.audit.record({ actor: opts.actor, action: 'check.run', target: `${sourceId}:${name}`, outcome: result.ok ? 'ok' : 'error', details: { command, exitCode: result.exitCode, timedOut: result.timedOut, durationMs: result.durationMs, isolation: res.isolation.level }, runId: opts.runId ?? null });
+  rt.security.record({ actor: opts.actor, action: 'command.run', outcome: result.ok ? 'ok' : 'warning', sourceId, taskId: opts.runId ?? null, resources: [command, opts.workCopy.rootPath], message: `Проверка «${name}» в рабочей копии: ${result.ok ? 'успешно' : result.timedOut ? 'превышен тайм-аут' : `код ${result.exitCode}`} (изоляция: ${res.isolation.level === 'isolated' ? 'песочница' : 'ограниченный режим'})`, details: { isolation: res.isolation } });
+  return result;
 }
