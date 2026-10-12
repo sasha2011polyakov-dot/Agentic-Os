@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "properties": {
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "description",
+          "location",
+          "recommendation"
+        ]
+      }
+    },
+    "verdict": {
+      "enum": [
+        "ok",
+        "concerns",
+        "block"
+      ]
+    }
+  },
+  "required": [
+    "risks",
+    "verdict"
+  ]
+}

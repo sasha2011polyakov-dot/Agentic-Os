@@ -1,6 +1,6 @@
 // Bundles the server + core into a single ESM file runnable with plain `node` (no TS loader needed).
 import { build } from 'esbuild';
-import { chmodSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, rmSync, writeFileSync } from 'node:fs';
 
 await build({
   entryPoints: ['src/main.ts'],
@@ -27,6 +27,10 @@ await build({
   banner: { js: "import { createRequire as __aosCreateRequire } from 'node:module';\nconst require = __aosCreateRequire(import.meta.url);" },
   logLevel: 'info',
 });
+
+// Built-in agent packages are data (no code) and ship next to the bundle: dist/agents-builtin.
+rmSync('dist/agents-builtin', { recursive: true, force: true });
+cpSync('../../packages/core/agents-builtin', 'dist/agents-builtin', { recursive: true });
 
 // CLI wrapper: installs the warning filter BEFORE the bundle (and node:sqlite) is loaded — static ESM imports
 // would otherwise be evaluated before any code in the bundle could filter the ExperimentalWarning.

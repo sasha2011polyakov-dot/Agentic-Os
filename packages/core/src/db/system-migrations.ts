@@ -37,6 +37,10 @@ CREATE TABLE sources (
   is_git            INTEGER NOT NULL DEFAULT 0,
   git_root          TEXT,
   watch             INTEGER NOT NULL DEFAULT 1,
+  -- user-defined verification commands for missions: [{name, program, args, timeoutSec}] (agents can only run these by name)
+  checks            TEXT NOT NULL DEFAULT '[]',
+  -- user permission to APPLY approved change sets to this project's files (projects stay read-only otherwise)
+  allow_apply       INTEGER NOT NULL DEFAULT 0,
   status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','indexing','ready','error','unavailable')),
   status_message    TEXT,
   last_indexed_at   TEXT,
@@ -418,6 +422,138 @@ CREATE TABLE run_events (
   data    TEXT
 );
 CREATE INDEX idx_run_events_run ON run_events(run_id, id);
+
+-- Missions: natural-language assignments executed end to end (analysis → … → verification → summary)
+CREATE TABLE missions (
+  id               TEXT PRIMARY KEY,
+  key              TEXT NOT NULL UNIQUE,
+  title            TEXT NOT NULL,
+  original_request TEXT NOT NULL,
+  normalized       TEXT,
+  mode             TEXT NOT NULL CHECK (mode IN ('plan','execute')),
+  status           TEXT NOT NULL CHECK (status IN ('draft','analyzing','needs_input','researching','planning','awaiting_approval','ready','executing','paused','verifying','needs_fix','completed','partially_completed','failed','cancelled')),
+  phase            TEXT NOT NULL DEFAULT 'analysis',
+  priority         TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('critical','high','medium','low')),
+  scope            TEXT NOT NULL,
+  policy           TEXT NOT NULL,
+  limits           TEXT NOT NULL,
+  context          TEXT,
+  research         TEXT,
+  options          TEXT,
+  strategy         TEXT,
+  plan             TEXT,
+  plan_stale       INTEGER NOT NULL DEFAULT 0,
+  criteria         TEXT NOT NULL DEFAULT '[]',
+  extra_requirements TEXT NOT NULL DEFAULT '[]',
+  pending          TEXT,
+  fix_rounds       INTEGER NOT NULL DEFAULT 0,
+  summary          TEXT,
+  report_doc_id    TEXT,
+  totals           TEXT NOT NULL DEFAULT '{}',
+  error            TEXT,
+  status_reason    TEXT,
+  created_at       TEXT NOT NULL,
+  started_at       TEXT,
+  finished_at      TEXT,
+  updated_at       TEXT NOT NULL
+);
+CREATE INDEX idx_missions_status ON missions(status);
+
+CREATE TABLE mission_steps (
+  id              TEXT PRIMARY KEY,
+  mission_id      TEXT NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
+  seq             INTEGER NOT NULL,
+  phase           TEXT NOT NULL,
+  plan_step       TEXT,
+  role            TEXT NOT NULL,
+  agent_id        TEXT,
+  title           TEXT NOT NULL,
+  status          TEXT NOT NULL CHECK (status IN ('pending','running','waiting_for_approval','completed','failed','cancelled','skipped')),
+  depends_on      TEXT NOT NULL DEFAULT '[]',
+  input           TEXT,
+  output          TEXT,
+  error           TEXT,
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  idempotency_key TEXT UNIQUE,
+  side_effects    TEXT NOT NULL DEFAULT '[]',
+  started_at      TEXT,
+  finished_at     TEXT,
+  updated_at      TEXT NOT NULL
+);
+CREATE INDEX idx_mission_steps ON mission_steps(mission_id, seq);
+
+CREATE TABLE mission_events (
+  id         INTEGER PRIMARY KEY,
+  mission_id TEXT NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
+  step_id    TEXT,
+  ts         TEXT NOT NULL,
+  level      TEXT NOT NULL CHECK (level IN ('debug','info','warn','error')),
+  type       TEXT NOT NULL,
+  message    TEXT NOT NULL,
+  data       TEXT
+);
+CREATE INDEX idx_mission_events ON mission_events(mission_id, id);
+
+CREATE TABLE mission_messages (
+  id         TEXT PRIMARY KEY,
+  mission_id TEXT NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
+  role       TEXT NOT NULL CHECK (role IN ('user','advisor','system')),
+  body       TEXT NOT NULL,
+  data       TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX idx_mission_messages ON mission_messages(mission_id, created_at);
+
+CREATE TABLE mission_checks (
+  id           TEXT PRIMARY KEY,
+  mission_id   TEXT NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
+  step_id      TEXT,
+  round        INTEGER NOT NULL DEFAULT 0,
+  kind         TEXT NOT NULL CHECK (kind IN ('command','criterion','validator')),
+  name         TEXT NOT NULL,
+  source_id    TEXT,
+  status       TEXT NOT NULL,
+  exit_code    INTEGER,
+  duration_ms  INTEGER,
+  output       TEXT,
+  evidence     TEXT,
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX idx_mission_checks ON mission_checks(mission_id, round);
+
+-- Change sets: file changes proposed by agents. Nothing is written to disk until a user applies the set.
+CREATE TABLE change_sets (
+  id           TEXT PRIMARY KEY,
+  mission_id   TEXT,
+  run_id       TEXT,
+  step_id      TEXT,
+  title        TEXT NOT NULL,
+  status       TEXT NOT NULL CHECK (status IN ('proposed','applied','partially_applied','conflict','reverted','rejected')),
+  created_by   TEXT NOT NULL,
+  created_at   TEXT NOT NULL,
+  applied_at   TEXT,
+  applied_by   TEXT,
+  reverted_at  TEXT,
+  report       TEXT
+);
+CREATE INDEX idx_change_sets_mission ON change_sets(mission_id);
+
+CREATE TABLE change_set_files (
+  id            TEXT PRIMARY KEY,
+  change_set_id TEXT NOT NULL REFERENCES change_sets(id) ON DELETE CASCADE,
+  source_id     TEXT NOT NULL,
+  rel_path      TEXT NOT NULL,
+  op            TEXT NOT NULL CHECK (op IN ('create','modify','delete')),
+  base_hash     TEXT,
+  base_blob     TEXT REFERENCES blobs(hash),
+  new_blob      TEXT REFERENCES blobs(hash),
+  new_hash      TEXT,
+  rationale     TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','applied','conflict','reverted','skipped','failed')),
+  status_detail TEXT,
+  trash_path    TEXT,
+  UNIQUE (change_set_id, source_id, rel_path)
+);
 
 -- Web research
 CREATE TABLE web_sources (

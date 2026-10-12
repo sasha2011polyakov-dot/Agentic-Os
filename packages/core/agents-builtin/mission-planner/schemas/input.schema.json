@@ -1,0 +1,80 @@
+{
+  "type": "object",
+  "properties": {
+    "objective": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "strategy": {
+      "type": "object"
+    },
+    "completed_steps": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "available_roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "description"
+        ]
+      }
+    },
+    "available_tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mode": {
+      "enum": [
+        "plan",
+        "execute"
+      ]
+    },
+    "feedback": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "objective",
+    "requirements",
+    "acceptance_criteria",
+    "available_roles",
+    "available_tools",
+    "mode"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

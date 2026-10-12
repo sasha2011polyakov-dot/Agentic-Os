@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "name": "без документов",
+      "input": {
+        "goal": "Найти требования ко входу",
+        "documents": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "evidence",
+          "gaps"
+        ]
+      }
+    }
+  ]
+}

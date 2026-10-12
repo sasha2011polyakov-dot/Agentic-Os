@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "name": "без проектов",
+      "input": {
+        "objective": "Понять структуру",
+        "requirements": [],
+        "projects": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "findings",
+          "limitations"
+        ]
+      }
+    }
+  ]
+}

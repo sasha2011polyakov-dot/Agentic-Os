@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "properties": {
+    "objective": {
+      "type": "string"
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "audience": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "objective",
+    "results"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

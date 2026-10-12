@@ -1,0 +1,94 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "enum": [
+        "pass",
+        "needs_changes"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "scores": {
+      "type": "object",
+      "properties": {
+        "completeness": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "consistency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "traceability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "testability": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "required": [
+        "completeness",
+        "consistency",
+        "traceability",
+        "testability"
+      ]
+    },
+    "defects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^D[0-9]+$"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "major",
+              "minor"
+            ]
+          },
+          "stage": {
+            "enum": [
+              "requirements",
+              "decomposition",
+              "spec"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "stage",
+          "location",
+          "description",
+          "recommendation"
+        ]
+      }
+    }
+  },
+  "required": [
+    "verdict",
+    "summary",
+    "scores",
+    "defects"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "name": "вопрос",
+      "input": {
+        "question": "Почему выбран этот вариант?",
+        "mission_state": {}
+      },
+      "expect": {
+        "requiredPaths": [
+          "answer"
+        ]
+      }
+    }
+  ]
+}

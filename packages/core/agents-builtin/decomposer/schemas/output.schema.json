@@ -1,0 +1,94 @@
+{
+  "type": "object",
+  "properties": {
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^T-[0-9]{3}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "requirement_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^REQ-[0-9]{3}$"
+            },
+            "minItems": 1
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^T-[0-9]{3}$"
+            }
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "affected_modules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unknowns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "goal",
+          "rationale",
+          "requirement_ids",
+          "depends_on",
+          "acceptance_criteria",
+          "affected_modules",
+          "unknowns",
+          "parent_id",
+          "priority"
+        ]
+      }
+    }
+  },
+  "required": [
+    "tasks"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "cases": [
+    {
+      "name": "минимум",
+      "input": {
+        "objective": "Локальный поиск",
+        "requirements": [
+          {
+            "id": "R1",
+            "text": "Поиск по документам"
+          }
+        ]
+      },
+      "expect": {
+        "minItems": {
+          "options": 1
+        }
+      }
+    }
+  ]
+}

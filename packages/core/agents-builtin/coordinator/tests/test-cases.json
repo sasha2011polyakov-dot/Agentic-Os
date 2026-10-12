@@ -1,0 +1,29 @@
+{
+  "cases": [
+    {
+      "name": "простая цель",
+      "input": {
+        "goal": "Добавить вход по email и паролю",
+        "constraints": [],
+        "sources": [
+          {
+            "id": "src_1",
+            "name": "Shop",
+            "kind": "project",
+            "documents": 5
+          }
+        ],
+        "selectedDocuments": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "summary",
+          "plan"
+        ],
+        "minItems": {
+          "plan": 1
+        }
+      }
+    }
+  ]
+}

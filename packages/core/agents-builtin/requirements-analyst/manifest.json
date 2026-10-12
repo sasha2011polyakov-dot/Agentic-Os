@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "id": "requirements-analyst",
+  "name": "Аналитик требований",
+  "version": "1.0.0",
+  "description": "Преобразует свидетельства в атомарные проверяемые требования с критериями приёмки и трассировкой.",
+  "author": "Agentic OS",
+  "category": "spec",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [],
+  "dependencies": [],
+  "model": {
+    "taskType": "extraction",
+    "structuredOutput": "preferred"
+  },
+  "defaults": {
+    "temperature": 0.2,
+    "maxOutputTokens": 8000,
+    "maxToolRounds": 4,
+    "repairAttempts": 2
+  }
+}

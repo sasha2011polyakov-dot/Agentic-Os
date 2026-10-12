@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "name": "без артефактов",
+      "input": {
+        "objective": "x",
+        "acceptance_criteria": [
+          {
+            "id": "AC1",
+            "text": "Есть отчёт"
+          }
+        ],
+        "artifacts": [],
+        "check_results": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "criteria",
+          "overall"
+        ]
+      }
+    }
+  ]
+}

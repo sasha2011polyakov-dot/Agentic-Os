@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string",
+      "minLength": 3
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "known_local": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "docId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "docId",
+          "title",
+          "snippet"
+        ]
+      }
+    }
+  },
+  "required": [
+    "question"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

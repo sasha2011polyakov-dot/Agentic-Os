@@ -1,0 +1,117 @@
+{
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^F[0-9]+$"
+          },
+          "text": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source_ref": {
+                  "type": "string"
+                },
+                "quote": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source_ref",
+                "quote"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "evidence"
+        ]
+      }
+    },
+    "relevant_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "path",
+          "why"
+        ]
+      }
+    },
+    "existing_solutions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "fit": {
+            "enum": [
+              "full",
+              "partial",
+              "none"
+            ]
+          }
+        },
+        "required": [
+          "description",
+          "location",
+          "fit"
+        ]
+      }
+    },
+    "architecture_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unread": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "findings",
+    "relevant_files",
+    "existing_solutions",
+    "architecture_notes",
+    "unread",
+    "limitations"
+  ]
+}

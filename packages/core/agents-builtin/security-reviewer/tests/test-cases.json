@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "name": "без файлов",
+      "input": {
+        "objective": "x",
+        "files": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "verdict"
+        ]
+      }
+    }
+  ]
+}

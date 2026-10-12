@@ -103,11 +103,13 @@ export class HistoryStore {
     );
   }
 
-  /** Removes blobs no longer referenced by versions or web sources. */
+  /** Removes blobs no longer referenced by versions, web sources or change sets. */
   collectGarbage(): number {
     return this.db.run(
       `DELETE FROM blobs WHERE hash NOT IN (SELECT blob_hash FROM doc_versions)
-         AND hash NOT IN (SELECT content_blob FROM web_sources WHERE content_blob IS NOT NULL)`,
+         AND hash NOT IN (SELECT content_blob FROM web_sources WHERE content_blob IS NOT NULL)
+         AND hash NOT IN (SELECT base_blob FROM change_set_files WHERE base_blob IS NOT NULL)
+         AND hash NOT IN (SELECT new_blob FROM change_set_files WHERE new_blob IS NOT NULL)`,
     ).changes;
   }
 }

@@ -1,0 +1,91 @@
+{
+  "type": "object",
+  "properties": {
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ID свидетельства вида E1, E2…",
+            "pattern": "^E[0-9]+$"
+          },
+          "fact": {
+            "type": "string",
+            "description": "Факт или утверждение одним предложением"
+          },
+          "kind": {
+            "enum": [
+              "fact",
+              "assumption"
+            ],
+            "description": "fact — подтверждено источником; assumption — предположение"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": [
+                  "document",
+                  "project_file"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "description": "docId или «sourceId:путь»"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "ref",
+              "title"
+            ]
+          },
+          "quote": {
+            "type": "string",
+            "description": "Дословная цитата из источника (обязательно для fact)"
+          },
+          "relevance": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "needs_verification": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "fact",
+          "kind",
+          "source",
+          "quote",
+          "relevance",
+          "confidence",
+          "needs_verification"
+        ]
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "evidence",
+    "gaps"
+  ]
+}

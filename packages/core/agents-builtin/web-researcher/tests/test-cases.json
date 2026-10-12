@@ -1,0 +1,19 @@
+{
+  "cases": [
+    {
+      "name": "без сети",
+      "input": {
+        "question": "q",
+        "queries": [
+          "q"
+        ]
+      },
+      "expect": {
+        "requiredPaths": [
+          "claims",
+          "gaps"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "properties": {
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "deterministic_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "description",
+          "refs"
+        ]
+      }
+    }
+  },
+  "required": [
+    "requirements",
+    "evidence",
+    "deterministic_findings"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

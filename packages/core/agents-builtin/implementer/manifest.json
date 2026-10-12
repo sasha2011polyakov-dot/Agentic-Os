@@ -1,0 +1,62 @@
+{
+  "formatVersion": 1,
+  "id": "implementer",
+  "name": "Исполнитель",
+  "version": "1.0.0",
+  "description": "Выполняет шаг плана: готовит изменения файлов (наборы изменений), документы и запускает разрешённые проверки.",
+  "author": "Agentic OS",
+  "category": "mission",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [
+    {
+      "permission": "documents.read",
+      "reason": "Чтение документов"
+    },
+    {
+      "permission": "projects.read",
+      "reason": "Чтение кода"
+    },
+    {
+      "permission": "search.use",
+      "reason": "Поиск"
+    },
+    {
+      "permission": "changes.propose",
+      "reason": "Подготовка наборов изменений"
+    },
+    {
+      "permission": "documents.create",
+      "reason": "Создание документов с результатами",
+      "scope": {
+        "folders": [
+          "Reports",
+          "Specs",
+          "Research",
+          "Notes"
+        ]
+      }
+    },
+    {
+      "permission": "commands.run",
+      "reason": "Запуск проверок, заданных пользователем"
+    }
+  ],
+  "dependencies": [],
+  "model": {
+    "taskType": "generation",
+    "structuredOutput": "preferred",
+    "minContext": 16384
+  },
+  "defaults": {
+    "temperature": 0.2,
+    "maxOutputTokens": 12000,
+    "maxToolRounds": 8,
+    "repairAttempts": 2
+  }
+}

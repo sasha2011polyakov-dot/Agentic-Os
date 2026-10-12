@@ -1,0 +1,98 @@
+{
+  "type": "object",
+  "properties": {
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "REQ-001…",
+            "pattern": "^REQ-[0-9]{3}$"
+          },
+          "statement": {
+            "type": "string",
+            "description": "Атомарная проверяемая формулировка: «Система должна …»"
+          },
+          "type": {
+            "enum": [
+              "functional",
+              "non_functional",
+              "constraint",
+              "business_rule"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^E[0-9]+$"
+            },
+            "description": "ID свидетельств"
+          },
+          "priority": {
+            "enum": [
+              "must",
+              "should",
+              "could"
+            ]
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Проверяемые критерии приёмки",
+            "minItems": 1
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^REQ-[0-9]{3}$"
+            }
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "needs_clarification",
+              "assumption"
+            ]
+          },
+          "clarifications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "statement",
+          "type",
+          "rationale",
+          "sources",
+          "priority",
+          "acceptance_criteria",
+          "depends_on",
+          "status",
+          "clarifications"
+        ]
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "requirements",
+    "open_questions"
+  ]
+}

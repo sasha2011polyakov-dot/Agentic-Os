@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "properties": {
+    "answer": {
+      "type": "string"
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "suggested_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "enum": [
+              "add_requirement",
+              "change_strategy",
+              "research_option",
+              "deny_tool",
+              "retry_step",
+              "none"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "detail"
+        ]
+      }
+    }
+  },
+  "required": [
+    "answer",
+    "references",
+    "suggested_actions"
+  ]
+}

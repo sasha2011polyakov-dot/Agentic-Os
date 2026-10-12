@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "name": "одно требование",
+      "input": {
+        "requirements": [
+          {
+            "id": "REQ-001",
+            "statement": "Система должна позволять вход по email и паролю",
+            "acceptance_criteria": [
+              "Вход с верными данными успешен"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "requiredPaths": [
+          "tasks"
+        ]
+      }
+    }
+  ]
+}

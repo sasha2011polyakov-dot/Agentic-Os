@@ -1,0 +1,86 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "enum": [
+              "goal",
+              "context",
+              "problem",
+              "scope",
+              "glossary",
+              "current_state",
+              "non_functional_notes",
+              "scenarios",
+              "architecture_constraints",
+              "io",
+              "dependencies",
+              "testing",
+              "risks"
+            ]
+          },
+          "heading": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "heading",
+          "content"
+        ]
+      },
+      "minItems": 2
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "omitted_sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "reason"
+        ]
+      }
+    }
+  },
+  "required": [
+    "title",
+    "summary",
+    "sections",
+    "assumptions",
+    "open_questions",
+    "omitted_sections"
+  ]
+}

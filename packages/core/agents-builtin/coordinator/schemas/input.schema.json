@@ -1,0 +1,89 @@
+{
+  "type": "object",
+  "properties": {
+    "goal": {
+      "type": "string",
+      "minLength": 3
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ]
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "documents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "documents"
+        ]
+      }
+    },
+    "selectedDocuments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "docId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "docId",
+          "title"
+        ]
+      }
+    },
+    "extraNotes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "goal",
+    "constraints",
+    "sources",
+    "selectedDocuments"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

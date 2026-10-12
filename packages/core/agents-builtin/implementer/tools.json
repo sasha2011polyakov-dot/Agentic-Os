@@ -1,0 +1,11 @@
+{
+  "tools": [
+    "read_document",
+    "read_project_file",
+    "list_project_files",
+    "search_documents",
+    "propose_file_change",
+    "create_document",
+    "run_check"
+  ]
+}

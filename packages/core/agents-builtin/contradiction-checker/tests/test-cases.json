@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "name": "без требований",
+      "input": {
+        "requirements": [],
+        "evidence": [],
+        "deterministic_findings": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "issues"
+        ]
+      }
+    }
+  ]
+}

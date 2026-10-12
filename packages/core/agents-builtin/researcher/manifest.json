@@ -1,0 +1,46 @@
+{
+  "formatVersion": 1,
+  "id": "researcher",
+  "name": "Исследователь",
+  "version": "1.0.0",
+  "description": "Собирает подтверждённые факты из документов и проекта с цитатами и уровнем уверенности.",
+  "author": "Agentic OS",
+  "category": "spec",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [
+    {
+      "permission": "search.use",
+      "reason": "Поиск по базе знаний"
+    },
+    {
+      "permission": "documents.read",
+      "reason": "Чтение документов"
+    },
+    {
+      "permission": "projects.read",
+      "reason": "Чтение файлов проекта"
+    },
+    {
+      "permission": "graph.read",
+      "reason": "Изучение связей"
+    }
+  ],
+  "dependencies": [],
+  "model": {
+    "taskType": "extraction",
+    "structuredOutput": "preferred",
+    "minContext": 8192
+  },
+  "defaults": {
+    "temperature": 0.2,
+    "maxOutputTokens": 6000,
+    "maxToolRounds": 5,
+    "repairAttempts": 2
+  }
+}

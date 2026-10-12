@@ -1,0 +1,50 @@
+{
+  "formatVersion": 1,
+  "id": "web-researcher",
+  "name": "Веб-исследователь",
+  "version": "1.0.0",
+  "description": "Ищет и читает источники в интернете, извлекает утверждения с дословными цитатами и проверяет их кодом.",
+  "author": "Agentic OS",
+  "category": "research",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [
+    {
+      "permission": "web.search",
+      "reason": "Поиск источников"
+    },
+    {
+      "permission": "network.fetch",
+      "reason": "Загрузка публичных страниц"
+    },
+    {
+      "permission": "external.api",
+      "reason": "GitHub API для поиска репозиториев"
+    },
+    {
+      "permission": "search.use",
+      "reason": "Проверка, что уже известно локально"
+    },
+    {
+      "permission": "documents.read",
+      "reason": "Чтение локальных заметок по теме"
+    }
+  ],
+  "dependencies": [],
+  "model": {
+    "taskType": "research",
+    "structuredOutput": "preferred",
+    "minContext": 16384
+  },
+  "defaults": {
+    "temperature": 0.2,
+    "maxOutputTokens": 8000,
+    "maxToolRounds": 6,
+    "repairAttempts": 2
+  }
+}

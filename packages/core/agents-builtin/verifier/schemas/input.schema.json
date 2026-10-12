@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "properties": {
+    "objective": {
+      "type": "string"
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "check_results": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "step_results": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "objective",
+    "acceptance_criteria",
+    "artifacts",
+    "check_results"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

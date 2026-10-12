@@ -10,6 +10,7 @@ import { walkSource } from '../fs/walk.ts';
 import { isInside, normalizeRelPath, realpathLoose } from '../fs/guard.ts';
 import { classifyFile } from '../fs/file-kinds.ts';
 import { readGitDetails, readGitInfo, type GitInfo } from './git.ts';
+import { validateChecks, type CheckDefinition } from '../missions/checks.ts';
 import { AppError, errorMessage } from '../util/errors.ts';
 import { newId } from '../util/ids.ts';
 import { parseJson } from '../util/json.ts';
@@ -32,6 +33,10 @@ export interface SourceInfo {
   gitRoot: string | null;
   watch: boolean;
   watchMode: 'native' | 'polling' | 'off';
+  /** User-defined verification commands (missions may run them by name after approval). */
+  checks: CheckDefinition[];
+  /** Whether the user allows applying approved change sets to this project's files. */
+  allowApply: boolean;
   status: string;
   statusMessage: string | null;
   lastIndexedAt: string | null;
@@ -68,6 +73,8 @@ export interface SourcePreview {
 }
 
 interface FullRow extends SourceRow {
+  checks: string;
+  allow_apply: number;
   purpose: string;
   category: string;
   git_root: string | null;
@@ -114,6 +121,8 @@ export class SourceService implements RuntimeService {
       gitRoot: r.git_root,
       watch: !!r.watch,
       watchMode: this.watchers.get(r.id)?.mode ?? 'off',
+      checks: parseJson<CheckDefinition[]>(r.checks, []),
+      allowApply: !!r.allow_apply,
       status: r.status,
       statusMessage: r.status_message,
       lastIndexedAt: r.last_indexed_at,
@@ -232,7 +241,7 @@ export class SourceService implements RuntimeService {
     return this.get(id);
   }
 
-  async update(id: string, patch: Partial<Omit<ConnectInput, 'path'>> & { writable?: boolean }): Promise<SourceInfo> {
+  async update(id: string, patch: Partial<Omit<ConnectInput, 'path'>> & { writable?: boolean; checks?: unknown; allowApply?: boolean }): Promise<SourceInfo> {
     const r = this.row(id);
     const sets: string[] = [];
     const params: (string | number)[] = [];
@@ -261,6 +270,14 @@ export class SourceService implements RuntimeService {
     if (patch.maxFileBytes !== undefined) {
       set('max_file_bytes', clampSize(patch.maxFileBytes));
       rulesChanged = true;
+    }
+    if (patch.checks !== undefined) {
+      if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Проверки задаются только для подключённых проектов.');
+      set('checks', JSON.stringify(validateChecks(patch.checks)));
+    }
+    if (patch.allowApply !== undefined) {
+      if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Разрешение на применение изменений задаётся для проектов.');
+      set('allow_apply', patch.allowApply ? 1 : 0);
     }
     if (patch.writable !== undefined && r.kind === 'project' && patch.writable) {
       throw new AppError('READ_ONLY_SOURCE', 'Подключённые проекты открываются только для чтения.', { hint: 'Создавайте и изменяйте документы в хранилище системы.' });

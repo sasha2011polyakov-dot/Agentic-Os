@@ -6,6 +6,11 @@ import { Indexer } from './index/indexer.ts';
 import { SourceService } from './sources/sources.ts';
 import { DocumentService } from './vault/documents.ts';
 import { SearchService } from './search/search.ts';
+import { ChangeSetService } from './changes/change-sets.ts';
+import { AgentService } from './agents/service.ts';
+import { AgentRuntime } from './agents/runtime.ts';
+import { PermissionGuard } from './agents/permissions.ts';
+import { appAI } from './ai/app-ai.ts';
 
 /** Typed accessors for the services attached to a runtime (one instance per system). */
 export interface SystemServices {
@@ -14,28 +19,39 @@ export interface SystemServices {
   sources: SourceService;
   docs: DocumentService;
   search: SearchService;
+  changes: ChangeSetService;
+  guard: PermissionGuard;
+  agentRuntime: AgentRuntime;
+  agents: AgentService;
 }
 
 export function services(rt: SystemRuntime): SystemServices {
   return rt.getOwned<SystemServices>('services');
 }
 
+export type SystemHook = (rt: SystemRuntime, s: SystemServices) => Promise<void> | void;
+
 /**
  * Attaches domain services to every SystemRuntime when it opens. All services are constructed with the
  * runtime (its db, paths, settings), never with "the active system".
  */
 export async function wireSystemServices(core: AppCore): Promise<void> {
-  const extraHooks: ((rt: SystemRuntime, s: SystemServices) => Promise<void> | void)[] = [];
-  (core.services.ext as { onSystemOpen?: typeof extraHooks }).onSystemOpen = extraHooks;
+  const extraHooks: SystemHook[] = [];
+  (core.services.ext as { onSystemOpen?: SystemHook[] }).onSystemOpen = extraHooks;
 
   core.systems.hooks = {
     async onOpen(rt: SystemRuntime) {
+      const ai = appAI(rt.app);
       const graph = new GraphService(rt.db);
       const indexer = new Indexer(rt, graph);
       const sources = rt.register('sources', new SourceService(rt, indexer, graph));
       const docs = new DocumentService(rt, indexer);
       const search = new SearchService(rt.db);
-      const s: SystemServices = { graph, indexer, sources, docs, search };
+      const changes = new ChangeSetService(rt, indexer);
+      const guard = new PermissionGuard(rt.db);
+      const agentRuntime = new AgentRuntime(rt, ai.ai, { web: ai.web, systems: core.systems, guard });
+      const agents = new AgentService(rt, ai.catalog, agentRuntime);
+      const s: SystemServices = { graph, indexer, sources, docs, search, changes, guard, agentRuntime, agents };
       rt.setOwned('services', s);
       for (const hook of extraHooks) await hook(rt, s);
     },
@@ -51,12 +67,17 @@ export async function wireSystemServices(core: AppCore): Promise<void> {
         documents: one('SELECT COUNT(*) AS c FROM documents'),
         projects: one("SELECT COUNT(*) AS c FROM sources WHERE kind = 'project'"),
         agents: one('SELECT COUNT(*) AS c FROM agents WHERE enabled = 1'),
-        activeRuns: one("SELECT COUNT(*) AS c FROM workflow_runs WHERE status IN ('pending','running','waiting_for_approval')"),
+        activeRuns:
+          one("SELECT COUNT(*) AS c FROM workflow_runs WHERE status IN ('pending','running','waiting_for_approval')") +
+          one("SELECT COUNT(*) AS c FROM missions WHERE status IN ('analyzing','researching','planning','executing','verifying','needs_fix')"),
         indexing,
       };
     },
     activeRuns(rt: SystemRuntime): number {
-      return rt.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM workflow_runs WHERE status IN ('pending','running')")?.c ?? 0;
+      return (
+        (rt.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM workflow_runs WHERE status IN ('pending','running')")?.c ?? 0) +
+        (rt.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM missions WHERE status IN ('analyzing','researching','planning','executing','verifying','needs_fix')")?.c ?? 0)
+      );
     },
     async pauseRuns() {},
     async cancelRuns() {},

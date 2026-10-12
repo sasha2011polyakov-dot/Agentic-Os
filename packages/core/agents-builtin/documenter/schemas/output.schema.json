@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "maxLength": 150
+    },
+    "markdown": {
+      "type": "string"
+    },
+    "target_folder": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "markdown",
+    "target_folder"
+  ]
+}

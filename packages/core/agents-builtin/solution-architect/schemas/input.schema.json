@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "objective": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "research": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "objective",
+    "requirements"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

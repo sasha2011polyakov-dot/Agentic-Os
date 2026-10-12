@@ -1,0 +1,46 @@
+{
+  "formatVersion": 1,
+  "id": "project-explorer",
+  "name": "Исследователь проекта",
+  "version": "1.0.0",
+  "description": "Изучает подключённые проекты и базу знаний: архитектура, существующие решения, релевантные файлы.",
+  "author": "Agentic OS",
+  "category": "mission",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [
+    {
+      "permission": "projects.read",
+      "reason": "Чтение проекта"
+    },
+    {
+      "permission": "search.use",
+      "reason": "Поиск"
+    },
+    {
+      "permission": "documents.read",
+      "reason": "Чтение документов"
+    },
+    {
+      "permission": "graph.read",
+      "reason": "Связи документов"
+    }
+  ],
+  "dependencies": [],
+  "model": {
+    "taskType": "extraction",
+    "structuredOutput": "preferred",
+    "minContext": 8192
+  },
+  "defaults": {
+    "temperature": 0.2,
+    "maxOutputTokens": 6000,
+    "maxToolRounds": 6,
+    "repairAttempts": 2
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "type": "object",
+  "properties": {
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "met",
+              "partially_met",
+              "not_met",
+              "unverifiable",
+              "not_applicable"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "evidence",
+          "notes"
+        ]
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "enum": [
+              "critical",
+              "major",
+              "minor"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "step_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fix_hint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "description",
+          "step_id",
+          "fix_hint"
+        ]
+      }
+    },
+    "regressions_suspected": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "overall": {
+      "enum": [
+        "pass",
+        "partial",
+        "fail"
+      ]
+    }
+  },
+  "required": [
+    "criteria",
+    "problems",
+    "regressions_suspected",
+    "overall"
+  ]
+}

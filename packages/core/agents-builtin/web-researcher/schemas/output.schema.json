@@ -1,0 +1,118 @@
+{
+  "type": "object",
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "why_selected": {
+            "type": "string"
+          },
+          "is_primary": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "url",
+          "title",
+          "published_at",
+          "why_selected",
+          "is_primary"
+        ]
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^K[0-9]+$"
+          },
+          "statement": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "kind": {
+            "enum": [
+              "fact",
+              "opinion",
+              "unclear"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "statement",
+          "quote",
+          "source_url",
+          "confidence",
+          "kind"
+        ]
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "claim_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "description",
+          "claim_ids"
+        ]
+      }
+    },
+    "coverage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "sources",
+    "claims",
+    "conflicts",
+    "coverage",
+    "gaps"
+  ]
+}

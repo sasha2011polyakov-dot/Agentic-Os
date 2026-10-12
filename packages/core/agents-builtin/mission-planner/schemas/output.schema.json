@@ -1,0 +1,102 @@
+{
+  "type": "object",
+  "properties": {
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^S[0-9]+$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "project-explorer",
+              "researcher",
+              "web-researcher",
+              "solution-architect",
+              "implementer",
+              "verifier",
+              "documenter",
+              "security-reviewer"
+            ]
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expected_output": {
+            "type": "string"
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^S[0-9]+$"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "done_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "verification": {
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "keep_existing": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "goal",
+          "role",
+          "inputs",
+          "expected_output",
+          "depends_on",
+          "tools",
+          "done_criteria",
+          "verification",
+          "risk",
+          "keep_existing"
+        ]
+      },
+      "minItems": 1
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "steps",
+    "notes"
+  ]
+}

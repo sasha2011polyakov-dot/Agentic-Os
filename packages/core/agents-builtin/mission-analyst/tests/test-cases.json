@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "name": "исследовательский запрос",
+      "input": {
+        "request": "Сравни подходы к локальному поиску",
+        "scope": {
+          "kind": "system",
+          "allowWeb": false
+        },
+        "mode": "plan"
+      },
+      "expect": {
+        "requiredPaths": [
+          "acceptance_criteria",
+          "needs"
+        ],
+        "minItems": {
+          "requirements": 1
+        }
+      }
+    }
+  ]
+}

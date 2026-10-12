@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "name": "минимальный набор",
+      "input": {
+        "title": "Вход",
+        "goal": "Вход по паролю",
+        "requirements": [],
+        "tasks": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "sections"
+        ]
+      }
+    }
+  ]
+}

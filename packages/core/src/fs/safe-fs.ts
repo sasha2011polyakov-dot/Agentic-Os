@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
+import { copyFile, mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { AppError } from '../util/errors.ts';
@@ -94,7 +94,14 @@ export class SafeFs {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const target = join(trashRoot, stamp, relPath);
     await mkdir(dirname(target), { recursive: true });
-    await rename(from, target);
+    try {
+      await rename(from, target);
+    } catch (e) {
+      // trash may be on another volume (connected project vs. system folder): copy, then remove
+      if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e;
+      await copyFile(from, target);
+      await unlink(from);
+    }
     return target;
   }
 

@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "name": "пустой документ",
+      "input": {
+        "spec_markdown": "# ТЗ",
+        "requirements": [],
+        "tasks": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "verdict"
+        ]
+      }
+    }
+  ]
+}

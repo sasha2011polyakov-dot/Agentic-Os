@@ -1,0 +1,10 @@
+{
+  "tools": [
+    "project_inventory",
+    "list_project_files",
+    "read_project_file",
+    "search_documents",
+    "read_document",
+    "graph_neighbors"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "resolutions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "inventory_summary": {
+      "type": "object"
+    },
+    "feedback": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "requirements"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

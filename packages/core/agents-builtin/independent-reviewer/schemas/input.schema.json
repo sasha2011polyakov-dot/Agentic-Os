@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "properties": {
+    "original_request": {
+      "type": "string"
+    },
+    "normalized": {
+      "type": "object"
+    },
+    "assessment": {
+      "type": "object"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "original_request",
+    "normalized",
+    "assessment"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

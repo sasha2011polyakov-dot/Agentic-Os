@@ -1,0 +1,92 @@
+{
+  "type": "object",
+  "properties": {
+    "request": {
+      "type": "string",
+      "minLength": 3
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "title",
+          "excerpt"
+        ]
+      }
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "systems": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "allowWeb": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "allowWeb"
+      ]
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ]
+      }
+    },
+    "mode": {
+      "enum": [
+        "plan",
+        "execute"
+      ]
+    }
+  },
+  "required": [
+    "request",
+    "scope",
+    "mode"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

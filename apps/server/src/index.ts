@@ -3,6 +3,7 @@ import { Router } from './http/router.ts';
 import { startServer, type RunningServer } from './http/server.ts';
 import { registerAppRoutes, registerSystemRoutes } from './routes/systems.ts';
 import { registerDocRoutes, registerFsRoutes, registerGraphRoutes, registerSourceRoutes } from './routes/knowledge.ts';
+import { registerAgentRoutes, registerAiRoutes, registerChangeRoutes, registerWebRoutes } from './routes/ai.ts';
 
 export function createApiRouter(): Router {
   const r = new Router();
@@ -12,6 +13,10 @@ export function createApiRouter(): Router {
   registerSourceRoutes(r);
   registerDocRoutes(r);
   registerGraphRoutes(r);
+  registerAiRoutes(r);
+  registerAgentRoutes(r);
+  registerChangeRoutes(r);
+  registerWebRoutes(r);
   return r;
 }
 

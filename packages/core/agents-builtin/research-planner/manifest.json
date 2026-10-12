@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "id": "research-planner",
+  "name": "Планировщик исследования",
+  "version": "1.0.0",
+  "description": "Формулирует исследовательский вопрос, подвопросы и поисковые запросы.",
+  "author": "Agentic OS",
+  "category": "research",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [],
+  "dependencies": [],
+  "model": {
+    "taskType": "planning",
+    "structuredOutput": "preferred"
+  },
+  "defaults": {
+    "temperature": 0.2,
+    "maxOutputTokens": 4000,
+    "maxToolRounds": 4,
+    "repairAttempts": 2
+  }
+}

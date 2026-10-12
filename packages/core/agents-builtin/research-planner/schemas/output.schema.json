@@ -1,0 +1,42 @@
+{
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string"
+    },
+    "subquestions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "queries": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "maxItems": 6
+    },
+    "preferred_sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "done_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "question",
+    "subquestions",
+    "queries",
+    "preferred_sources",
+    "done_criteria"
+  ]
+}

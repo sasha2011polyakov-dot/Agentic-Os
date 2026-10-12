@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "name": "минимум",
+      "input": {
+        "original_request": "x",
+        "normalized": {},
+        "assessment": {}
+      },
+      "expect": {
+        "requiredPaths": [
+          "verdict"
+        ]
+      }
+    }
+  ]
+}

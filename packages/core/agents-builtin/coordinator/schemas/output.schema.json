@@ -1,0 +1,84 @@
+{
+  "type": "object",
+  "properties": {
+    "task_type": {
+      "enum": [
+        "new_feature",
+        "change",
+        "integration",
+        "research",
+        "migration",
+        "other"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "missing_information": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "question",
+          "why",
+          "blocking"
+        ]
+      }
+    },
+    "plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "purpose"
+        ]
+      },
+      "minItems": 1
+    },
+    "required_sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "completion_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "task_type",
+    "summary",
+    "ready",
+    "missing_information",
+    "plan",
+    "required_sources",
+    "completion_criteria"
+  ]
+}

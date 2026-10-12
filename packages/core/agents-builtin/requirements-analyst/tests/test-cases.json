@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "name": "одно свидетельство",
+      "input": {
+        "goal": "Вход по паролю",
+        "evidence": [
+          {
+            "id": "E1",
+            "fact": "Пользователь входит по email и паролю",
+            "kind": "fact",
+            "quote": "входить по email и паролю",
+            "quote_verified": true
+          }
+        ]
+      },
+      "expect": {
+        "requiredPaths": [
+          "requirements"
+        ]
+      }
+    }
+  ]
+}

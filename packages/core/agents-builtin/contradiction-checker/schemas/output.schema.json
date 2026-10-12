@@ -1,0 +1,73 @@
+{
+  "type": "object",
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^C[0-9]+$"
+          },
+          "type": {
+            "enum": [
+              "contradiction",
+              "duplicate",
+              "ambiguity",
+              "missing_criteria",
+              "cycle",
+              "untestable",
+              "assumption_as_fact",
+              "architecture_conflict"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "major",
+              "minor"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommendation": {
+            "type": "string"
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "severity",
+          "description",
+          "refs",
+          "options",
+          "recommendation",
+          "question"
+        ]
+      }
+    }
+  },
+  "required": [
+    "issues"
+  ]
+}

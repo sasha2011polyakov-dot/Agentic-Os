@@ -1,0 +1,37 @@
+{
+  "formatVersion": 1,
+  "id": "inventory-analyst",
+  "name": "Инвентаризатор проекта",
+  "version": "1.0.0",
+  "description": "Строит достоверную карту структуры проекта на основе детерминированной инвентаризации и чтения ключевых файлов.",
+  "author": "Agentic OS",
+  "category": "spec",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [
+    {
+      "permission": "projects.read",
+      "reason": "Чтение файлов подключённых проектов для построения карты"
+    },
+    {
+      "permission": "documents.read",
+      "reason": "Чтение выбранных документов"
+    }
+  ],
+  "dependencies": [],
+  "model": {
+    "taskType": "extraction",
+    "structuredOutput": "preferred"
+  },
+  "defaults": {
+    "temperature": 0.2,
+    "maxOutputTokens": 4000,
+    "maxToolRounds": 3,
+    "repairAttempts": 2
+  }
+}

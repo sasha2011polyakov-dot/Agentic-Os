@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "name": "шаг-анализ",
+      "input": {
+        "step": {
+          "id": "S1",
+          "title": "Анализ",
+          "goal": "Описать"
+        },
+        "objective": "x"
+      },
+      "expect": {
+        "requiredPaths": [
+          "summary"
+        ]
+      }
+    }
+  ]
+}

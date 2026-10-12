@@ -13,6 +13,10 @@ export type EventType =
   | 'run.updated'
   | 'run.step'
   | 'run.event'
+  | 'mission.updated'
+  | 'mission.event'
+  | 'changes.changed'
+  | 'providers.changed'
   | 'model.pull'
   | 'settings.changed'
   | 'error';

@@ -12,6 +12,7 @@ import type { AppServices } from './systems/context.ts';
 import { SystemManager } from './systems/manager.ts';
 import { appPaths, resolveDataDir } from './systems/paths.ts';
 import { wireSystemServices } from './wiring.ts';
+import { createAppAI } from './ai/app-ai.ts';
 
 export interface AppCoreOptions {
   dataDir?: string;
@@ -73,6 +74,7 @@ export class AppCore {
     mkdirSync(paths.tmpDir, { recursive: true });
 
     const services: AppServices = { paths, registryDb, appSettings, events, logger, registryAudit, policy, http, ext: { env, adapters: opts.adapters ?? {} } };
+    services.ext.ai = await createAppAI(services, env, opts.adapters ?? {});
     manager = new SystemManager(services);
     const core = new AppCore(services, manager);
     await wireSystemServices(core);

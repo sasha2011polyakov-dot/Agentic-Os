@@ -1,0 +1,7 @@
+{
+  "tools": [
+    "list_project_files",
+    "read_project_file",
+    "read_document"
+  ]
+}

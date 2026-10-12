@@ -1,0 +1,185 @@
+{
+  "type": "object",
+  "properties": {
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^O[0-9]+$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "reuse",
+              "configure",
+              "integrate_library",
+              "extend",
+              "new_component",
+              "combined"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "covers_requirements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pros": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scores": {
+            "type": "object",
+            "properties": {
+              "requirements": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "compatibility": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "reliability": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "security": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "performance": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "maintainability": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "license": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "dependencies": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "cost": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "local_mode": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "offline": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "complexity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              }
+            },
+            "required": [
+              "requirements",
+              "compatibility",
+              "reliability",
+              "security",
+              "performance",
+              "maintainability",
+              "license",
+              "dependencies",
+              "cost",
+              "local_mode",
+              "offline",
+              "complexity"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "description",
+          "covers_requirements",
+          "pros",
+          "cons",
+          "risks",
+          "scores",
+          "evidence"
+        ]
+      },
+      "minItems": 1
+    },
+    "selected": {
+      "type": "string",
+      "pattern": "^O[0-9]+$"
+    },
+    "rationale": {
+      "type": "string"
+    },
+    "tradeoffs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "needs_user_approval": {
+      "type": "boolean"
+    },
+    "approval_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "options",
+    "selected",
+    "rationale",
+    "tradeoffs",
+    "needs_user_approval",
+    "approval_reason"
+  ]
+}

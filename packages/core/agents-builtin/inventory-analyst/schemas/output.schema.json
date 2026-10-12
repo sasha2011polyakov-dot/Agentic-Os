@@ -1,0 +1,84 @@
+{
+  "type": "object",
+  "properties": {
+    "project_map": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "purpose": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "area",
+          "paths",
+          "purpose"
+        ]
+      }
+    },
+    "key_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "source_id",
+          "why"
+        ]
+      }
+    },
+    "architecture_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "entry_points": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unread_but_relevant": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "project_map",
+    "key_files",
+    "architecture_notes",
+    "entry_points",
+    "limitations",
+    "unread_but_relevant"
+  ]
+}

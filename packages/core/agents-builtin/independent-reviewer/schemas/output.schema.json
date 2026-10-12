@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "enum": [
+        "pass",
+        "needs_changes"
+      ]
+    },
+    "distortions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "defects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "enum": [
+              "critical",
+              "major",
+              "minor"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "description",
+          "recommendation"
+        ]
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "verdict",
+    "distortions",
+    "defects",
+    "notes"
+  ]
+}

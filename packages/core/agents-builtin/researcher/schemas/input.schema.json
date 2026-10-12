@@ -1,0 +1,58 @@
+{
+  "type": "object",
+  "properties": {
+    "goal": {
+      "type": "string"
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "inventory_summary": {
+      "type": "object"
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "docId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "docId",
+          "title"
+        ]
+      }
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ]
+      }
+    }
+  },
+  "required": [
+    "goal",
+    "documents"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

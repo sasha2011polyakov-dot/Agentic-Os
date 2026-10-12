@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "простая задача",
+      "input": {
+        "objective": "Отчёт",
+        "requirements": [],
+        "acceptance_criteria": [],
+        "available_roles": [
+          {
+            "role": "verifier",
+            "description": "проверка"
+          }
+        ],
+        "available_tools": [],
+        "mode": "plan"
+      },
+      "expect": {
+        "minItems": {
+          "steps": 1
+        }
+      }
+    }
+  ]
+}

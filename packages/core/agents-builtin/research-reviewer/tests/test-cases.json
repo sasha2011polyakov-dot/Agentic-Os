@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "name": "пусто",
+      "input": {
+        "report": {},
+        "claims": [],
+        "sources": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "verdict"
+        ]
+      }
+    }
+  ]
+}

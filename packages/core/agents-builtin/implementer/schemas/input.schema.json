@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "step": {
+      "type": "object"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "strategy": {
+      "type": "object"
+    },
+    "context_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "path"
+        ]
+      }
+    },
+    "previous_results": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "feedback": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "output_folder": {
+      "type": "string"
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "required": [
+    "step",
+    "objective"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "properties": {
+    "goal": {
+      "type": "string"
+    },
+    "inventories": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "selectedDocuments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "docId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "docId",
+          "title"
+        ]
+      }
+    }
+  },
+  "required": [
+    "goal",
+    "inventories"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

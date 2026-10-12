@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "properties": {
+    "objective": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceId",
+          "name"
+        ]
+      }
+    },
+    "focus": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "objective",
+    "requirements",
+    "projects"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

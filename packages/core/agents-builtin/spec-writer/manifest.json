@@ -1,0 +1,29 @@
+{
+  "formatVersion": 1,
+  "id": "spec-writer",
+  "name": "Генератор технического задания",
+  "version": "1.0.0",
+  "description": "Пишет повествовательные разделы ТЗ на основе требований, задач и свидетельств.",
+  "author": "Agentic OS",
+  "category": "spec",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [],
+  "dependencies": [],
+  "model": {
+    "taskType": "generation",
+    "structuredOutput": "preferred",
+    "minContext": 8192
+  },
+  "defaults": {
+    "temperature": 0.3,
+    "maxOutputTokens": 12000,
+    "maxToolRounds": 4,
+    "repairAttempts": 2
+  }
+}

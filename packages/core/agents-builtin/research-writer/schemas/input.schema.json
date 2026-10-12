@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string"
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "local_findings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "feedback": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "question",
+    "claims",
+    "sources"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

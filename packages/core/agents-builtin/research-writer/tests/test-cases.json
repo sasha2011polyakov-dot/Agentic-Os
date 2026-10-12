@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "name": "пусто",
+      "input": {
+        "question": "q",
+        "claims": [],
+        "sources": []
+      },
+      "expect": {
+        "requiredPaths": [
+          "markdown_body"
+        ]
+      }
+    }
+  ]
+}

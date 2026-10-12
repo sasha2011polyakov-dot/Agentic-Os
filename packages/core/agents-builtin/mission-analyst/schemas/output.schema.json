@@ -1,0 +1,201 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "task_type": {
+      "enum": [
+        "research",
+        "design",
+        "implementation",
+        "bugfix",
+        "improvement",
+        "documentation",
+        "spec",
+        "analysis",
+        "other"
+      ]
+    },
+    "desired_outcome": {
+      "type": "string"
+    },
+    "problem": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^R[0-9]+$"
+          },
+          "text": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "request",
+              "attachment",
+              "inferred"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "source"
+        ]
+      },
+      "minItems": 1
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^AC[0-9]+$"
+          },
+          "text": {
+            "type": "string"
+          },
+          "verification": {
+            "enum": [
+              "artifact_exists",
+              "check_command",
+              "review",
+              "source_verification",
+              "manual"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "verification"
+        ]
+      },
+      "minItems": 1
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "level"
+        ]
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "default_assumption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "blocking",
+          "default_assumption"
+        ]
+      }
+    },
+    "complexity": {
+      "enum": [
+        "simple",
+        "moderate",
+        "complex"
+      ]
+    },
+    "needs": {
+      "type": "object",
+      "properties": {
+        "project_exploration": {
+          "type": "boolean"
+        },
+        "local_research": {
+          "type": "boolean"
+        },
+        "web_research": {
+          "type": "boolean"
+        },
+        "alternatives": {
+          "type": "boolean"
+        },
+        "implementation": {
+          "type": "boolean"
+        },
+        "independent_review": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "project_exploration",
+        "local_research",
+        "web_research",
+        "alternatives",
+        "implementation",
+        "independent_review"
+      ]
+    },
+    "summary_for_user": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "task_type",
+    "desired_outcome",
+    "problem",
+    "requirements",
+    "constraints",
+    "assumptions",
+    "acceptance_criteria",
+    "risks",
+    "questions",
+    "complexity",
+    "needs",
+    "summary_for_user"
+  ]
+}

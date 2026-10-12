@@ -96,8 +96,10 @@ async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
     chunks.push(chunk as Buffer);
   }
   if (size === 0) return undefined;
-  const text = Buffer.concat(chunks).toString('utf8');
   const type = req.headers['content-type'] ?? '';
+  // binary uploads (agent packages, system archives, attachments) are passed through as bytes
+  if (type.includes('application/zip') || type.includes('application/octet-stream')) return Buffer.concat(chunks);
+  const text = Buffer.concat(chunks).toString('utf8');
   if (type.includes('application/json')) {
     try {
       return JSON.parse(text);

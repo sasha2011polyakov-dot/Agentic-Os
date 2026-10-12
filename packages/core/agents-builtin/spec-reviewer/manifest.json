@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "id": "spec-reviewer",
+  "name": "Независимый ревьюер ТЗ",
+  "version": "1.0.0",
+  "description": "Независимо проверяет итоговое ТЗ: полнота, непротиворечивость, трассируемость, проверяемость.",
+  "author": "Agentic OS",
+  "category": "spec",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [],
+  "dependencies": [],
+  "model": {
+    "taskType": "review",
+    "structuredOutput": "preferred"
+  },
+  "defaults": {
+    "temperature": 0.2,
+    "maxOutputTokens": 4000,
+    "maxToolRounds": 4,
+    "repairAttempts": 2
+  }
+}
