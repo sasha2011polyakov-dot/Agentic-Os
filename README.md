@@ -1,2 +1,2 @@
 # Agentic-Os
-Мультиагентная AI-система для автоматизированного создания структурированных технических заданий на основе анализа требований и декомпозиции задач.
+A multi-agent AI system for the automated creation of structured technical specifications through requirements analysis and task decomposition.
