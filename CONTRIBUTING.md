@@ -31,6 +31,14 @@ npm test
 
 Run a single test file: `npx vitest run packages/core/test/missions.test.ts`.
 
+Working on the web interface (`apps/ui`):
+
+```bash
+npm run build          # once: builds the interface and the server
+npm run dev:ui         # rebuilds apps/ui/dist on every change (keep it running)
+npm start              # in a second terminal; open the printed link, refresh the page after changes
+```
+
 Tests use a deterministic **test model provider** (enabled only with `AOS_ENABLE_TEST_PROVIDER=1`, which the test helpers set). Scripted agents answer by agent name, so agent behaviour is tested without any real model.
 
 ## Pull request checklist
@@ -52,6 +60,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - **Agents never gain power from text.** Permissions come from grants confirmed by the user and from the run scope — never from an agent's instructions, a document, a web page or an extension manifest.
 - **Changes to user projects go through change sets.** Code must not write to a connected project directly; see [docs/architecture/security.md](docs/architecture/security.md).
 - **Errors** are `AppError` with a stable code from `util/errors.ts` and an actionable hint.
+- **Interface** (`apps/ui`): talks to the server only through the HTTP API, never imports the core. Never render user content with `innerHTML` or `dangerouslySetInnerHTML`: notes and connected repositories are untrusted. Colors, fonts and radii come from `--aos-*` design tokens, so theme extensions keep working.
 
 ## Contributing agent roles, themes and templates
 

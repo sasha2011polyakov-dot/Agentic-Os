@@ -57,7 +57,7 @@
 
 ## 8. Локальный API и интерфейс
 
-- Сервер слушает только `127.0.0.1`; одноразовый токен → cookie `HttpOnly; SameSite=Strict`; проверка `Host`; для изменяющих запросов — `X-AOS-Request` и `Origin`.
+- Сервер слушает только `127.0.0.1`; токен запуска (действует до остановки сервера) → cookie `HttpOnly; SameSite=Strict`; проверка `Host`; для изменяющих запросов — `X-AOS-Request` и `Origin`.
 - CSP (см. `overview.md` §3); `X-Content-Type-Options: nosniff`; `Referrer-Policy: no-referrer`; `X-Frame-Options: DENY`.
 - **Markdown:** рендер через markdown-it с `html: false` (сырой HTML отображается как текст), стандартной проверкой ссылок (запрещены `javascript:`, `vbscript:`, `data:` кроме изображений), внешние ссылки — `rel="noopener noreferrer"`. Вывод моделей отображается как Markdown по тем же правилам.
 - Вложения отдаются с `Content-Disposition` по типу, SVG — как `text/plain` (возможный скрипт внутри SVG не исполняется).

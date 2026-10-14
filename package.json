@@ -15,12 +15,13 @@
     "apps/desktop"
   ],
   "scripts": {
-    "build": "npm run build -w @aos/server",
+    "build": "npm run build -w @aos/ui && npm run build -w @aos/server",
     "start": "node apps/server/dist/aos.mjs serve",
     "dev:server": "npm run dev -w @aos/server",
-    "typecheck": "tsc -b packages/core apps/server",
+    "typecheck": "tsc -b packages/core apps/server && tsc -p apps/ui --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:ui": "npm run watch -w @aos/ui"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

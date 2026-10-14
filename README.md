@@ -8,9 +8,11 @@
 
 [Русская версия](README.ru.md)
 
-> **Status: alpha.** The core engine and the local HTTP API are implemented and covered by tests.
-> The graphical interface and the desktop app are **not built yet** — today you can run the server and use the API.
-> User-facing messages are in Russian; an English interface is planned.
+> **Status: alpha.** The core engine, the local HTTP API and a first version of the web interface are implemented.
+> The desktop app is **not built yet**: run the local server and open the interface in your browser.
+> The interface is in Russian; an English interface is planned.
+
+![A note with properties, backlinks and a local graph](docs/images/note.png)
 
 ## Why
 
@@ -34,7 +36,8 @@ AI assistants are good at producing text that *looks* like finished work. Agenti
 | Missions | A task in natural language → analysis, research, strategy, plan, execution, verification, bounded fix rounds, independent review, honest summary. Pause, resume, add requirements, deny tools, retry steps. |
 | Project protection | Access modes (read-only → prepare → work copy → apply), isolated work copies, verified backups, review bound to content hashes, sandboxed checks (bubblewrap when available), script vetting, an append-only hash-chained security journal. |
 | Extensions | Agent roles, templates, workflows, themes (sanitized CSS) and tool plugins. Plugins run in a restricted Node process and reach data only through an API checked against the permissions you granted. |
-| Local API | Listens on `127.0.0.1` only; one-time login link → cookie; Host/Origin/CSRF checks; strict CSP. |
+| Local API | Listens on `127.0.0.1` only; a login link with a per-launch token → session cookie; Host/Origin/CSRF checks; strict CSP. |
+| Web interface | Notes with a Markdown editor and `[[link]]` suggestions, properties, backlinks and unlinked mentions, folder tree, full-text search with operators, interactive knowledge graph, missions with every approval step, command palette (`Ctrl/Cmd+K`), light and dark themes, phone-sized layout. |
 
 ## Quick start
 
@@ -45,9 +48,11 @@ git clone https://github.com/sasha2011polyakov-dot/Agentic-Os.git
 cd Agentic-Os
 npm ci
 npm test            # runs the full test suite (no network or model needed)
-npm run build
-npm start           # prints a one-time login URL for the local API
+npm run build       # builds the web interface and the server
+npm start           # prints a login link — open it in your browser
 ```
+
+The link contains an access token that is valid until the server stops; do not share it.
 
 Useful options: `npm start -- --port 4321 --data-dir ./my-data`. The data directory can also be set with `AOS_DATA_DIR`.
 
@@ -63,11 +68,18 @@ packages/core            engine: systems, vaults, indexing, search, graph, AI co
 packages/core/agents-builtin    built-in agent packages (data only, no code)
 packages/core/plugin-runtime    guard + runner for extension plugins (restricted Node process)
 apps/server              local HTTP API and CLI
-apps/ui, apps/desktop    planned: web interface and desktop shell
+apps/ui                  web interface (React); talks to the server only through the HTTP API
+apps/desktop             planned: desktop shell
 docs/architecture        design documents (start with overview.md)
 docs/spec                original requirements for the larger subsystems
 docs/research            background research
 ```
+
+## Screenshots
+
+| Knowledge graph (dark theme) | A mission waiting for your decision |
+|---|---|
+| ![Knowledge graph](docs/images/graph-dark.png) | ![Mission](docs/images/mission.png) |
 
 ## Documentation
 
