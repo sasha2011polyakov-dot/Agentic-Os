@@ -13,6 +13,7 @@ import { SystemManager } from './systems/manager.ts';
 import { appPaths, resolveDataDir } from './systems/paths.ts';
 import { wireSystemServices } from './wiring.ts';
 import { createAppAI } from './ai/app-ai.ts';
+import { ExtensionService } from './extensions/service.ts';
 import { SecurityLog } from './security/log.ts';
 
 export interface AppCoreOptions {
@@ -24,7 +25,8 @@ export interface AppCoreOptions {
   adapters?: Record<string, unknown>;
 }
 
-export const APP_VERSION = '0.1.0';
+import { APP_VERSION } from './version.ts';
+export { APP_VERSION };
 
 /**
  * Composition root. Owns application-wide services and the SystemManager. System content is only reached
@@ -76,6 +78,8 @@ export class AppCore {
 
     const services: AppServices = { paths, registryDb, appSettings, events, logger, registryAudit, policy, http, security: new SecurityLog(registryDb, null), ext: { env, adapters: opts.adapters ?? {} } };
     services.ext.ai = await createAppAI(services, env, opts.adapters ?? {});
+    const ai = services.ext.ai as Awaited<ReturnType<typeof createAppAI>>;
+    services.ext.extensions = new ExtensionService(services, ai.catalog, ai.web.fetcher);
     manager = new SystemManager(services);
     const core = new AppCore(services, manager);
     await wireSystemServices(core);

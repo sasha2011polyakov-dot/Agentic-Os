@@ -38,6 +38,7 @@ export const SETTINGS: SettingDef[] = [
   { key: 'security.sandbox', level: 'app', default: 'auto', label: 'Изоляция проверок', description: 'auto — использовать песочницу (bubblewrap в Linux), если она доступна; limited — только ограниченный режим.', validate: oneOf('auto', 'limited') },
 
   // Both levels: app default, system may override
+  { key: 'ui.extensionTheme', level: 'app', default: 'default', label: 'Оформление из расширения', description: 'default — стандартное оформление; иначе тема включённого расширения («расширение:тема»).', validate: (v) => typeof v === 'string' && /^(default|[a-z0-9.-]{1,170}:[a-z0-9-]{1,40})$/.test(v) },
   { key: 'ai.mode', level: 'both', default: 'local', label: 'Режим AI', description: 'local — только локальные модели; hybrid — облако по политике; cloud — облако разрешено.', validate: oneOf('local', 'hybrid', 'cloud') },
   { key: 'ai.defaultModel', level: 'both', default: null, label: 'Модель по умолчанию', description: 'Провайдер и модель, используемые, если агент не задаёт свою.', validate: (v) => v === null || isObj(v) },
   { key: 'ai.routing', level: 'both', default: {}, label: 'Маршрутизация по типам задач', description: 'Модель для типов задач: classification, extraction, generation, review, embedding.', validate: isObj },

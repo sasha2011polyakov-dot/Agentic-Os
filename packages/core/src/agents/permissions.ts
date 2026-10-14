@@ -21,7 +21,8 @@ export type PermissionId =
   | 'changes.propose'
   | 'agents.create'
   | 'workflows.create'
-  | 'systems.read';
+  | 'systems.read'
+  | 'extensions.use';
 
 export const PERMISSIONS: { id: PermissionId; label: string; description: string; risk: 'low' | 'medium' | 'high' }[] = [
   { id: 'documents.read', label: 'Чтение документов', description: 'Чтение документов хранилища в пределах области запуска.', risk: 'low' },
@@ -41,6 +42,7 @@ export const PERMISSIONS: { id: PermissionId; label: string; description: string
   { id: 'agents.create', label: 'Создание агентов', description: 'Создание черновиков новых агентов в системе (включает их только пользователь).', risk: 'medium' },
   { id: 'workflows.create', label: 'Создание процессов', description: 'Сохранение черновиков процессов (workflow). Запускает их только пользователь.', risk: 'medium' },
   { id: 'systems.read', label: 'Чтение других систем', description: 'Чтение данных систем, явно выбранных при запуске процесса.', risk: 'high' },
+  { id: 'extensions.use', label: 'Инструменты расширений', description: 'Вызов инструментов включённых расширений. Расширение при этом ограничено своими собственными разрешениями и областью запуска.', risk: 'high' },
 ];
 
 export const PERMISSION_IDS = new Set(PERMISSIONS.map((p) => p.id));

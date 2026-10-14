@@ -98,7 +98,8 @@ export class AgentCatalog {
   }
 
   sharedRows(): { id: string; version: string; install_path: string }[] {
-    return this.registryDb.all('SELECT id, version, install_path FROM app_agent_packages ORDER BY id, installed_at DESC');
+    // imported/created shared packages + agent roles of enabled extensions (they never override built-ins)
+    return this.registryDb.all('SELECT id, version, install_path, installed_at FROM app_agent_packages UNION ALL SELECT id, version, install_path, installed_at FROM extension_agent_packages ORDER BY id, installed_at DESC');
   }
 
   async sharedEntries(): Promise<CatalogEntry[]> {
@@ -137,8 +138,8 @@ export class AgentCatalog {
   }
 
   async removeShared(id: string, version: string): Promise<void> {
-    const row = this.sharedRows().find((r) => r.id === id && r.version === version);
-    if (!row) throw new AppError('NOT_FOUND', 'Пакет не найден.');
+    const row = this.registryDb.get<{ install_path: string }>('SELECT install_path FROM app_agent_packages WHERE id = ? AND version = ?', id, version);
+    if (!row) throw new AppError('NOT_FOUND', 'Пакет не найден (роли расширений удаляются вместе с расширением).');
     await rm(row.install_path, { recursive: true, force: true });
     this.registryDb.run('DELETE FROM app_agent_packages WHERE id = ? AND version = ?', id, version);
   }

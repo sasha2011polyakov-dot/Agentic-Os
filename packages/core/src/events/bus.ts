@@ -10,6 +10,7 @@ export type EventType =
   | 'graph.changed'
   | 'tasks.changed'
   | 'agents.changed'
+  | 'extensions.changed'
   | 'run.updated'
   | 'run.step'
   | 'run.event'

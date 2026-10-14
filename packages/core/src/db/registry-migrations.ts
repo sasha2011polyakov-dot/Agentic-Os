@@ -157,4 +157,19 @@ CREATE TABLE extensions (
 );
 `,
   },
+  {
+    version: 2,
+    name: 'extension-agent-packages',
+    sql: `
+-- Agent roles contributed by enabled extensions (section 30): readable by the agent catalog, removed with the extension.
+CREATE TABLE extension_agent_packages (
+  extension_id TEXT NOT NULL,
+  id           TEXT NOT NULL,
+  version      TEXT NOT NULL,
+  install_path TEXT NOT NULL,
+  installed_at TEXT NOT NULL,
+  PRIMARY KEY (id, version)
+);
+`,
+  },
 ];

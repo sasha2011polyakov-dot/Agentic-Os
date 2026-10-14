@@ -31,6 +31,9 @@ await build({
 // Built-in agent packages are data (no code) and ship next to the bundle: dist/agents-builtin.
 rmSync('dist/agents-builtin', { recursive: true, force: true });
 cpSync('../../packages/core/agents-builtin', 'dist/agents-builtin', { recursive: true });
+// The extension plugin runtime (guard + runner) is loaded by a separate restricted Node process: dist/plugin-runtime.
+rmSync('dist/plugin-runtime', { recursive: true, force: true });
+cpSync('../../packages/core/plugin-runtime', 'dist/plugin-runtime', { recursive: true });
 
 // CLI wrapper: installs the warning filter BEFORE the bundle (and node:sqlite) is loaded — static ESM imports
 // would otherwise be evaluated before any code in the bundle could filter the ExperimentalWarning.
