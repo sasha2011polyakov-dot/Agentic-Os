@@ -6,13 +6,9 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 ![Node](https://img.shields.io/badge/node-%E2%89%A522.13-339933)
 
-[Русская версия](README.ru.md)
-
 > **Status: alpha.** The core engine, the local HTTP API and a first version of the web interface are implemented.
 > The desktop app is **not built yet**: run the local server and open the interface in your browser.
-> The interface is in Russian; an English interface is planned.
-
-![A note with properties, backlinks and a local graph](docs/images/note.png)
+> The English interface and a usability redesign are in progress; screenshots will be added when they are done.
 
 ## Why
 
@@ -75,12 +71,6 @@ docs/spec                original requirements for the larger subsystems
 docs/research            background research
 ```
 
-## Screenshots
-
-| Knowledge graph (dark theme) | A mission waiting for your decision |
-|---|---|
-| ![Knowledge graph](docs/images/graph-dark.png) | ![Mission](docs/images/mission.png) |
-
 ## Documentation
 
 - [Architecture overview](docs/architecture/overview.md)
@@ -101,5 +91,3 @@ Please do not open public issues for vulnerabilities — see [SECURITY.md](SECUR
 ## License
 
 [Apache License 2.0](LICENSE). See also [NOTICE](NOTICE).
-
-The project is developed with the help of [Claude Code](https://claude.com/claude-code).

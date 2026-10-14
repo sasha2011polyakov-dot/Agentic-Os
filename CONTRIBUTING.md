@@ -2,8 +2,6 @@
 
 Thank you for helping! This guide explains how to set up the project, what we expect from a pull request, and the easiest ways to contribute without writing TypeScript.
 
-*Русским участникам: вопросы и PR можно писать по-русски — большая часть интерфейса и документации проекта на русском.*
-
 ## Ways to contribute
 
 | Contribution | Skills needed | Where |

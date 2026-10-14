@@ -5,7 +5,7 @@ This project adopts the [Contributor Covenant, version 2.1](https://www.contribu
 In short:
 
 - Be respectful and kind. Disagree with ideas, not with people.
-- Welcome newcomers. Questions are fine, including questions in Russian or English.
+- Welcome newcomers. Every question is fine.
 - No harassment, insults, discrimination, sexualized content or personal attacks — in issues, pull requests, reviews, discussions or any other project space.
 - Do not publish other people's private information.
 
