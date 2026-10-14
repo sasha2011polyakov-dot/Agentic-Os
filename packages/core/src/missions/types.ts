@@ -131,8 +131,10 @@ export interface MissionDecision {
   decision: 'approve' | 'reject' | 'revise' | 'apply' | 'skip' | 'retry';
   comment?: string;
   answers?: { question: string; answer: string }[];
-  approvedChecks?: { sourceId: string; name: string }[];
+  approvedChecks?: { sourceId: string; name: string; contentHash?: string | null }[];
   optionId?: string;
+  /** Risks of the change set the user explicitly confirmed (apply_changes). */
+  confirmRisks?: string[];
 }
 
 export interface MissionStepView {
@@ -149,7 +151,7 @@ export interface MissionStepView {
   output?: unknown;
   error: { code: string; message: string; hint?: string } | null;
   attempts: number;
-  sideEffects: { tool: string; target: string }[];
+  sideEffects: { tool: string; target: string; ref?: string; title?: string }[];
   startedAt: string | null;
   finishedAt: string | null;
 }

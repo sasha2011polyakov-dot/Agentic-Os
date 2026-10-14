@@ -5,6 +5,7 @@ import { registerAppRoutes, registerSystemRoutes } from './routes/systems.ts';
 import { registerDocRoutes, registerFsRoutes, registerGraphRoutes, registerSourceRoutes } from './routes/knowledge.ts';
 import { registerAgentRoutes, registerAiRoutes, registerChangeRoutes, registerSecurityRoutes, registerWebRoutes } from './routes/ai.ts';
 import { registerTaskRoutes, registerWorkflowRoutes } from './routes/workflows.ts';
+import { registerMissionRoutes } from './routes/missions.ts';
 
 export function createApiRouter(): Router {
   const r = new Router();
@@ -21,6 +22,7 @@ export function createApiRouter(): Router {
   registerSecurityRoutes(r);
   registerWorkflowRoutes(r);
   registerTaskRoutes(r);
+  registerMissionRoutes(r);
   return r;
 }
 

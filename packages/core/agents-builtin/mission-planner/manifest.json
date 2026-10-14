@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "mission-planner",
   "name": "Планировщик поручения",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Составляет план подзадач с зависимостями, ролями, инструментами, критериями готовности и способом проверки.",
   "author": "Agentic OS",
   "category": "mission",

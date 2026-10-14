@@ -443,7 +443,7 @@ export class ChangeSetService {
     for (const sid of new Set(this.contents(id).map((f) => f.sourceId))) {
       const src = this.source(sid);
       if (src.kind !== 'project') continue;
-      const wc = await this.ensureWorkCopy(id, sid, actor);
+      const wc = await this.applyToWorkCopy(id, sid, actor);
       const checks = [];
       for (const def of projectChecks(this.rt, sid)) {
         const { vetting } = await inspectCheck(this.rt, sid, def.name, wc.rootPath);
@@ -454,13 +454,26 @@ export class ChangeSetService {
     return out;
   }
 
-  private async ensureWorkCopy(setId: string, sourceId: string, actor: string): Promise<{ id: string; rootPath: string }> {
+  /**
+   * Brings the set's files of one project into the project's work copy (created on first use, never the original).
+   * Requires mode «Работать в копии» or higher — enforced by WorkCopyService.create.
+   */
+  async applyToWorkCopy(setId: string, sourceId: string, actor: string): Promise<{ id: string; rootPath: string }> {
     const s = this.setRow(setId);
     const existing = this.workcopies.current(sourceId, s.mission_id);
     const wc = existing && existing.status !== 'error' ? existing : await this.workcopies.create(sourceId, { missionId: s.mission_id, actor });
     const own = this.contents(setId).filter((f) => f.sourceId === sourceId);
     await this.workcopies.applySet(wc.id, own.map((f) => ({ path: f.path, op: f.op, content: f.content })), { changeSetId: setId, actor, missionId: s.mission_id });
     this.rt.db.run('UPDATE change_sets SET work_copy_id = ? WHERE id = ?', wc.id, setId);
+    return { id: wc.id, rootPath: wc.rootPath };
+  }
+
+  /** Work copy of a project for a mission, with the mission's current proposals applied (used before agent checks). */
+  async syncMissionWorkCopy(missionId: string, sourceId: string, actor: string): Promise<{ id: string; rootPath: string }> {
+    const set = this.rt.db.get<{ id: string }>("SELECT s.id FROM change_sets s WHERE s.mission_id = ? AND s.status = 'proposed' AND EXISTS (SELECT 1 FROM change_set_files f WHERE f.change_set_id = s.id AND f.source_id = ?) ORDER BY s.created_at DESC LIMIT 1", missionId, sourceId);
+    if (set) return this.applyToWorkCopy(set.id, sourceId, actor);
+    const existing = this.workcopies.current(sourceId, missionId);
+    const wc = existing && existing.status !== 'error' ? existing : await this.workcopies.create(sourceId, { missionId, actor });
     return { id: wc.id, rootPath: wc.rootPath };
   }
 
@@ -477,7 +490,7 @@ export class ChangeSetService {
     for (const sid of new Set(this.contents(id).map((f) => f.sourceId))) {
       const src = this.source(sid);
       if (src.kind !== 'project') continue;
-      const wc = await this.ensureWorkCopy(id, sid, opts.actor);
+      const wc = await this.applyToWorkCopy(id, sid, opts.actor);
       const defs = projectChecks(this.rt, sid);
       if (!defs.length) notes.push(`Для проекта «${src.name}» проверки не настроены: корректность изменений не подтверждена автоматически.`);
       for (const def of defs) {

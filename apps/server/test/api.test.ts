@@ -152,3 +152,40 @@ describe('workflows and tasks over HTTP', () => {
     expect(await csv.text()).toContain('"T-001","Задача из API","done"');
   });
 });
+
+describe('missions over HTTP', () => {
+  it('creates a mission, reports honestly that no model is configured, and lets the user cancel it', async () => {
+    const sys = await api<{ system: { systemId: string } }>('POST', '/api/systems', { name: 'Missions API', storagePath: join(root, 'sys-mis'), template: 'empty' });
+    const sid = sys.data.system.systemId;
+    const bad = await api<{ error: { code: string } }>('POST', `/api/systems/${sid}/missions`, { request: 'Изучи источники', scope: { kind: 'public', allowWeb: false } });
+    expect(bad.data.error.code).toBe('VALIDATION_FAILED');
+    const pre = await api<{ preflight: { ok: boolean; problems: string[] } }>('POST', `/api/systems/${sid}/missions/preflight`, { mode: 'plan' });
+    expect(pre.data.preflight.ok).toBe(false);
+    expect(pre.data.preflight.problems.join(' ')).toContain('Подготовить агентов');
+    const setup = await api<{ installed: string[] }>('POST', `/api/systems/${sid}/missions/setup-agents`, {});
+    expect(setup.data.installed).toContain('mission-analyst');
+    const created = await api<{ mission: { id: string; key: string; status: string; originalRequest: string } }>('POST', `/api/systems/${sid}/missions`, { request: 'Составь план документации проекта.', mode: 'plan' });
+    expect(created.status).toBe(200);
+    expect(created.data.mission.key).toBe('M-001');
+    const mid = created.data.mission.id;
+    type M = { status: string; pending: { kind: string; message: string } | null; steps: { status: string }[] };
+    let m: M | null = null;
+    for (let i = 0; i < 200; i++) {
+      m = (await api<{ mission: M }>('GET', `/api/systems/${sid}/missions/${mid}`)).data.mission;
+      if (m.status === 'needs_input') break;
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    // no model, no imitation: the mission waits for the user with a concrete question
+    expect(m!.status).toBe('needs_input');
+    expect(m!.pending?.kind).toBe('model');
+    expect(m!.pending?.message).toContain('Автоматического переключения на облако нет');
+    const list = await api<{ total: number; items: { key: string; statusLabel: string }[] }>('GET', `/api/systems/${sid}/missions`);
+    expect(list.data.items[0]).toMatchObject({ key: 'M-001', statusLabel: 'Требуется вмешательство' });
+    const events = await api<{ events: { type: string }[] }>('GET', `/api/systems/${sid}/missions/${mid}/events`);
+    expect(events.data.events.map((e) => e.type)).toContain('step.failed');
+    const cancelled = await api<{ mission: { status: string } }>('POST', `/api/systems/${sid}/missions/${mid}/cancel`, {});
+    expect(cancelled.data.mission.status).toBe('cancelled');
+    const again = await api<{ error: { code: string } }>('POST', `/api/systems/${sid}/missions/${mid}/resume`, {});
+    expect(again.data.error.code).toBe('INVALID_STATE_TRANSITION');
+  });
+});

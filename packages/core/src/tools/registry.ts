@@ -333,7 +333,8 @@ export const TOOLS: ToolDefinition<any, any>[] = [
       const approved = (ctx.scope.approvedChecks ?? []).find((c) => c.sourceId === i.sourceId && c.name === i.name);
       if (!approved) throw new AppError('CHECK_NOT_APPROVED', `Проверка «${i.name}» не подтверждена пользователем для этого запуска.`);
       // checks never run in the original project: only in this mission's/run's work copy
-      const wc = services(ctx.rt).workcopies.current(i.sourceId, ctx.scope.missionId ?? null);
+      // inside a mission the work copy is brought up to date with the mission's proposals first
+      const wc = ctx.scope.missionId ? await services(ctx.rt).changes.syncMissionWorkCopy(ctx.scope.missionId, i.sourceId, `agent:${ctx.agentId}`) : services(ctx.rt).workcopies.current(i.sourceId, null);
       if (!wc) throw new AppError('MODE_FORBIDS', 'Рабочая копия проекта не создана: проверки запускаются только в рабочей копии, исходный проект не используется.');
       const res = await runCheck(ctx.rt, i.sourceId, i.name, { workCopy: { id: wc.id, rootPath: wc.rootPath }, actor: `agent:${ctx.agentId}`, runId: ctx.scope.missionId ?? ctx.runId, approvedContentHash: approved.contentHash ?? null, ...(ctx.signal ? { signal: ctx.signal } : {}) });
       if (ctx.scope.missionId) {
@@ -415,6 +416,9 @@ export const TOOLS: ToolDefinition<any, any>[] = [
 
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
 
+/** Tools that create something: their output (ids) travels with the ok-event so callers can record artifacts durably. */
+const CREATION_TOOLS = new Set(['create_document', 'propose_file_change', 'create_agent_definition', 'create_workflow_definition', 'save_research_note']);
+
 /** Tools whose output is external/untrusted content: scanned for instructions aimed at AI (29.10). */
 const CONTENT_TOOLS = new Set(['read_document', 'read_project_file', 'search_documents', 'open_url', 'extract_page_content', 'fetch_documentation', 'inspect_repository']);
 const SECURITY_DENIALS = new Set(['PERMISSION_DENIED', 'CROSS_SYSTEM_DENIED', 'FETCH_BLOCKED', 'MODE_FORBIDS', 'PATH_OUTSIDE_SCOPE', 'COMMAND_BLOCKED', 'SECRET_EGRESS_BLOCKED', 'CHECK_NOT_APPROVED', 'READ_ONLY_SOURCE', 'NETWORK_POLICY_DENIED', 'OFFLINE_MODE']);
@@ -454,7 +458,7 @@ export async function executeTool(name: string, input: unknown, allowedTools: st
         ctx.onEvent?.({ type: 'security.injection', message: `Подозрительные инструкции в данных (${signals.join(', ')}) — обработаны как данные`, data: { tool: name, signals } });
       }
     }
-    ctx.onEvent?.({ type: 'tool.ok', message: `Инструмент ${name}: выполнено`, data: { tool: name, input } });
+    ctx.onEvent?.({ type: 'tool.ok', message: `Инструмент ${name}: выполнено`, data: { tool: name, input, ...(CREATION_TOOLS.has(name) ? { output } : {}) } });
     return { tool: name, input, ok: true, output, durationMs: Date.now() - started };
   } catch (e) {
     const err = toAppError(e);

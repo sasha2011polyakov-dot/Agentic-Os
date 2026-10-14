@@ -56,7 +56,7 @@ const VAGUE = [
   'и т.д', 'и т. д', 'и т.п', 'и т. п', 'по возможности', 'при необходимости', 'как можно', 'максимально', 'минимально', 'достаточно', 'некоторые', 'некоторых',
   'надёжн', 'надежн', 'качественн', 'user-friendly', 'user friendly', 'fast', 'easy', 'intuitive', 'etc', 'as needed', 'if possible', 'robust', 'seamless',
 ];
-const MEASURABLE = /\d|%|секунд|миллисекунд|мс\b|минут|час|не более|не менее|не больше|не меньше|≤|≥|<|>|ms\b|sec/i;
+const MEASURABLE = /\d|%|секунд|миллисекунд|мс(?!\p{L})|минут|час|не более|не менее|не больше|не меньше|≤|≥|<|>|ms\b|sec/iu;
 
 export function vagueTerms(text: string): string[] {
   const t = text.toLowerCase();

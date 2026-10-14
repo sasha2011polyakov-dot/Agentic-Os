@@ -28,3 +28,7 @@ export function workflowFunctionList(): { name: string; label: string; descripti
 export { ACCESS_MODES, analyzeRisks, categorize, type AccessMode, type RiskItem } from './security/policy.ts';
 export { describeRepository, assertSafeGitArgs } from './sources/git.ts';
 export type { SecurityEntry } from './security/log.ts';
+export { MISSION_STATUS_LABELS, PHASE_LABELS, transitionTable, type MissionStatus, type MissionPhase } from './missions/state.ts';
+export { MISSION_AGENTS, ROLE_DESCRIPTIONS } from './missions/plan.ts';
+export type { MissionView, MissionDecision, MissionScope, MissionPolicy, MissionLimits, MissionAttachment, PlanStep, CriterionVerification } from './missions/types.ts';
+export type { CreateMissionInput, MissionPreflight } from './missions/engine.ts';

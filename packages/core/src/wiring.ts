@@ -15,6 +15,7 @@ import { PermissionGuard } from './agents/permissions.ts';
 import { appAI } from './ai/app-ai.ts';
 import { TaskService } from './tasks/tasks.ts';
 import { WorkflowEngine } from './workflows/engine.ts';
+import { MissionEngine } from './missions/engine.ts';
 import { registerFunctions } from './workflows/functions.ts';
 import { BUILTIN_WORKFLOWS } from './workflows/builtin.ts';
 import { SPEC_FUNCTIONS } from './spec/functions.ts';
@@ -37,6 +38,7 @@ export interface SystemServices {
   agents: AgentService;
   tasks: TaskService;
   workflows: WorkflowEngine;
+  missions: MissionEngine;
 }
 
 export function services(rt: SystemRuntime): SystemServices {
@@ -70,7 +72,8 @@ export async function wireSystemServices(core: AppCore): Promise<void> {
       const tasks = new TaskService(rt, graph);
       const workflows = rt.register('workflows', new WorkflowEngine(rt, agents, agentRuntime));
       workflows.installBuiltins(BUILTIN_WORKFLOWS);
-      const s: SystemServices = { graph, indexer, sources, docs, search, changes, workcopies, backups, guard, agentRuntime, agents, tasks, workflows };
+      const missions = rt.register('missions', new MissionEngine(rt, { agents, agentRuntime, changes, docs, sources, systems: core.systems }));
+      const s: SystemServices = { graph, indexer, sources, docs, search, changes, workcopies, backups, guard, agentRuntime, agents, tasks, workflows, missions };
       rt.setOwned('services', s);
       for (const hook of extraHooks) await hook(rt, s);
     },
@@ -100,9 +103,11 @@ export async function wireSystemServices(core: AppCore): Promise<void> {
     },
     async pauseRuns(rt: SystemRuntime) {
       await services(rt).workflows.pauseAll('Приостановлено: система отключается или переключается.');
+      await services(rt).missions.pauseAll('Приостановлено: система отключается или переключается.');
     },
     async cancelRuns(rt: SystemRuntime) {
       await services(rt).workflows.cancelAll('Отменено: система отключается.');
+      await services(rt).missions.cancelAll('Отменено: система отключается.');
     },
   };
 }
