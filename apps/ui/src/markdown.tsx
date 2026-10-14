@@ -288,7 +288,7 @@ function WikiLink({ raw, h, embed }: { raw: string; h: MdHandlers; embed?: boole
     <a
       className={`wikilink${resolved === false ? ' unresolved' : ''}${embed ? ' embed' : ''}`}
       href="#"
-      title={resolved === false ? `«${page}» ещё не создан — нажмите, чтобы создать` : page}
+      title={resolved === false ? `"${page}" does not exist yet: click to create it` : page}
       onClick={(e) => {
         e.preventDefault();
         if (page) h.onLink(page);
@@ -335,7 +335,7 @@ export function Blocks({ blocks, h }: { blocks: Block[]; h: MdHandlers }): React
       case 'list': {
         const items = b.items.map((it, j) => (
           <li key={j} className={it.task !== null ? 'task' : undefined}>
-            {it.task !== null && <input type="checkbox" checked={it.task} readOnly tabIndex={-1} aria-label={it.task ? 'выполнено' : 'не выполнено'} />}
+            {it.task !== null && <input type="checkbox" checked={it.task} readOnly tabIndex={-1} aria-label={it.task ? 'done' : 'not done'} />}
             {it.task !== null ? (
               <span className="task-text">
                 <Inline text={it.text} h={h} />

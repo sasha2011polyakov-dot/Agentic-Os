@@ -22,14 +22,14 @@ export function Snippet({ text }: { text: string }) {
 }
 
 const HELP: [string, string][] = [
-  ['слово другое', 'оба слова'],
-  ['"точная фраза"', 'фраза целиком'],
-  ['кот OR кошка', 'любое из слов'],
-  ['-черновик', 'исключить слово'],
-  ['агент*', 'начало слова'],
-  ['tag:проект', 'по тегу'],
-  ['path:Концепции', 'по папке'],
-  ['[status:active]', 'по свойству'],
+  ['word another', 'both words'],
+  ['"exact phrase"', 'the whole phrase'],
+  ['cat OR kitten', 'any of the words'],
+  ['-draft', 'exclude a word'],
+  ['agent*', 'beginning of a word'],
+  ['tag:project', 'by tag'],
+  ['path:Concepts', 'by folder'],
+  ['[status:active]', 'by property'],
 ];
 
 export function SearchPage({ sid }: { sid: string }) {
@@ -52,14 +52,14 @@ export function SearchPage({ sid }: { sid: string }) {
     <div className="page narrow">
       <div className="search-input big card aos-themable">
         <Icon name="search" size={20} />
-        <input autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="Искать в заметках и подключённых проектах…" aria-label="Поисковый запрос" />
-        {res.data && <span className="muted small nowrap">{res.data.total} · {res.data.tookMs} мс</span>}
+        <input autoFocus value={input} onChange={(e) => setInput(e.target.value)} placeholder="Search notes and connected projects…" aria-label="Search query" />
+        {res.data && <span className="muted small nowrap">{res.data.total} · {res.data.tookMs} ms</span>}
       </div>
-      {res.data?.explain && <div className="explain muted small">Понял запрос как: {res.data.explain}</div>}
+      {res.data?.explain && <div className="explain muted small">Understood the query as: {res.data.explain}</div>}
 
       {!query.trim() ? (
         <div className="search-help card aos-themable">
-          <h3>Как искать</h3>
+          <h3>How to search</h3>
           <div className="help-grid">
             {HELP.map(([ex, what]) => (
               <button type="button" key={ex} className="help-item" onClick={() => setInput(ex)}>
@@ -74,8 +74,8 @@ export function SearchPage({ sid }: { sid: string }) {
       ) : res.error ? (
         <ErrorBox error={res.error} />
       ) : res.data && res.data.hits.length === 0 ? (
-        <Empty icon="search" title="Ничего не найдено">
-          Поиск учитывает точную форму слова. Попробуйте начало слова со звёздочкой, например <code>{query.trim().split(/\s+/)[0]?.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 5) || 'слово'}*</code>.
+        <Empty icon="search" title="Nothing found">
+          Search matches exact word forms. Try the beginning of a word with an asterisk, for example <code>{query.trim().split(/\s+/)[0]?.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 5) || 'word'}*</code>.
         </Empty>
       ) : (
         <ul className="results">

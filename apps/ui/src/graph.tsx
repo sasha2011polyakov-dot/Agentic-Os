@@ -329,7 +329,7 @@ export function GraphCanvas({
       if (node !== s.hover) {
         s.hover = node;
         c.style.cursor = node ? 'pointer' : 'grab';
-        setHoverLabel(node ? { x: w.sx, y: w.sy, text: node.n.label, path: node.n.type === 'unresolved' ? 'заметка не создана' : String(node.n.props.path ?? '') } : null);
+        setHoverLabel(node ? { x: w.sx, y: w.sy, text: node.n.label, path: node.n.type === 'unresolved' ? 'the note does not exist yet' : String(node.n.props.path ?? '') } : null);
       } else if (node) setHoverLabel((h) => (h ? { ...h, x: w.sx, y: w.sy } : h));
     };
     const onUp = (ev: PointerEvent) => {
@@ -374,7 +374,7 @@ export function GraphCanvas({
 
   return (
     <div ref={wrap} className={`graph-canvas ${compact ? 'compact' : ''}`}>
-      <canvas ref={canvas} aria-label="Граф связей между заметками" role="img" />
+      <canvas ref={canvas} aria-label="Graph of links between notes" role="img" />
       {hoverLabel && (
         <div className="graph-tip" style={{ left: hoverLabel.x + 14, top: hoverLabel.y + 10 }}>
           <div>{hoverLabel.text}</div>

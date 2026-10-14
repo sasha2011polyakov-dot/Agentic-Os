@@ -7,10 +7,10 @@ import type { DirListing, SystemInfo } from '../types.ts';
 
 const COLORS = ['#7c5cff', '#2f80ed', '#14b8a6', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#64748b'];
 
-/** First run and «Новая система знаний»: a folder of Markdown files the user owns, plus the service folder .aos. */
+/** First run and "New knowledge system": a folder of Markdown files the user owns, plus the service folder .aos. */
 export function CreateSystem() {
   const { systems, reloadSystems } = useApp();
-  const [name, setName] = useState(systems.length ? '' : 'Мои знания');
+  const [name, setName] = useState(systems.length ? '' : 'My knowledge');
   const [path, setPath] = useState('');
   const [pathTouched, setPathTouched] = useState(false);
   const [template, setTemplate] = useState<'starter' | 'empty'>('starter');
@@ -23,7 +23,7 @@ export function CreateSystem() {
 
   useEffect(() => {
     if (pathTouched || !home.data) return;
-    const safe = (name.trim() || 'Знания').replace(/[\\/:*?"<>|]+/g, ' ').trim();
+    const safe = (name.trim() || 'Knowledge').replace(/[\\/:*?"<>|]+/g, ' ').trim();
     setPath(`${home.data.path.replace(/[\\/]+$/, '')}/Agentic OS/${safe}`);
   }, [name, home.data, pathTouched]);
 
@@ -37,7 +37,7 @@ export function CreateSystem() {
     } catch (e) {
       setError(e);
       setBusy(false);
-      if (e instanceof ApiError && /не пуста/.test(e.message)) setAdopt(false);
+      if (e instanceof ApiError && /not empty/.test(e.message)) setAdopt(false);
     }
   };
 
@@ -49,9 +49,9 @@ export function CreateSystem() {
             <Icon name="spark" size={26} />
           </div>
           <div>
-            <h1>{systems.length ? 'Новая система знаний' : 'Добро пожаловать в Agentic OS'}</h1>
+            <h1>{systems.length ? 'New knowledge system' : 'Welcome to Agentic OS'}</h1>
             <p className="muted">
-              Система знаний — это папка с обычными Markdown-файлами на вашем компьютере и служебная папка <code>.aos</code> с индексом. Системы полностью изолированы друг от друга: например, «Работа» и «Личное».
+              A knowledge system is a folder of plain Markdown files on your computer plus the service folder <code>.aos</code> with the index. Systems are fully isolated from each other: for example "Work" and "Personal".
             </p>
           </div>
         </div>
@@ -63,11 +63,11 @@ export function CreateSystem() {
           }}
         >
           <label>
-            Название
-            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="Например: Работа" />
+            Name
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder="For example: Work" />
           </label>
           <label>
-            Папка хранилища
+            Vault folder
             <div className="row">
               <input
                 className="grow mono"
@@ -76,13 +76,13 @@ export function CreateSystem() {
                   setPath(e.target.value);
                   setPathTouched(true);
                 }}
-                placeholder="/home/user/Знания"
+                placeholder="/home/user/Knowledge"
               />
               <Button icon="folder" onClick={() => setBrowse((b) => !b)}>
-                Выбрать…
+                Choose…
               </Button>
             </div>
-            <span className="hint">Если папки нет, она будет создана. Существующие файлы не изменяются.</span>
+            <span className="hint">If the folder does not exist, it is created. Existing files are not changed.</span>
           </label>
           {browse && (
             <FolderBrowser
@@ -97,25 +97,25 @@ export function CreateSystem() {
           <label className="check">
             <input type="checkbox" checked={adopt} onChange={(e) => setAdopt(e.target.checked)} />
             <span>
-              Создать систему в существующей непустой папке (например, хранилище Obsidian): добавится только <code>.aos</code>
+              Create the system in an existing non-empty folder (for example an Obsidian vault): only <code>.aos</code> is added
             </span>
           </label>
           <div className="field">
-            <span>Начальное содержимое</span>
+            <span>Initial content</span>
             <div className="seg">
               <button type="button" className={template === 'starter' ? 'on' : ''} onClick={() => setTemplate('starter')}>
-                Со стартовыми заметками
+                With starter notes
               </button>
               <button type="button" className={template === 'empty' ? 'on' : ''} onClick={() => setTemplate('empty')}>
-                Пустая
+                Empty
               </button>
             </div>
           </div>
           <div className="field">
-            <span>Цвет</span>
+            <span>Color</span>
             <div className="swatches">
               {COLORS.map((c) => (
-                <button type="button" key={c} className={`swatch ${c === color ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Цвет ${c}`} />
+                <button type="button" key={c} className={`swatch ${c === color ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} />
               ))}
             </div>
           </div>
@@ -123,11 +123,11 @@ export function CreateSystem() {
           <div className="row end">
             {systems.length > 0 && (
               <Button variant="ghost" onClick={() => history.back()}>
-                Отмена
+                Cancel
               </Button>
             )}
             <Button variant="primary" icon="check" busy={busy} disabled={!name.trim() || !path.trim()} onClick={() => void submit()}>
-              Создать систему
+              Create the system
             </Button>
           </div>
         </form>
@@ -155,21 +155,21 @@ function FolderBrowser({ start, onPick }: { start: string; onPick: (path: string
       ) : d ? (
         <>
           <div className="browser-head">
-            <button type="button" className="icon-btn sm" disabled={!d.parent} onClick={() => d.parent && setDir(d.parent)} aria-label="Вверх">
+            <button type="button" className="icon-btn sm" disabled={!d.parent} onClick={() => d.parent && setDir(d.parent)} aria-label="Up">
               <Icon name="back" size={16} />
             </button>
             <span className="mono small grow ellipsis">{d.path}</span>
             <Button variant="primary" onClick={() => onPick(d.path)}>
-              Выбрать эту папку
+              Choose this folder
             </Button>
           </div>
           <div className="browser-list">
-            {d.entries.length === 0 && <div className="muted small pad">Вложенных папок нет.</div>}
+            {d.entries.length === 0 && <div className="muted small pad">No subfolders.</div>}
             {d.entries.map((e) => (
               <button type="button" key={e.path} className="tree-row folder" onClick={() => setDir(e.path)}>
                 <Icon name="folder" size={15} />
                 <span className="tree-label">{e.name}</span>
-                {e.isSystem && <span className="badge badge-accent">система</span>}
+                {e.isSystem && <span className="badge badge-accent">system</span>}
                 {e.isGit && <span className="badge badge-neutral">git</span>}
               </button>
             ))}

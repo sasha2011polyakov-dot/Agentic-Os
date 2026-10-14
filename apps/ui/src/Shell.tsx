@@ -25,10 +25,10 @@ export function Shell({ sid }: { sid: string }) {
   if (!system) {
     return (
       <div className="center-screen">
-        <Empty icon="database" title="Система знаний не найдена">
-          <p>Возможно, она была удалена из списка.</p>
+        <Empty icon="database" title="Knowledge system not found">
+          <p>It may have been removed from the list.</p>
           <Button variant="primary" onClick={() => navigate('/')}>
-            К списку систем
+            Back to the systems
           </Button>
         </Empty>
       </div>
@@ -52,16 +52,16 @@ export function Shell({ sid }: { sid: string }) {
         <SystemSwitcher current={system} systems={systems} />
         <PaletteButton />
         <nav className="nav">
-          <NavItem to={paths.system(sid)} icon="database" label="Обзор" active={p === paths.system(sid)} />
-          <NavItem to={paths.search(sid)} icon="search" label="Поиск" active={p.startsWith(paths.search(sid))} />
-          <NavItem to={paths.graph(sid)} icon="graph" label="Граф знаний" active={p.startsWith(paths.graph(sid))} />
-          <NavItem to={paths.missions(sid)} icon="target" label="Поручения" active={p.startsWith(paths.missions(sid))} />
+          <NavItem to={paths.system(sid)} icon="database" label="Overview" active={p === paths.system(sid)} />
+          <NavItem to={paths.search(sid)} icon="search" label="Search" active={p.startsWith(paths.search(sid))} />
+          <NavItem to={paths.graph(sid)} icon="graph" label="Knowledge graph" active={p.startsWith(paths.graph(sid))} />
+          <NavItem to={paths.missions(sid)} icon="target" label="Missions" active={p.startsWith(paths.missions(sid))} />
         </nav>
         <NoteTree sid={sid} activeDocId={match('/s/:sid/note/:docId', p)?.docId ?? null} />
       </aside>
       <div className="nav-scrim" onClick={() => setNavOpen(false)} />
       <main className="main">
-        <button type="button" className="icon-btn nav-toggle" onClick={() => setNavOpen(true)} aria-label="Меню">
+        <button type="button" className="icon-btn nav-toggle" onClick={() => setNavOpen(true)} aria-label="Menu">
           <Icon name="menu" />
         </button>
         <ErrorBoundary resetKey={p}>{page}</ErrorBoundary>
@@ -85,7 +85,7 @@ function PaletteButton() {
   return (
     <button type="button" className="palette-btn" onClick={openPalette}>
       <Icon name="search" size={16} />
-      <span>Найти или выполнить…</span>
+      <span>Find or run…</span>
       <kbd>{mac ? '⌘' : 'Ctrl'} K</kbd>
     </button>
   );
@@ -101,12 +101,12 @@ function SystemSwitcher({ current, systems }: { current: SystemInfo; systems: Sy
         <span className="switcher-name">{current.name}</span>
         <Icon name="chevron" size={14} className={open ? 'rot90' : ''} />
       </button>
-      <button type="button" className="icon-btn" title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+      <button type="button" className="icon-btn" title={theme === 'dark' ? 'Light theme' : 'Dark theme'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
         <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
       </button>
       {open && (
         <div className="switcher-menu card" onMouseLeave={() => setOpen(false)}>
-          <div className="menu-label">Системы знаний</div>
+          <div className="menu-label">Knowledge systems</div>
           {systems.map((s) => (
             <button
               type="button"
@@ -125,7 +125,7 @@ function SystemSwitcher({ current, systems }: { current: SystemInfo; systems: Sy
           <div className="menu-sep" />
           <button type="button" className="menu-item" onClick={() => navigate(paths.newSystem())}>
             <Icon name="plus" size={16} />
-            <span className="grow">Новая система знаний</span>
+            <span className="grow">New knowledge system</span>
           </button>
         </div>
       )}
@@ -198,8 +198,8 @@ function NoteTree({ sid, activeDocId }: { sid: string; activeDocId: string | nul
   };
 
   const render = (node: TreeNode, depth: number) => {
-    const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-    const files = [...node.docs].sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+    const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name, 'en'));
+    const files = [...node.docs].sort((a, b) => a.title.localeCompare(b.title, 'en'));
     return (
       <>
         {folders.map((f) => (
@@ -225,18 +225,18 @@ function NoteTree({ sid, activeDocId }: { sid: string; activeDocId: string | nul
   return (
     <div className="tree">
       <div className="tree-head">
-        <span>Заметки</span>
+        <span>Notes</span>
         <span className="muted small">{docs.data?.total ?? ''}</span>
         <span className="grow" />
-        <button type="button" className="icon-btn sm" title="Ежедневная заметка" onClick={() => void daily()}>
+        <button type="button" className="icon-btn sm" title="Daily note" onClick={() => void daily()}>
           <Icon name="calendar" size={16} />
         </button>
-        <button type="button" className="icon-btn sm" title="Новая заметка" onClick={() => setCreating('')}>
+        <button type="button" className="icon-btn sm" title="New note" onClick={() => setCreating('')}>
           <Icon name="plus" size={16} />
         </button>
       </div>
       <div className="tree-body">
-        {docs.loading && !docs.data ? <Spinner /> : docs.error ? <ErrorBox error={docs.error} onRetry={docs.reload} /> : docs.data && docs.data.items.length === 0 ? <div className="muted small pad">Заметок пока нет.</div> : render(tree, 0)}
+        {docs.loading && !docs.data ? <Spinner /> : docs.error ? <ErrorBox error={docs.error} onRetry={docs.reload} /> : docs.data && docs.data.items.length === 0 ? <div className="muted small pad">No notes yet.</div> : render(tree, 0)}
       </div>
       {creating !== null && <NewNoteModal sid={sid} initialTitle={creating} onClose={() => setCreating(null)} />}
     </div>
@@ -265,15 +265,15 @@ export function NewNoteModal({ sid, initialTitle, onClose }: { sid: string; init
   };
   return (
     <Modal
-      title="Новая заметка"
+      title="New note"
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Отмена
+            Cancel
           </Button>
           <Button variant="primary" icon="plus" busy={busy} disabled={!title.trim()} onClick={() => void submit()}>
-            Создать
+            Create
           </Button>
         </>
       }
@@ -286,13 +286,13 @@ export function NewNoteModal({ sid, initialTitle, onClose }: { sid: string; init
         }}
       >
         <label>
-          Название
-          <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например: Идеи для проекта" maxLength={200} />
+          Title
+          <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="For example: Project ideas" maxLength={200} />
         </label>
         <label>
-          Папка
+          Folder
           <select value={folder} onChange={(e) => setFolder(e.target.value)}>
-            <option value="">Корень хранилища</option>
+            <option value="">Vault root</option>
             {(folders.data?.folders ?? []).map((f) => (
               <option key={f} value={f}>
                 {f}
@@ -301,9 +301,9 @@ export function NewNoteModal({ sid, initialTitle, onClose }: { sid: string; init
           </select>
         </label>
         <label>
-          Шаблон
+          Template
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-            <option value="">Пустая заметка</option>
+            <option value="">Empty note</option>
             {(templates.data?.templates ?? []).map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}

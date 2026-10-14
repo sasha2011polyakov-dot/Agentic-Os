@@ -72,7 +72,7 @@ export function App() {
     return () => window.removeEventListener('keydown', k);
   }, []);
 
-  // «/» → the active (or first) system, or the first-run screen
+  // "/" → the active (or first) system, or the first-run screen
   useEffect(() => {
     if (!app || !systems || loc.path !== '/') return;
     const target = systems.find((s) => s.systemId === app.activeSystemId) ?? systems[0];
@@ -95,7 +95,7 @@ export function App() {
   if (!state) {
     return (
       <div className="center-screen">
-        <Spinner label="Запуск Agentic OS…" />
+        <Spinner label="Starting Agentic OS…" />
       </div>
     );
   }
@@ -121,12 +121,12 @@ function LoginRequired() {
           <Icon name="spark" size={26} />
         </div>
         <h1>Agentic OS</h1>
-        <p>Сессия не найдена. Интерфейс работает только с локальным сервером на этом компьютере.</p>
+        <p>No session found. The interface works only with the local server on this computer.</p>
         <ol>
-          <li>Найдите окно терминала, где запущен Agentic OS.</li>
-          <li>Откройте ссылку «Откройте в браузере: http://127.0.0.1:…/auth?token=…».</li>
+          <li>Find the terminal window where Agentic OS is running.</li>
+          <li>Open the link "Open in the browser: http://127.0.0.1:…/auth?token=…".</li>
         </ol>
-        <p className="muted small">Если сервер перезапускался, нужна новая ссылка: старая перестаёт действовать.</p>
+        <p className="muted small">If the server was restarted, you need the new link: the old one stops working.</p>
       </div>
     </div>
   );

@@ -56,7 +56,7 @@ export function Button({ variant = 'default', icon, children, busy, ...rest }: B
   );
 }
 
-export function Spinner({ label = 'Загрузка…' }: { label?: string }) {
+export function Spinner({ label = 'Loading…' }: { label?: string }) {
   return (
     <div className="loading" role="status">
       <span className="spinner" aria-hidden="true" /> {label}
@@ -76,7 +76,7 @@ export function ErrorBox({ error, onRetry }: { error: unknown; onRetry?: () => v
       </div>
       {onRetry && (
         <Button variant="ghost" icon="refresh" onClick={onRetry}>
-          Повторить
+          Retry
         </Button>
       )}
     </div>
@@ -106,7 +106,7 @@ export function Modal({ title, onClose, children, footer, wide }: { title: strin
       <div className={`modal card ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-head">
           <h2>{title}</h2>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Закрыть">
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             <Icon name="x" />
           </button>
         </div>
@@ -124,11 +124,11 @@ export function Badge({ tone = 'neutral', children }: { tone?: 'neutral' | 'ok' 
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (d < 45) return 'только что';
-  if (d < 3600) return `${Math.round(d / 60)} мин назад`;
-  if (d < 86400) return `${Math.round(d / 3600)} ч назад`;
-  if (d < 86400 * 7) return `${Math.round(d / 86400)} дн назад`;
-  return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (d < 45) return 'just now';
+  if (d < 3600) return `${Math.round(d / 60)} min ago`;
+  if (d < 86400) return `${Math.round(d / 3600)} h ago`;
+  if (d < 86400 * 7) return `${Math.round(d / 86400)} d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /** A rendering error in one screen shows a message with a retry instead of a blank page. */
@@ -140,7 +140,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('Ошибка интерфейса:', error, info.componentStack);
+    console.error('Interface error:', error, info.componentStack);
   }
 
   override componentDidUpdate(prev: { resetKey?: string }) {
@@ -151,7 +151,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
     if (!this.state.error) return this.props.children;
     return (
       <div className="page">
-        <ErrorBox error={new Error(`Экран не удалось показать: ${this.state.error.message}. Данные не изменены.`)} onRetry={() => this.setState({ error: null })} />
+        <ErrorBox error={new Error(`This screen could not be shown: ${this.state.error.message}. No data was changed.`)} onRetry={() => this.setState({ error: null })} />
       </div>
     );
   }

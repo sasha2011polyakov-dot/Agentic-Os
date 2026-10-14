@@ -25,7 +25,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
-    throw new ApiError('SERVER_UNREACHABLE', 'Сервер Agentic OS недоступен.', 'Проверьте, что приложение запущено, и обновите страницу.', 0);
+    throw new ApiError('SERVER_UNREACHABLE', 'The Agentic OS server is unreachable.', 'Check that the application is running and reload the page.', 0);
   }
   const text = await res.text();
   let json: unknown = null;
@@ -36,7 +36,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
   if (!res.ok) {
     const e = (json as { error?: { code?: string; message?: string; hint?: string; details?: unknown } } | null)?.error;
-    throw new ApiError(e?.code ?? 'HTTP_' + res.status, e?.message ?? `Ошибка ${res.status}`, e?.hint ?? null, res.status, e?.details ?? null);
+    throw new ApiError(e?.code ?? 'HTTP_' + res.status, e?.message ?? `Error ${res.status}`, e?.hint ?? null, res.status, e?.details ?? null);
   }
   return json as T;
 }

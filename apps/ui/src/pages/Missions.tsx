@@ -27,21 +27,21 @@ export function MissionsPage({ sid }: { sid: string }) {
       <header className="page-head">
         <div>
           <div className="eyebrow">
-            <Icon name="target" size={14} /> Поручения
+            <Icon name="target" size={14} /> Missions
           </div>
-          <h1>Задачи для агентов</h1>
-          <p className="muted">Задача обычным языком → анализ, план, выполнение, проверка с доказательствами. Изменения в проектах — только с вашего разрешения.</p>
+          <h1>Tasks for agents</h1>
+          <p className="muted">A task in plain words → analysis, plan, execution, verification with evidence. Changes to projects happen only with your permission.</p>
         </div>
         <Button variant="primary" icon="plus" onClick={() => navigate(paths.newMission(sid))}>
-          Новое поручение
+          New mission
         </Button>
       </header>
       <div className="seg">
         {(
           [
-            ['all', 'Все'],
-            ['active', 'В работе'],
-            ['done', 'Завершённые'],
+            ['all', 'All'],
+            ['active', 'In progress'],
+            ['done', 'Finished'],
           ] as const
         ).map(([k, l]) => (
           <button type="button" key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
@@ -54,8 +54,8 @@ export function MissionsPage({ sid }: { sid: string }) {
       ) : list.error ? (
         <ErrorBox error={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
-        <Empty icon="target" title={list.data?.items.length ? 'В этом разделе пусто' : 'Поручений пока нет'}>
-          Например: «Изучи мои заметки о проекте и составь план релиза» или «Найди в проекте место, где обрабатывается вход, и предложи исправление».
+        <Empty icon="target" title={list.data?.items.length ? 'Nothing in this section' : 'No missions yet'}>
+          For example: "Study my notes about the project and draft a release plan" or "Find where the project handles login and propose a fix".
         </Empty>
       ) : (
         <div className="mission-list">
@@ -66,7 +66,7 @@ export function MissionsPage({ sid }: { sid: string }) {
                 <div className="mission-title">{m.title}</div>
                 <div className="muted small ellipsis">{m.statusReason ?? m.phaseLabel}</div>
               </div>
-              <Badge tone="neutral">{m.mode === 'plan' ? 'исследовать и спланировать' : 'выполнить'}</Badge>
+              <Badge tone="neutral">{m.mode === 'plan' ? 'research and plan' : 'execute'}</Badge>
               <Badge tone={missionTone(m.status)}>{m.statusLabel}</Badge>
               <span className="muted small nowrap">{timeAgo(m.updatedAt)}</span>
             </Link>
@@ -95,7 +95,7 @@ export function NewMissionPage({ sid }: { sid: string }) {
     setPreparing(true);
     try {
       await api.post(`${sysApi(sid)}/missions/setup-agents`);
-      toast('ok', 'Агенты поручений установлены и включены');
+      toast('ok', 'The mission agents are installed and enabled');
       pre.reload();
     } catch (e) {
       toast('bad', errorText(e));
@@ -122,44 +122,44 @@ export function NewMissionPage({ sid }: { sid: string }) {
         <div>
           <div className="eyebrow">
             <Link to={paths.missions(sid)} className="link">
-              Поручения
+              Missions
             </Link>{' '}
-            / новое
+            / new
           </div>
-          <h1>Поставить задачу</h1>
+          <h1>New mission</h1>
         </div>
       </header>
       <div className="card panel aos-themable">
         <div className="form">
           <label>
-            Что нужно сделать?
-            <textarea className="request" autoFocus value={request} onChange={(e) => setRequest(e.target.value)} rows={6} maxLength={20000} placeholder="Опишите задачу своими словами: что нужно получить, что важно учесть, чего делать нельзя." />
+            What needs to be done?
+            <textarea className="request" autoFocus value={request} onChange={(e) => setRequest(e.target.value)} rows={6} maxLength={20000} placeholder="Describe the task in your own words: what you need, what matters, what must not be done." />
           </label>
           <div className="field">
-            <span>Режим</span>
+            <span>Mode</span>
             <div className="seg">
               <button type="button" className={mode === 'plan' ? 'on' : ''} onClick={() => setMode('plan')}>
-                Исследовать и спланировать
+                Research and plan
               </button>
               <button type="button" className={mode === 'execute' ? 'on' : ''} onClick={() => setMode('execute')}>
-                Выполнить задачу
+                Execute the task
               </button>
             </div>
-            <span className="hint">{mode === 'plan' ? 'Ничего не меняется: анализ, варианты решения и план.' : 'Агенты выполняют план. Изменения файлов проектов только предлагаются — применить их можете только вы.'}</span>
+            <span className="hint">{mode === 'plan' ? 'Nothing changes: analysis, solution options and a plan.' : 'Agents carry out the plan. Changes to project files are only proposed: only you can apply them.'}</span>
           </div>
           <div className="row wrap">
             <label className="check">
               <input type="checkbox" checked={allowWeb} onChange={(e) => setAllowWeb(e.target.checked)} />
-              Разрешить поиск в интернете
+              Allow internet search
             </label>
             <span className="grow" />
             <label className="inline">
-              Приоритет
+              Priority
               <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-                <option value="critical">критический</option>
-                <option value="high">высокий</option>
-                <option value="medium">средний</option>
-                <option value="low">низкий</option>
+                <option value="critical">critical</option>
+                <option value="high">high</option>
+                <option value="medium">medium</option>
+                <option value="low">low</option>
               </select>
             </label>
           </div>
@@ -168,18 +168,18 @@ export function NewMissionPage({ sid }: { sid: string }) {
 
       <div className="card panel aos-themable">
         <div className="panel-head">
-          <h2>Готовность</h2>
-          {pre.data && <Badge tone={pre.data.ok ? 'ok' : 'warn'}>{pre.data.ok ? 'можно запускать' : 'нужна подготовка'}</Badge>}
+          <h2>Readiness</h2>
+          {pre.data && <Badge tone={pre.data.ok ? 'ok' : 'warn'}>{pre.data.ok ? 'ready to run' : 'needs setup'}</Badge>}
         </div>
         {pre.loading && !pre.data ? (
-          <Spinner label="Проверяю агентов и модели…" />
+          <Spinner label="Checking agents and models…" />
         ) : pre.error ? (
           <ErrorBox error={pre.error} onRetry={pre.reload} />
         ) : pre.data ? (
           <>
             <p className="muted small">
-              Режим AI: <strong>{pre.data.aiMode === 'local' ? 'только локальные модели' : pre.data.aiMode === 'hybrid' ? 'гибридный' : 'облачный'}</strong>
-              {pre.data.offline ? ' · офлайн' : ''}
+              AI mode: <strong>{pre.data.aiMode === 'local' ? 'local models only' : pre.data.aiMode === 'hybrid' ? 'hybrid' : 'cloud'}</strong>
+              {pre.data.offline ? ' · offline' : ''}
             </p>
             {pre.data.problems.map((p, i) => (
               <div key={i} className="line bad">
@@ -194,13 +194,13 @@ export function NewMissionPage({ sid }: { sid: string }) {
             {agentsMissing && (
               <div className="row">
                 <Button icon="check" busy={preparing} onClick={() => void setup()}>
-                  Подготовить агентов
+                  Set up agents
                 </Button>
-                <span className="muted small">Установит и включит встроенных агентов поручений в этой системе. Без вашего действия агенты не устанавливаются.</span>
+                <span className="muted small">Installs and enables the built-in mission agents in this system. Agents are never installed without your action.</span>
               </div>
             )}
             {!agentsMissing && pre.data.agents.some((a) => a.routeError) && (
-              <p className="muted small">Агентам нужна модель. Локальная модель (Ollama, LM Studio) не требует ключа; облачного переключения без вашего решения не будет.</p>
+              <p className="muted small">Agents need a model. A local model (Ollama, LM Studio) needs no key; there is no switch to the cloud without your decision.</p>
             )}
           </>
         ) : null}
@@ -209,10 +209,10 @@ export function NewMissionPage({ sid }: { sid: string }) {
       {error != null && <ErrorBox error={error} />}
       <div className="row end">
         <Button variant="ghost" onClick={() => navigate(paths.missions(sid))}>
-          Отмена
+          Cancel
         </Button>
         <Button variant="primary" icon="play" busy={busy} disabled={request.trim().length < 3} onClick={() => void submit()}>
-          Поставить задачу
+          Start the mission
         </Button>
       </div>
     </div>
@@ -222,15 +222,15 @@ export function NewMissionPage({ sid }: { sid: string }) {
 // ================================================================================================ detail
 
 const CRITERION: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' | 'info' }> = {
-  pending: { label: 'ожидает проверки', tone: 'neutral' },
-  met: { label: 'выполнен', tone: 'ok' },
-  partially_met: { label: 'частично', tone: 'warn' },
-  not_met: { label: 'не выполнен', tone: 'bad' },
-  unverifiable: { label: 'не подтверждён', tone: 'warn' },
-  not_applicable: { label: 'не применим', tone: 'neutral' },
+  pending: { label: 'pending', tone: 'neutral' },
+  met: { label: 'met', tone: 'ok' },
+  partially_met: { label: 'partially met', tone: 'warn' },
+  not_met: { label: 'not met', tone: 'bad' },
+  unverifiable: { label: 'not confirmed', tone: 'warn' },
+  not_applicable: { label: 'not applicable', tone: 'neutral' },
 };
 
-const STEP_STATUS: Record<string, string> = { pending: 'ожидает', running: 'выполняется', completed: 'готово', failed: 'ошибка', skipped: 'пропущен', cancelled: 'отменён', waiting_for_approval: 'ждёт решения' };
+const STEP_STATUS: Record<string, string> = { pending: 'pending', running: 'running', completed: 'done', failed: 'failed', skipped: 'skipped', cancelled: 'cancelled', waiting_for_approval: 'waiting for a decision' };
 
 export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
   const toast = useToast();
@@ -296,9 +296,9 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
         <div className="grow">
           <div className="eyebrow">
             <Link to={paths.missions(sid)} className="link">
-              Поручения
+              Missions
             </Link>{' '}
-            / <span className="mono">{v.key}</span> · {v.mode === 'plan' ? 'исследовать и спланировать' : 'выполнить задачу'}
+            / <span className="mono">{v.key}</span> · {v.mode === 'plan' ? 'research and plan' : 'execute the task'}
           </div>
           <h1>{v.title}</h1>
           <div className="row wrap">
@@ -310,22 +310,22 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
         <div className="row">
           {(working || v.status === 'awaiting_approval' || v.status === 'needs_input') && (
             <Button icon="pause" onClick={() => void act('pause')}>
-              Пауза
+              Pause
             </Button>
           )}
           {v.status === 'paused' && (
             <Button variant="primary" icon="play" onClick={() => void act('resume')}>
-              Продолжить
+              Resume
             </Button>
           )}
           {v.status === 'draft' && (
             <Button variant="primary" icon="play" onClick={() => void act('start')}>
-              Запустить
+              Start
             </Button>
           )}
           {!finished && (
-            <Button variant="ghost" icon="stop" onClick={() => confirm('Отменить поручение? Промежуточные результаты сохранятся.') && void act('cancel')}>
-              Отменить
+            <Button variant="ghost" icon="stop" onClick={() => confirm('Cancel the mission? Intermediate results will be kept.') && void act('cancel')}>
+              Cancel
             </Button>
           )}
         </div>
@@ -346,11 +346,11 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
       <div className="grid-2">
         <section className="card panel aos-themable">
           <div className="panel-head">
-            <h2>Критерии готовности</h2>
-            <span className="muted small">{v.criteria.filter((c) => c.status === 'met').length} из {v.criteria.filter((c) => c.status !== 'not_applicable').length}</span>
+            <h2>Acceptance criteria</h2>
+            <span className="muted small">{v.criteria.filter((c) => c.status === 'met').length} of {v.criteria.filter((c) => c.status !== 'not_applicable').length}</span>
           </div>
           {v.criteria.length === 0 ? (
-            <p className="muted small">Появятся после анализа задачи.</p>
+            <p className="muted small">They appear after the task analysis.</p>
           ) : (
             <ul className="criteria">
               {v.criteria.map((c) => (
@@ -360,7 +360,7 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
                     <span className="grow">{c.text}</span>
                     <Badge tone={CRITERION[c.status]?.tone ?? 'neutral'}>{CRITERION[c.status]?.label ?? c.status}</Badge>
                   </div>
-                  {c.evidence && <div className="small evidence">Доказательство: {c.evidence}</div>}
+                  {c.evidence && <div className="small evidence">Evidence: {c.evidence}</div>}
                   {c.notes && <div className="small muted">{c.notes}</div>}
                 </li>
               ))}
@@ -370,15 +370,15 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
 
         <section className="card panel aos-themable">
           <div className="panel-head">
-            <h2>План</h2>
+            <h2>Plan</h2>
             {v.progress.steps.total > 0 && (
               <span className="muted small">
-                {v.progress.steps.done} из {v.progress.steps.total}
+                {v.progress.steps.done} of {v.progress.steps.total}
               </span>
             )}
           </div>
           {v.plan.length === 0 ? (
-            <p className="muted small">План появится после анализа{v.mode === 'plan' ? ' и исследования' : ''}.</p>
+            <p className="muted small">The plan appears after the analysis{v.mode === 'plan' ? ' and the research' : ''}.</p>
           ) : (
             <ol className="plan">
               {v.plan.map((p) => {
@@ -390,7 +390,7 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
                       <div>{p.title}</div>
                       <div className="muted small">
                         {p.role}
-                        {p.depends_on.length ? ` · после ${p.depends_on.join(', ')}` : ''}
+                        {p.depends_on.length ? ` · after ${p.depends_on.join(', ')}` : ''}
                         {st?.error ? ` · ${st.error.message}` : ''}
                       </div>
                     </div>
@@ -406,12 +406,12 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
       <div className="grid-2">
         <section className="card panel aos-themable">
           <div className="panel-head">
-            <h2>Исходная задача</h2>
+            <h2>Original request</h2>
           </div>
           <blockquote className="request-quote">{v.originalRequest}</blockquote>
           {v.assumptions.length > 0 && (
             <>
-              <h3>Допущения</h3>
+              <h3>Assumptions</h3>
               <ul className="bullets">
                 {v.assumptions.map((a, i) => (
                   <li key={i}>{a}</li>
@@ -421,7 +421,7 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
           )}
           {v.extraRequirements.length > 0 && (
             <>
-              <h3>Добавлено вами</h3>
+              <h3>Added by you</h3>
               <ul className="bullets">
                 {v.extraRequirements.map((r) => (
                   <li key={r.id}>
@@ -439,9 +439,9 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
                 if (requirement.trim().length >= 3) void act('requirements', { text: requirement.trim() }).then(() => setRequirement(''));
               }}
             >
-              <input className="grow" value={requirement} onChange={(e) => setRequirement(e.target.value)} placeholder="Добавить требование — план будет пересчитан" maxLength={2000} />
+              <input className="grow" value={requirement} onChange={(e) => setRequirement(e.target.value)} placeholder="Add a requirement: the plan will be recalculated" maxLength={2000} />
               <Button icon="plus" disabled={requirement.trim().length < 3} onClick={() => void act('requirements', { text: requirement.trim() }).then(() => setRequirement(''))}>
-                Добавить
+                Add
               </Button>
             </form>
           )}
@@ -449,7 +449,7 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
 
         <section className="card panel aos-themable">
           <div className="panel-head">
-            <h2>Журнал</h2>
+            <h2>Log</h2>
             <span className="muted small">{events.length}</span>
           </div>
           <EventLog events={events} />
@@ -458,7 +458,7 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
 
       {(v.limitations.length > 0 || v.notExecuted.length > 0) && !finished && (
         <section className="card panel aos-themable">
-          <h2>Ограничения</h2>
+          <h2>Limitations</h2>
           <ul className="bullets">
             {v.limitations.map((l, i) => (
               <li key={i} className={v.notExecuted.includes(l) ? 'gap' : ''}>
@@ -474,7 +474,7 @@ export function MissionPage({ sid, mid }: { sid: string; mid: string }) {
 
 function Stepper({ phases }: { phases: MissionView['progress']['phases'] }) {
   return (
-    <ol className="stepper" aria-label="Этапы">
+    <ol className="stepper" aria-label="Stages">
       {phases.map((p) => (
         <li key={p.phase} className={`step step-${p.state}`}>
           <span className="step-dot">{p.state === 'done' ? <Icon name="check" size={12} /> : null}</span>
@@ -492,12 +492,12 @@ function EventLog({ events }: { events: MissionEvent[] }) {
     const el = ref.current;
     if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
   }, [shown.length]);
-  if (!shown.length) return <p className="muted small">Событий пока нет.</p>;
+  if (!shown.length) return <p className="muted small">No events yet.</p>;
   return (
     <div className="event-log" ref={ref}>
       {shown.map((e) => (
         <div key={e.id} className={`event lvl-${e.level}`}>
-          <span className="event-time mono">{new Date(e.ts).toLocaleTimeString('ru-RU')}</span>
+          <span className="event-time mono">{new Date(e.ts).toLocaleTimeString('en-US')}</span>
           <span className="event-msg">{e.message}</span>
         </div>
       ))}
@@ -510,10 +510,10 @@ function SummaryCard({ v, sid }: { v: MissionView; sid: string }) {
   return (
     <section className={`card panel summary tone-${missionTone(v.status)} aos-themable`}>
       <div className="panel-head">
-        <h2>Итог: {v.statusLabel}</h2>
+        <h2>Outcome: {v.statusLabel}</h2>
         {v.reportDocId && (
           <Link to={paths.note(sid, v.reportDocId)} className="link">
-            Открыть отчёт
+            Open the report
           </Link>
         )}
       </div>
@@ -521,7 +521,7 @@ function SummaryCard({ v, sid }: { v: MissionView; sid: string }) {
       <div className="grid-2 tight">
         {s.done.length > 0 && (
           <div>
-            <h3>Что сделано</h3>
+            <h3>What was done</h3>
             <ul className="bullets">
               {s.done.map((x, i) => (
                 <li key={i}>{x}</li>
@@ -531,7 +531,7 @@ function SummaryCard({ v, sid }: { v: MissionView; sid: string }) {
         )}
         {v.notExecuted.length > 0 && (
           <div>
-            <h3>Что не выполнено</h3>
+            <h3>What did not run</h3>
             <ul className="bullets gap">
               {v.notExecuted.map((x, i) => (
                 <li key={i}>{x}</li>
@@ -541,7 +541,7 @@ function SummaryCard({ v, sid }: { v: MissionView; sid: string }) {
         )}
         {s.checksNotRun.length > 0 && (
           <div>
-            <h3>Проверки, которые не запускались</h3>
+            <h3>Checks that were not run</h3>
             <ul className="bullets">
               {s.checksNotRun.map((x, i) => (
                 <li key={i}>
@@ -553,7 +553,7 @@ function SummaryCard({ v, sid }: { v: MissionView; sid: string }) {
         )}
         {s.limitations.filter((l) => !v.notExecuted.includes(l)).length > 0 && (
           <div>
-            <h3>Ограничения и замечания</h3>
+            <h3>Limitations and notes</h3>
             <ul className="bullets">
               {s.limitations
                 .filter((l) => !v.notExecuted.includes(l))
@@ -565,7 +565,7 @@ function SummaryCard({ v, sid }: { v: MissionView; sid: string }) {
         )}
         {s.nextSteps.length > 0 && (
           <div>
-            <h3>Что дальше</h3>
+            <h3>Next steps</h3>
             <ul className="bullets">
               {s.nextSteps.map((x, i) => (
                 <li key={i}>{x}</li>
@@ -575,7 +575,7 @@ function SummaryCard({ v, sid }: { v: MissionView; sid: string }) {
         )}
         {s.resultsLocation.length > 0 && (
           <div>
-            <h3>Где результаты</h3>
+            <h3>Where the results are</h3>
             <ul className="bullets">
               {s.resultsLocation.map((x, i) => (
                 <li key={i}>{x}</li>
@@ -629,7 +629,7 @@ function PendingCard({ sid, mission, pending, onDecided }: { sid: string; missio
   const reasons = (pending.data.reasons as string[] | undefined) ?? [];
 
   return (
-    <section className="card panel pending aos-protected" role="region" aria-label="Нужно ваше решение">
+    <section className="card panel pending aos-protected" role="region" aria-label="Your decision is needed">
       <div className="panel-head">
         <h2>
           <Icon name="alert" /> {pending.title}
@@ -637,7 +637,7 @@ function PendingCard({ sid, mission, pending, onDecided }: { sid: string; missio
         <span className="muted small">{timeAgo(pending.createdAt)}</span>
       </div>
       <p>{pending.message}</p>
-      {paused && <p className="muted small">Поручение на паузе — нажмите «Продолжить», чтобы ответить.</p>}
+      {paused && <p className="muted small">The mission is paused: press "Resume" to answer.</p>}
 
       {k === 'questions' && (
         <div className="form">
@@ -659,7 +659,7 @@ function PendingCard({ sid, mission, pending, onDecided }: { sid: string; missio
                 <strong>
                   {o.id}. {o.name}
                 </strong>
-                {o.id === pending.data.selected && <Badge tone="accent">рекомендован</Badge>}
+                {o.id === pending.data.selected && <Badge tone="accent">recommended</Badge>}
                 <p className="small">{o.description}</p>
                 {o.pros.length > 0 && <div className="small ok-text">+ {o.pros.join('; ')}</div>}
                 {o.cons.length > 0 && <div className="small bad-text">− {o.cons.join('; ')}</div>}
@@ -684,13 +684,13 @@ function PendingCard({ sid, mission, pending, onDecided }: { sid: string; missio
                 <span className="mono small muted">{p.id}</span>
                 <span className="grow">{p.title}</span>
                 <span className="muted small">{p.role}</span>
-                {p.risk === 'high' && <Badge tone="warn">риск</Badge>}
+                {p.risk === 'high' && <Badge tone="warn">risk</Badge>}
               </li>
             ))}
           </ol>
           {checks.length > 0 && (
             <div className="checks">
-              <h3>Разрешить запуск проверок в изолированной рабочей копии</h3>
+              <h3>Allow the checks to run in an isolated work copy</h3>
               {checks.map((c) => {
                 const key = `${c.sourceId}:${c.name}`;
                 return (
@@ -733,7 +733,7 @@ function PendingCard({ sid, mission, pending, onDecided }: { sid: string; missio
           </ul>
           {risks.length > 0 && (
             <div className="risks">
-              <h3>Подтвердите риски</h3>
+              <h3>Confirm the risks</h3>
               {risks.map((r) => (
                 <label key={r.id} className="check risk">
                   <input
@@ -757,61 +757,61 @@ function PendingCard({ sid, mission, pending, onDecided }: { sid: string; missio
       )}
 
       {(k === 'questions' || k === 'strategy' || k === 'plan' || k === 'conflict') && (
-        <textarea className="comment" value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder={k === 'questions' ? 'Или уточните задачу своими словами…' : 'Комментарий (нужен для «Изменить»)'} />
+        <textarea className="comment" value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder={k === 'questions' ? 'Or clarify the task in your own words…' : 'Comment (needed for "Change")'} />
       )}
 
       <div className="row wrap decision-row">
         {k === 'setup_agents' && (
           <>
-            {btn('approve', 'Подготовить агентов', 'primary')}
-            {btn('reject', 'Отменить поручение', 'ghost')}
+            {btn('approve', 'Set up agents', 'primary')}
+            {btn('reject', 'Cancel the mission', 'ghost')}
           </>
         )}
         {(k === 'model' || k === 'budget') && (
           <>
-            {btn('retry', 'Повторить', 'primary')}
-            {btn('reject', 'Отменить поручение', 'ghost')}
+            {btn('retry', 'Retry', 'primary')}
+            {btn('reject', 'Cancel the mission', 'ghost')}
           </>
         )}
         {k === 'questions' && (
           <>
-            {btn('approve', 'Ответить', 'primary', { answers: questions.map((qq) => ({ question: qq.text, answer: answers[qq.text] ?? '' })) }, questions.some((qq) => !(answers[qq.text] ?? '').trim()))}
-            {btn('revise', 'Уточнить задачу', 'default', {}, !comment.trim())}
-            {btn('reject', 'Отменить', 'ghost')}
+            {btn('approve', 'Answer', 'primary', { answers: questions.map((qq) => ({ question: qq.text, answer: answers[qq.text] ?? '' })) }, questions.some((qq) => !(answers[qq.text] ?? '').trim()))}
+            {btn('revise', 'Clarify the task', 'default', {}, !comment.trim())}
+            {btn('reject', 'Cancel', 'ghost')}
           </>
         )}
         {k === 'strategy' && (
           <>
-            {btn('approve', 'Выбрать этот вариант', 'primary', optionId ? { optionId } : {})}
-            {btn('revise', 'Изменить', 'default', {}, !comment.trim())}
-            {btn('reject', 'Отменить', 'ghost')}
+            {btn('approve', 'Choose this option', 'primary', optionId ? { optionId } : {})}
+            {btn('revise', 'Change', 'default', {}, !comment.trim())}
+            {btn('reject', 'Cancel', 'ghost')}
           </>
         )}
         {k === 'plan' && (
           <>
-            {btn('approve', 'Утвердить план', 'primary', { approvedChecks: checks.filter((c) => approved.has(`${c.sourceId}:${c.name}`)).map((c) => ({ sourceId: c.sourceId, name: c.name })) })}
-            {btn('revise', 'Изменить план', 'default', {}, !comment.trim())}
-            {btn('reject', 'Отменить', 'ghost')}
+            {btn('approve', 'Approve the plan', 'primary', { approvedChecks: checks.filter((c) => approved.has(`${c.sourceId}:${c.name}`)).map((c) => ({ sourceId: c.sourceId, name: c.name })) })}
+            {btn('revise', 'Change the plan', 'default', {}, !comment.trim())}
+            {btn('reject', 'Cancel', 'ghost')}
           </>
         )}
         {k === 'conflict' && (
           <>
-            {btn('approve', 'Новое требование важнее', 'primary')}
-            {btn('reject', 'Отменить новое требование', 'default')}
-            {btn('revise', 'Разрешить иначе', 'ghost', {}, !comment.trim())}
+            {btn('approve', 'The new requirement wins', 'primary')}
+            {btn('reject', 'Cancel the new requirement', 'default')}
+            {btn('revise', 'Resolve differently', 'ghost', {}, !comment.trim())}
           </>
         )}
         {k === 'error' && (
           <>
-            {btn('retry', 'Повторить', 'primary')}
-            {btn('skip', 'Пропустить (результат будет частичным)', 'default')}
-            {btn('reject', 'Отменить поручение', 'ghost')}
+            {btn('retry', 'Retry', 'primary')}
+            {btn('skip', 'Skip (the result will be partial)', 'default')}
+            {btn('reject', 'Cancel the mission', 'ghost')}
           </>
         )}
         {k === 'apply_changes' && (
           <>
-            {btn('apply', 'Применить к проекту', 'danger', { confirmRisks: [...confirmed], contentHash: pending.data.contentHash }, risks.some((r) => !confirmed.has(r.id)))}
-            {btn('skip', 'Не применять', 'default')}
+            {btn('apply', 'Apply to the project', 'danger', { confirmRisks: [...confirmed], contentHash: pending.data.contentHash }, risks.some((r) => !confirmed.has(r.id)))}
+            {btn('skip', 'Do not apply', 'default')}
           </>
         )}
       </div>

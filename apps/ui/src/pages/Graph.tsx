@@ -19,40 +19,40 @@ export function GraphPage({ sid }: { sid: string }) {
     <div className="graph-page">
       <div className="graph-bar card aos-themable">
         <Icon name="graph" />
-        <strong>Граф знаний</strong>
+        <strong>Knowledge graph</strong>
         <span className="muted small">
-          {data ? `${notes} заметок · ${unresolved} несозданных · ${data.edges.length} связей${data.truncated ? ' · показана часть графа' : ''}` : ''}
+          {data ? `${notes} notes · ${unresolved} not created · ${data.edges.length} links${data.truncated ? ' · part of the graph is shown' : ''}` : ''}
         </span>
         <span className="grow" />
         <label className="check small">
           <input type="checkbox" checked={showUnresolved} onChange={(e) => setShowUnresolved(e.target.checked)} />
-          несозданные заметки
+          notes not created yet
         </label>
         <div className="search-input sm">
           <Icon name="search" size={15} />
-          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Подсветить узлы…" aria-label="Подсветить узлы" />
+          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Highlight nodes…" aria-label="Highlight nodes" />
         </div>
       </div>
       <div className="graph-stage">
         {graph.loading && !data ? (
-          <Spinner label="Строю граф…" />
+          <Spinner label="Building the graph…" />
         ) : graph.error ? (
           <ErrorBox error={graph.error} onRetry={graph.reload} />
         ) : data && data.nodes.length === 0 ? (
-          <Empty icon="graph" title="Граф пока пуст">
-            Свяжите заметки ссылками вида <code>[[Название заметки]]</code> — связи появятся здесь.
+          <Empty icon="graph" title="The graph is empty">
+            Link notes with links like <code>[[Note title]]</code>: the links appear here.
           </Empty>
         ) : data ? (
           <GraphCanvas data={data} highlight={filter.trim().toLowerCase() || undefined} onOpen={(n) => n.refId && n.type === 'note' && navigate(paths.note(sid, n.refId))} />
         ) : null}
         <div className="graph-legend card small">
           <span>
-            <i className="dot note" /> заметка
+            <i className="dot note" /> note
           </span>
           <span>
-            <i className="dot unresolved" /> ещё не создана
+            <i className="dot unresolved" /> not created yet
           </span>
-          <span className="muted">колесо — масштаб · перетаскивание — сдвиг · клик — открыть</span>
+          <span className="muted">wheel: zoom · drag: pan · click: open</span>
         </div>
       </div>
     </div>

@@ -49,7 +49,7 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
       doc.setData(fresh.doc);
       setDraft(fresh.doc.content);
       setConflict(null);
-      toast('ok', 'Сохранено');
+      toast('ok', 'Saved');
     } catch (e) {
       if (e instanceof ApiError && e.code === 'WRITE_CONFLICT') setConflict(String((e.details as { currentText?: string } | null)?.currentText ?? ''));
       else toast('bad', errorText(e));
@@ -98,15 +98,15 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
             ))}
           </div>
           <span className="grow" />
-          {dirty && <span className="dirty muted small">не сохранено</span>}
-          {!d.editable && <Badge tone="warn">только чтение</Badge>}
+          {dirty && <span className="dirty muted small">not saved</span>}
+          {!d.editable && <Badge tone="warn">read only</Badge>}
           {editing ? (
             <>
               <Button variant="ghost" icon="eye" onClick={() => setEditing(false)}>
-                Просмотр
+                Preview
               </Button>
               <Button variant="primary" icon="save" busy={saving} disabled={!dirty} onClick={() => void save()}>
-                Сохранить
+                Save
               </Button>
             </>
           ) : (
@@ -118,7 +118,7 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
                   setEditing(true);
                 }}
               >
-                Редактировать
+                Edit
               </Button>
             )
           )}
@@ -128,7 +128,7 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
           <div className="banner warn aos-protected" role="alert">
             <Icon name="alert" />
             <div className="grow">
-              <strong>Файл изменили вне приложения после того, как вы его открыли.</strong> Ваш текст не потерян.
+              <strong>The file was changed outside the application after you opened it.</strong> Your text is not lost.
             </div>
             <Button
               onClick={() => {
@@ -137,7 +137,7 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
                 doc.reload();
               }}
             >
-              Взять версию с диска
+              Take the version from disk
             </Button>
             <Button
               variant="danger"
@@ -145,10 +145,10 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
                 const fresh = await api.get<{ doc: Doc }>(`${sysApi(sid)}/docs/${encodeURIComponent(docId)}`);
                 doc.setData(fresh.doc);
                 setConflict(null);
-                toast('info', 'Версия с диска загружена — нажмите «Сохранить», чтобы записать ваш текст поверх неё.');
+                toast('info', 'The version from disk is loaded: press "Save" to write your text over it.');
               }}
             >
-              Оставить мой текст
+              Keep my text
             </Button>
           </div>
         )}
@@ -159,13 +159,13 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
           <div className="note-body aos-themable">
             {d.frontmatterError && (
               <div className="banner warn">
-                <Icon name="alert" /> Ошибка в свойствах (frontmatter): {d.frontmatterError}
+                <Icon name="alert" /> Error in the properties (frontmatter): {d.frontmatterError}
               </div>
             )}
             {!/^\s*(---[\s\S]*?---\s*)?#\s/.test(d.content) && <h1 className="note-title">{d.title}</h1>}
             <Markdown source={text} h={handlers} />
             <div className="note-meta muted small">
-              {d.wordCount} слов · изменено {timeAgo(d.updatedAt)} · <span className="mono">{d.relPath}</span>
+              {d.wordCount} words · changed {timeAgo(d.updatedAt)} · <span className="mono">{d.relPath}</span>
             </div>
           </div>
         )}
@@ -177,12 +177,12 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
 
       {createTarget && (
         <Modal
-          title="Заметки ещё нет"
+          title="The note does not exist yet"
           onClose={() => setCreateTarget(null)}
           footer={
             <>
               <Button variant="ghost" onClick={() => setCreateTarget(null)}>
-                Отмена
+                Cancel
               </Button>
               <Button
                 variant="primary"
@@ -197,13 +197,13 @@ export function NotePage({ sid, docId }: { sid: string; docId: string }) {
                   }
                 }}
               >
-                Создать «{createTarget}»
+                Create "{createTarget}"
               </Button>
             </>
           }
         >
           <p>
-            Ссылка <code>[[{createTarget}]]</code> ведёт на заметку, которой пока нет. Создать её {folder ? <>в папке «{folder}»</> : 'в корне хранилища'}?
+            The link <code>[[{createTarget}]]</code> points to a note that does not exist yet. Create it {folder ? <>in the folder "{folder}"</> : 'in the vault root'}?
           </p>
         </Modal>
       )}
@@ -306,7 +306,7 @@ function Editor({ sid, value, onChange, onSave }: { sid: string; value: string; 
       />
       {sugg && sugg.items.length > 0 && (
         <div className="suggest card" style={{ top: sugg.top, left: sugg.left }}>
-          <div className="menu-label">Ссылка на заметку</div>
+          <div className="menu-label">Link to a note</div>
           {sugg.items.map((s, i) => (
             <button type="button" key={s.id} className={`menu-item ${i === sugg.index ? 'active' : ''}`} onMouseDown={(e) => e.preventDefault()} onClick={() => insert(s.title)}>
               <Icon name="file" size={15} />
@@ -317,7 +317,7 @@ function Editor({ sid, value, onChange, onSave }: { sid: string; value: string; 
         </div>
       )}
       <div className="editor-hint muted small">
-        Markdown · <kbd>[[</kbd> — ссылка на заметку · <kbd>#</kbd> — тег · <kbd>Ctrl S</kbd> — сохранить
+        Markdown · <kbd>[[</kbd> link to a note · <kbd>#</kbd> tag · <kbd>Ctrl S</kbd> save
       </div>
     </div>
   );
@@ -341,7 +341,7 @@ function SidePanels({ sid, doc }: { sid: string; doc: Doc }) {
     <>
       {doc.properties.length > 0 && (
         <section className="side-panel">
-          <h3>Свойства</h3>
+          <h3>Properties</h3>
           <dl className="props">
             {doc.properties.map((p) => (
               <div key={p.key} className="prop">
@@ -363,7 +363,7 @@ function SidePanels({ sid, doc }: { sid: string; doc: Doc }) {
 
       {doc.tags.length > 0 && (
         <section className="side-panel">
-          <h3>Теги</h3>
+          <h3>Tags</h3>
           <div className="chips">
             {doc.tags.map((t) => (
               <Link key={t} to={paths.search(sid, `tag:${t}`)} className="tag">
@@ -376,7 +376,7 @@ function SidePanels({ sid, doc }: { sid: string; doc: Doc }) {
 
       {doc.headings.length > 1 && (
         <section className="side-panel">
-          <h3>Оглавление</h3>
+          <h3>Outline</h3>
           <ul className="outline">
             {doc.headings.map((h, i) => (
               <li key={i} style={{ paddingLeft: (h.level - 1) * 12 }}>
@@ -397,10 +397,10 @@ function SidePanels({ sid, doc }: { sid: string; doc: Doc }) {
 
       <section className="side-panel">
         <h3>
-          Входящие ссылки <span className="count">{uniq(doc.backlinks).length}</span>
+          Backlinks <span className="count">{uniq(doc.backlinks).length}</span>
         </h3>
         {doc.backlinks.length === 0 ? (
-          <p className="muted small">На эту заметку пока никто не ссылается.</p>
+          <p className="muted small">No notes link here yet.</p>
         ) : (
           <ul className="links">
             {uniq(doc.backlinks).map((l) => (
@@ -414,7 +414,7 @@ function SidePanels({ sid, doc }: { sid: string; doc: Doc }) {
           </ul>
         )}
         <button type="button" className="link small" onClick={() => setShowUnlinked((s) => !s)}>
-          {showUnlinked ? 'Скрыть упоминания без ссылки' : 'Упоминания без ссылки…'}
+          {showUnlinked ? 'Hide unlinked mentions' : 'Unlinked mentions…'}
         </button>
         {showUnlinked &&
           (unlinked.loading ? (
@@ -431,15 +431,15 @@ function SidePanels({ sid, doc }: { sid: string; doc: Doc }) {
               ))}
             </ul>
           ) : (
-            <p className="muted small">Упоминаний без ссылки нет.</p>
+            <p className="muted small">No unlinked mentions.</p>
           ))}
       </section>
 
       <section className="side-panel">
         <h3>
-          Исходящие ссылки <span className="count">{uniq(resolved).length}</span>
+          Outgoing links <span className="count">{uniq(resolved).length}</span>
         </h3>
-        {resolved.length === 0 && unresolved.length === 0 && <p className="muted small">Ссылок нет.</p>}
+        {resolved.length === 0 && unresolved.length === 0 && <p className="muted small">No links.</p>}
         <ul className="links">
           {uniq(resolved).map((l) => (
             <li key={l.docId || l.title}>
@@ -454,7 +454,7 @@ function SidePanels({ sid, doc }: { sid: string; doc: Doc }) {
           ))}
           {unresolved.map((l, i) => (
             <li key={`u${i}`}>
-              <span className="link-title unresolved" title="Заметка ещё не создана">
+              <span className="link-title unresolved" title="The note does not exist yet">
                 <Icon name="plus" size={14} /> {l.targetRaw ?? l.title}
               </span>
             </li>
@@ -463,9 +463,9 @@ function SidePanels({ sid, doc }: { sid: string; doc: Doc }) {
       </section>
 
       <section className="side-panel">
-        <h3>Локальный граф</h3>
+        <h3>Local graph</h3>
         <div className="mini-graph">
-          {local.data ? <GraphCanvas data={local.data} focusId={`doc:${doc.id}`} compact onOpen={(n) => n.refId && n.type === 'note' && navigate(paths.note(sid, n.refId))} /> : local.error ? <p className="muted small">Граф недоступен.</p> : <Spinner />}
+          {local.data ? <GraphCanvas data={local.data} focusId={`doc:${doc.id}`} compact onOpen={(n) => n.refId && n.type === 'note' && navigate(paths.note(sid, n.refId))} /> : local.error ? <p className="muted small">The graph is unavailable.</p> : <Spinner />}
         </div>
       </section>
     </>
