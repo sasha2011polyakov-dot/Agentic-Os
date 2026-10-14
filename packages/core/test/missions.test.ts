@@ -529,6 +529,40 @@ describe('28.17 missions: natural-language assignments end to end', () => {
     expect(m.summary?.statusReason).toContain('Ограничения');
   });
 
+  it('12d. execute mode: a stage that could not run (no web access) rules out «Выполнена» even when criteria are met', async () => {
+    const { s } = await setup();
+    defaults();
+    agent('Аналитик поручения', () => analysis({ needs: { web_research: true } }));
+    const m0 = await s.missions.create({ request: 'Собери обзор подходов к кэшированию и оформи заметку.' });
+    const m = await waitMission(s, m0.id, ['completed', 'partially_completed', 'failed']);
+    expect(m.criteria.every((c) => c.status === 'met')).toBe(true);
+    expect(m.status).toBe('partially_completed');
+    expect(m.notExecuted.some((x) => x.startsWith('Внешние источники не изучались'))).toBe(true);
+    expect(m.statusReason).toContain('не выполнено');
+  });
+
+  it('11b. failed checks and critical verifier findings are never reported as success, even without fix rounds', async () => {
+    const { s, projects } = await setup({ projects: ['shop'] });
+    const p = projects[0]!;
+    s.sources.setAccessMode(p.id, 'workcopy', { actor: 'user' });
+    await s.sources.update(p.id, { checks: [{ name: 'tests', program: process.execPath, args: ['-e', "console.error('2 tests failed'); process.exit(1)"] }] });
+    defaults();
+    agent('Аналитик поручения', () => analysis({ task_type: 'implementation', needs: { implementation: true }, acceptance_criteria: [{ id: 'AC1', text: 'Функция добавлена', verification: 'review' }] }));
+    agent('Планировщик поручения', () => ({ steps: [step('S1', 'implementer', 'Добавить функцию'), step('S2', 'verifier', 'Проверка', ['S1'])], notes: [] }));
+    agent('Исполнитель', (_i, { round }) => (round === 0 ? toolCalls([{ tool: 'propose_file_change', args: { sourceId: p.id, path: 'src/util.ts', op: 'create', content: 'export const x = 1;\n', rationale: 'функция' } }]) : final(impl('Функция добавлена', 'src/util.ts'))));
+    // the verifier says the criterion is met — but it also reports a critical defect, and the project tests fail
+    agent('Проверяющий результат', () => final(verdict([['AC1', 'met', 'функция есть в src/util.ts']], [{ severity: 'critical', description: 'ломает сборку', step_id: 'S1', fix_hint: 'исправить импорт' }])));
+    const m0 = await s.missions.create({ request: 'Добавь вспомогательную функцию.', scope: { sourceIds: [p.id] }, policy: { maxFixRounds: 0, preapprovedChecks: [{ sourceId: p.id, name: 'tests' }] } });
+    const m = await waitMission(s, m0.id, ['completed', 'partially_completed', 'failed']);
+    expect(m.criteria.find((c) => c.id === 'AC1')!.status).toBe('met');
+    expect(m.checks.filter((c) => c.kind === 'command').map((c) => c.status)).toEqual(['failed']);
+    expect(m.status).toBe('partially_completed');
+    expect(m.statusReason).toContain('нерешённые проблемы');
+    expect(m.statusReason).toContain('tests');
+    expect(m.statusReason).toContain('ломает сборку');
+    expect(m.limitations.some((l) => l.startsWith('Проблемы не исправлялись: циклы исправления отключены'))).toBe(true);
+  });
+
   it('12b. a required agent is missing: the mission asks, and continues only after the user prepares agents', async () => {
     const { s } = await setup({ agents: false });
     defaults();

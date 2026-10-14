@@ -17,10 +17,20 @@ import { removeDir, tempDir } from './helpers.ts';
 describe('db', () => {
   it('applies system migrations and reports the schema version', () => {
     const { db, applied } = openDb(':memory:', { migrations: SYSTEM_MIGRATIONS });
-    expect(applied).toEqual([1]);
-    expect(currentSchemaVersion(db)).toBe(1);
+    const versions = SYSTEM_MIGRATIONS.map((m) => m.version);
+    expect(applied).toEqual(versions);
+    expect(currentSchemaVersion(db)).toBe(versions[versions.length - 1]);
     const fts = db.get<{ name: string }>("SELECT name FROM sqlite_master WHERE name = 'documents_fts'");
     expect(fts?.name).toBe('documents_fts');
+    db.close();
+  });
+
+  it('upgrades a system database created by an older version without losing missions', () => {
+    const { db } = openDb(':memory:', { migrations: SYSTEM_MIGRATIONS.filter((m) => m.version === 1) });
+    db.run("INSERT INTO missions(id, key, title, original_request, mode, status, phase, priority, scope, policy, limits, created_at, updated_at) VALUES ('m1', 'M-001', 't', 'r', 'execute', 'draft', 'analysis', 'medium', '{}', '{}', '{}', 'x', 'x')");
+    const applied = applyMigrations(db, SYSTEM_MIGRATIONS);
+    expect(applied).toEqual(SYSTEM_MIGRATIONS.filter((m) => m.version > 1).map((m) => m.version));
+    expect(db.get<{ gaps: string }>("SELECT gaps FROM missions WHERE id = 'm1'")?.gaps).toBe('[]');
     db.close();
   });
 

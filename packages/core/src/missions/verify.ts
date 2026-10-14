@@ -94,7 +94,7 @@ export function guardCriteria(criteria: Criterion[], v: VerifierOutput | null, c
  * Final status (28.16): «Выполнена» only when every applicable criterion is met and nothing planned failed;
  * «Выполнена частично» when something was achieved; «Не выполнена» otherwise. Reasons are explicit.
  */
-export function finalStatus(criteria: Criterion[], ctx: { mode: 'plan' | 'execute'; failedSteps: string[]; skippedSteps: string[]; limitations: string[]; reviewBlocking: string[]; planProduced: boolean }): { status: MissionStatus; reason: string } {
+export function finalStatus(criteria: Criterion[], ctx: { mode: 'plan' | 'execute'; failedSteps: string[]; notExecuted: string[]; limitations: string[]; blocking: string[]; planProduced: boolean }): { status: MissionStatus; reason: string } {
   if (ctx.mode === 'plan') {
     if (!ctx.planProduced) return { status: 'failed', reason: 'План не составлен.' };
     const reasons = ['План и исследование готовы; изменения не выполнялись (режим «Исследовать и спланировать»).'];
@@ -108,11 +108,14 @@ export function finalStatus(criteria: Criterion[], ctx: { mode: 'plan' | 'execut
   const notMet = applicable.filter((c) => c.status !== 'met');
   if (notMet.length) problems.push(`критерии не выполнены или не подтверждены: ${notMet.map((c) => `${c.id} (${statusText(c.status)})`).join(', ')}`);
   if (ctx.failedSteps.length) problems.push(`не выполнены этапы: ${ctx.failedSteps.join(', ')}`);
-  if (ctx.reviewBlocking.length) problems.push(`независимое ревью: ${ctx.reviewBlocking.join('; ')}`);
-  if (applicable.length && met.length === applicable.length && !ctx.failedSteps.length && !ctx.reviewBlocking.length) {
+  // 28.15: a stage that did not run for lack of a model, tool, agent or access is never «fully done»
+  if (ctx.notExecuted.length) problems.push(`не выполнено: ${ctx.notExecuted.join('; ')}`);
+  // failed checks, serious verifier findings, failed validators, a blocking review: success is not claimed (28.16)
+  if (ctx.blocking.length) problems.push(`нерешённые проблемы: ${ctx.blocking.join('; ')}`);
+  if (applicable.length && met.length === applicable.length && !ctx.failedSteps.length && !ctx.notExecuted.length && !ctx.blocking.length) {
     return { status: 'completed', reason: `Все применимые критерии выполнены (${met.length}).${ctx.limitations.length ? ` Замечания: ${ctx.limitations.join('; ')}` : ''}` };
   }
-  if (!applicable.length) return { status: 'partially_completed', reason: 'Критерии готовности не заданы — подтвердить результат нельзя.' };
+  if (!applicable.length) return { status: 'partially_completed', reason: `Критерии готовности не заданы — подтвердить результат нельзя.${problems.length ? ` ${problems.join('; ')}.` : ''}` };
   if (some.length) return { status: 'partially_completed', reason: `Выполнено частично: ${problems.join('; ')}.` };
   return { status: 'failed', reason: `Не выполнено: ${problems.join('; ')}.` };
 }

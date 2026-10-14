@@ -691,4 +691,12 @@ CREATE TABLE error_log (
 CREATE INDEX idx_error_log_ts ON error_log(ts);
 `,
   },
+  {
+    version: 2,
+    name: 'missions-gaps',
+    sql: `
+-- Stages or capabilities a mission could not execute (no agent, tool, access, model…): they prevent «Выполнена» (28.15)
+ALTER TABLE missions ADD COLUMN gaps TEXT NOT NULL DEFAULT '[]';
+`,
+  },
 ];

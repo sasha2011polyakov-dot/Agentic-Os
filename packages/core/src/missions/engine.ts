@@ -91,6 +91,7 @@ interface MissionRow {
   approved_checks: string;
   baseline: string | null;
   limitations: string;
+  gaps: string;
   pending: string | null;
   fix_rounds: number;
   review: string | null;
@@ -322,6 +323,11 @@ export class MissionEngine implements RuntimeService {
     return parseJson<string[]>(m.limitations, []);
   }
 
+  /** Stages / capabilities that did not run (no agent, tool, access, model): they cap the status below «Выполнена». */
+  private gapsOf(m: MissionRow): string[] {
+    return parseJson<string[]>(m.gaps, []);
+  }
+
   private extrasOf(m: MissionRow): ExtraRequirement[] {
     return parseJson<ExtraRequirement[]>(m.extra_requirements, []);
   }
@@ -395,13 +401,23 @@ export class MissionEngine implements RuntimeService {
     if (r) this.rt.emit('mission.updated', { missionId: id, status: r.status, phase: r.phase });
   }
 
-  private addLimitation(id: string, text: string): void {
+  /** `gap` = something the mission needed did not run (28.15): it is listed AND prevents the status «Выполнена». */
+  private addLimitation(id: string, text: string, gap = false): void {
     const m = this.row(id);
     const list = this.limitationsOf(m);
-    if (list.includes(text)) return;
-    list.push(text);
-    this.patch(id, { limitations: JSON.stringify(list) });
-    this.event(id, null, 'warn', 'mission.limitation', text);
+    const gaps = this.gapsOf(m);
+    const p: Partial<Record<keyof MissionRow, string>> = {};
+    if (!list.includes(text)) {
+      list.push(text);
+      p.limitations = JSON.stringify(list);
+    }
+    if (gap && !gaps.includes(text)) {
+      gaps.push(text);
+      p.gaps = JSON.stringify(gaps);
+    }
+    if (!Object.keys(p).length) return;
+    this.patch(id, p);
+    this.event(id, null, 'warn', 'mission.limitation', text, { gap });
   }
 
   /**
@@ -786,6 +802,7 @@ export class MissionEngine implements RuntimeService {
       artifacts: this.artifacts(m),
       sourceReferences: this.sourceReferences(m),
       limitations: this.limitationsOf(m),
+      notExecuted: this.gapsOf(m),
       fixRounds: m.fix_rounds,
       review: parseJson(m.review, null),
       summary: parseJson<MissionSummary | null>(m.summary, null),
@@ -1153,7 +1170,7 @@ export class MissionEngine implements RuntimeService {
   private noteToolLimitations(missionId: string, calls: ToolCallRecord[]): void {
     for (const t of calls) {
       if (t.ok || !t.error || !LIMITING_TOOL_ERRORS.has(t.error.code)) continue;
-      this.addLimitation(missionId, `Инструмент ${t.tool} недоступен: ${t.error.message}`);
+      this.addLimitation(missionId, `Инструмент ${t.tool} недоступен: ${t.error.message}`, true);
     }
   }
 
@@ -1253,7 +1270,7 @@ export class MissionEngine implements RuntimeService {
       for (const q of blocking) this.addLimitation(m.id, `Вопрос остался без ответа: «${q.text}» — работа продолжена с допущениями.`);
     }
     if (m.mode === 'execute' && normalized.needs.implementation && this.projectsOf(cur).length && this.projectsOf(cur).every((p) => !modeAtLeast(p.accessMode, 'prepare'))) {
-      this.addLimitation(m.id, `Проекты поручения в режиме «${modeLabel('read_only')}»: изменения файлов не будут подготовлены. Режим меняет только пользователь в настройках проекта.`);
+      this.addLimitation(m.id, `Проекты поручения в режиме «${modeLabel('read_only')}»: изменения файлов не будут подготовлены. Режим меняет только пользователь в настройках проекта.`, true);
     }
     return this.goNext(m.id, 'analysis');
   }
@@ -1270,25 +1287,25 @@ export class MissionEngine implements RuntimeService {
     if (scope.kind === 'systems') {
       const cs = await crossSystemSearch(this.deps.systems, scope.systemIds, `${m.title} ${n.requirements.map((r) => r.text).join(' ')}`.slice(0, 500));
       ctx.crossSystem = cs.hits;
-      for (const p of cs.problems) this.addLimitation(m.id, p);
+      for (const p of cs.problems) this.addLimitation(m.id, p, true);
       this.event(m.id, null, 'info', 'context.cross_system', `Поиск в других системах: найдено ${cs.hits.length} документов (с указанием системы-источника)`);
     }
     const jobs: Promise<void>[] = [];
     const wantExplorer = projects.length > 0 && (n.needs.project_exploration || ['implementation', 'bugfix', 'improvement'].includes(n.task_type));
-    if (wantExplorer && !roles.has('project-explorer')) this.addLimitation(m.id, 'Проекты не изучены: агент «Исследователь проекта» не установлен или выключен.');
+    if (wantExplorer && !roles.has('project-explorer')) this.addLimitation(m.id, 'Проекты не изучены: агент «Исследователь проекта» не установлен или выключен.', true);
     let fatal = false;
     if (wantExplorer && roles.has('project-explorer')) {
       jobs.push(
         this.runAgent(m, a, { phase: 'context', role: 'project-explorer', agentId: 'project-explorer', title: 'Изучение проектов', input: { objective, requirements: n.requirements, projects: projects.map((p) => ({ sourceId: p.sourceId, name: p.name })), focus: n.problem || n.title } }).then((r) => {
           if (r.ok) ctx.explorer = r.output as unknown as ExplorerOutput;
           else if (r.fatal) fatal = true;
-          else this.addLimitation(m.id, `Изучение проектов не выполнено: ${r.error.message}`);
+          else this.addLimitation(m.id, `Изучение проектов не выполнено: ${r.error.message}`, true);
         }),
       );
     }
     const docs = [...scope.docIds, ...parseJson<MissionAttachment[]>(m.attachments, []).filter((x) => x.kind === 'document').map((x) => x.ref)];
     const wantLocal = n.needs.local_research || docs.length > 0 || scope.kind === 'systems';
-    if (wantLocal && !roles.has('researcher')) this.addLimitation(m.id, 'Документы не изучены: агент «Исследователь» не установлен или выключен.');
+    if (wantLocal && !roles.has('researcher')) this.addLimitation(m.id, 'Документы не изучены: агент «Исследователь» не установлен или выключен.', true);
     if (wantLocal && roles.has('researcher')) {
       const context: ContextBlock[] = ctx.crossSystem.length
         ? [{ source: 'other-systems', priority: 2, content: `Найдено в других выбранных системах (читайте через read_document с systemId):\n${ctx.crossSystem.map((h) => `- systemId=${h.systemId} (${h.systemName}) docId=${h.docId} «${h.title}» ${h.path}: ${h.snippet}`).join('\n')}` }]
@@ -1309,7 +1326,7 @@ export class MissionEngine implements RuntimeService {
             const unverified = grounded.filter((e) => !e.verified && e.kind === 'fact').length;
             this.event(m.id, r.stepId, 'info', 'context.grounded', `Свидетельства: подтверждено цитатами ${grounded.filter((e) => e.verified).length} из ${grounded.length}${unverified ? `, ${unverified} без подтверждения` : ''}`);
           } else if (r.fatal) fatal = true;
-          else this.addLimitation(m.id, `Изучение документов не выполнено: ${r.error.message}`);
+          else this.addLimitation(m.id, `Изучение документов не выполнено: ${r.error.message}`, true);
         }),
       );
     }
@@ -1326,11 +1343,11 @@ export class MissionEngine implements RuntimeService {
     const n = this.normalizedOf(m)!;
     const scope = this.scopeOf(m);
     if (!scope.allowWeb) {
-      this.addLimitation(m.id, 'Внешние источники не изучались: веб-доступ для поручения не разрешён.');
+      this.addLimitation(m.id, 'Внешние источники не изучались: веб-доступ для поручения не разрешён.', true);
       return this.goNext(m.id, 'research');
     }
     if (!this.availableRoles().has('web-researcher')) {
-      this.addLimitation(m.id, 'Внешние источники не изучались: агент «Веб-исследователь» не установлен или выключен.');
+      this.addLimitation(m.id, 'Внешние источники не изучались: агент «Веб-исследователь» не установлен или выключен.', true);
       return this.goNext(m.id, 'research');
     }
     const ctx = this.contextOf(m);
@@ -1351,7 +1368,7 @@ export class MissionEngine implements RuntimeService {
     });
     if (!res.ok) {
       if (res.fatal) return 'wait';
-      this.addLimitation(m.id, `Веб-исследование не выполнено: ${res.error.message}`);
+      this.addLimitation(m.id, `Веб-исследование не выполнено: ${res.error.message}`, true);
       return this.goNext(m.id, 'research');
     }
     const o = res.output as unknown as WebOutput;
@@ -1367,7 +1384,7 @@ export class MissionEngine implements RuntimeService {
   private async phaseStrategy(m: MissionRow, a: Active): Promise<'continue' | 'wait'> {
     const n = this.normalizedOf(m)!;
     if (!this.availableRoles().has('solution-architect')) {
-      this.addLimitation(m.id, 'Варианты решения не сравнивались: агент «Архитектор решений» не установлен или выключен.');
+      this.addLimitation(m.id, 'Варианты решения не сравнивались: агент «Архитектор решений» не установлен или выключен.', true);
       this.patch(m.id, { plan_stale: m.plan_stale === 2 ? 1 : m.plan_stale });
       return this.goNext(m.id, 'strategy');
     }
@@ -1395,7 +1412,7 @@ export class MissionEngine implements RuntimeService {
     });
     if (!res.ok) {
       if (res.fatal) return 'wait';
-      this.addLimitation(m.id, `Сравнение вариантов не выполнено: ${res.error.message}`);
+      this.addLimitation(m.id, `Сравнение вариантов не выполнено: ${res.error.message}`, true);
       return this.goNext(m.id, 'strategy');
     }
     const o = res.output as unknown as ArchitectOutput;
@@ -1650,7 +1667,7 @@ export class MissionEngine implements RuntimeService {
     if (existing) return;
     const vault = this.rt.db.get<{ writable: number }>('SELECT writable FROM sources WHERE id = ?', this.rt.primaryVaultId());
     if (!vault?.writable) {
-      this.addLimitation(m.id, 'Документ не сохранён: хранилище системы открыто только для чтения.');
+      this.addLimitation(m.id, 'Документ не сохранён: хранилище системы открыто только для чтения.', true);
       return;
     }
     const folder = DOC_FOLDERS.find((f) => o.target_folder && (o.target_folder === f || o.target_folder.startsWith(`${f}/`))) ? o.target_folder.replace(/\.\.+/g, '').replace(/^\/+/, '') : MISSION_FOLDER;
@@ -1670,7 +1687,7 @@ export class MissionEngine implements RuntimeService {
     if (!m.baseline) this.patch(m.id, { baseline: JSON.stringify(this.baseline(m)) });
     const plan = this.planOf(m);
     if (plan.some((s) => s.role === 'implementer') && this.projectsOf(m).length && this.projectsOf(m).every((p) => !modeAtLeast(p.accessMode, 'prepare'))) {
-      this.addLimitation(m.id, `Подготовка изменений невозможна: все проекты поручения в режиме «${modeLabel('read_only')}». Режим меняет только пользователь.`);
+      this.addLimitation(m.id, `Подготовка изменений невозможна: все проекты поручения в режиме «${modeLabel('read_only')}». Режим меняет только пользователь.`, true);
     }
     const limits = this.limitsOf(m);
     const running = new Map<string, Promise<void>>();
@@ -1696,7 +1713,7 @@ export class MissionEngine implements RuntimeService {
           if (def.role === 'implementer' && (implRunning || [...running.keys()].some((id) => this.stepRow(id).role === 'implementer'))) continue;
           if (def.role === 'web-researcher' && !this.scopeOf(cur).allowWeb) {
             this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify(new AppError('NETWORK_POLICY_DENIED', 'Веб-доступ для поручения не разрешён.').toJSON()) });
-            this.addLimitation(m.id, `${def.id} «${def.title}» не выполнен: веб-доступ для поручения не разрешён.`);
+            this.addLimitation(m.id, `${def.id} «${def.title}» не выполнен: веб-доступ для поручения не разрешён.`, true);
             continue;
           }
           // mark running synchronously so no other pass starts it twice
@@ -1729,7 +1746,7 @@ export class MissionEngine implements RuntimeService {
     // pending steps whose dependencies were skipped by the user's decision stay unreachable: mark them explicitly
     for (const s of steps.filter((x) => x.status === 'pending')) {
       this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify(new AppError('VALIDATION_FAILED', 'Зависимости этапа не выполнены.').toJSON()) });
-      this.addLimitation(m.id, `${s.plan_step} «${s.title}» не выполнен: его зависимости пропущены.`);
+      this.addLimitation(m.id, `${s.plan_step} «${s.title}» не выполнен: его зависимости пропущены.`, true);
     }
     return this.moveTo(m.id, 'verification') ? 'continue' : 'wait';
   }
@@ -1833,8 +1850,8 @@ export class MissionEngine implements RuntimeService {
         const r = await this.runAgent(m, a, { phase: 'verification', role: 'security-reviewer', agentId: 'security-reviewer', title: 'Проверка безопасности изменений', input: { objective: n.desired_outcome || m.title, change_summary: `${set.summary.files} файлов: +${set.summary.added} −${set.summary.removed}`, files: this.changedFilesForReview(m), findings: set.risks.map((x) => ({ title: x.title, severity: x.severity, files: x.files })) }, variant: set.review.contentHash ?? '' });
         if (!r.ok && r.fatal) return 'wait';
         if (r.ok) security = { ...(r.output as unknown as SecurityOutput), files: set.summary.files };
-        else this.addLimitation(m.id, `Проверка безопасности изменений не выполнена: ${r.error.message}`);
-      } else this.addLimitation(m.id, 'Изменения не проверены на риски безопасности: агент «Ревьюер безопасности» не установлен или выключен.');
+        else this.addLimitation(m.id, `Проверка безопасности изменений не выполнена: ${r.error.message}`, true);
+      } else this.addLimitation(m.id, 'Изменения не проверены на риски безопасности: агент «Ревьюер безопасности» не установлен или выключен.', true);
     }
     const artifacts = this.artifacts(this.row(m.id));
     const { evidence, claims } = this.allEvidence(m);
@@ -1855,7 +1872,7 @@ export class MissionEngine implements RuntimeService {
       variant: `${set?.review.contentHash ?? 'none'}:${this.criteriaOf(m).length}`,
     });
     if (!v.ok && v.fatal) return 'wait';
-    if (!v.ok) this.addLimitation(m.id, `Проверяющий агент не выполнил оценку: ${v.error.message}. Критерии оценены только детерминированно.`);
+    if (!v.ok) this.addLimitation(m.id, `Проверяющий агент не выполнил оценку: ${v.error.message}. Критерии оценены только детерминированно.`, true);
     const vo = v.ok ? (v.output as unknown as VerifierOutput) : null;
     const cur = this.row(m.id);
     const anyApplied = this.missionSets(m.id).some((s) => s.status === 'applied' || s.status === 'partially_applied');
@@ -1900,8 +1917,10 @@ export class MissionEngine implements RuntimeService {
       this.setStatus(m.id, 'needs_fix', { phase: 'fix', reason: `проверка выявила проблемы (${problems.length + unmet.length}); попытка исправления ${cur.fix_rounds + 1} из ${policy.maxFixRounds}` });
       return 'continue';
     }
-    if (fixable && cur.fix_rounds >= policy.maxFixRounds && policy.maxFixRounds > 0) {
-      this.addLimitation(m.id, `После ${cur.fix_rounds} циклов исправления остались проблемы: ${clip([...problems, ...unmet.map((c) => `${c.id}: ${c.status}`)].join('; '), 600)}`);
+    if (fixable) {
+      const left = clip([...problems, ...unmet.map((c) => `${c.id}: ${c.status}`)].join('; '), 600);
+      const why = cur.fix_rounds >= policy.maxFixRounds && policy.maxFixRounds > 0 ? `После ${cur.fix_rounds} циклов исправления остались проблемы` : m.mode === 'execute' && !this.planOf(cur).some((s) => s.role === 'implementer') ? 'Проблемы не исправлялись: в плане нет этапа изменений' : policy.maxFixRounds === 0 ? 'Проблемы не исправлялись: циклы исправления отключены политикой поручения' : 'Проблемы не исправлялись: исполнитель недоступен';
+      this.addLimitation(m.id, `${why}: ${left}`);
     }
     return this.goNext(m.id, 'verification');
   }
@@ -1937,7 +1956,7 @@ export class MissionEngine implements RuntimeService {
     });
     if (!res.ok) {
       if (res.fatal) return 'wait';
-      this.addLimitation(m.id, `Исправление (цикл ${round}) не выполнено: ${res.error.message}`);
+      this.addLimitation(m.id, `Исправление (цикл ${round}) не выполнено: ${res.error.message}`, true);
       return this.goNext(m.id, 'verification');
     }
     return this.moveTo(m.id, 'verification', `повторная проверка после исправления ${round}`) ? 'continue' : 'wait';
@@ -1946,7 +1965,7 @@ export class MissionEngine implements RuntimeService {
   /** Independent review against the ORIGINAL request (detects distortions of meaning, 28.10). */
   private async phaseReview(m: MissionRow, a: Active): Promise<'continue' | 'wait'> {
     if (!this.enabledAgents().has('independent-reviewer')) {
-      this.addLimitation(m.id, 'Независимое ревью не выполнено: агент «Независимый ревьюер поручения» не установлен или выключен.');
+      this.addLimitation(m.id, 'Независимое ревью не выполнено: агент «Независимый ревьюер поручения» не установлен или выключен.', true);
       return this.goNext(m.id, 'review');
     }
     const review = this.reviewOf(m);
@@ -1966,11 +1985,30 @@ export class MissionEngine implements RuntimeService {
     });
     if (!res.ok) {
       if (res.fatal) return 'wait';
-      this.addLimitation(m.id, `Независимое ревью не выполнено: ${res.error.message}`);
+      this.addLimitation(m.id, `Независимое ревью не выполнено: ${res.error.message}`, true);
       return this.goNext(m.id, 'review');
     }
     this.patch(m.id, { review: JSON.stringify({ ...this.reviewOf(this.row(m.id)), independent: res.output as unknown as ReviewerOutput }) });
     return this.goNext(m.id, 'review');
+  }
+
+  /**
+   * Problems still open after the last verification (28.16): failed project checks and validators, critical/major
+   * findings of the verifier, a blocking security or independent review. Any of them rules out «Выполнена».
+   */
+  private blockingProblems(m: MissionRow): string[] {
+    if (m.mode !== 'execute') return [];
+    const r = this.reviewOf(m);
+    const out = [...this.reviewBlocking(m)];
+    if (r.lastVerification) {
+      for (const c of this.checkRecords(m.id)) {
+        if ((c.evidence as { stepId?: string } | null)?.stepId !== r.lastVerification) continue;
+        if (c.kind === 'command' && (c.status === 'failed' || c.status === 'timeout')) out.push(`проверка «${c.name}» не пройдена${c.exitCode !== null ? ` (код ${c.exitCode})` : ''}`);
+        if (c.kind === 'validator' && c.status === 'failed') out.push(`проверка «${c.name}» не пройдена`);
+      }
+    }
+    for (const p of r.verifier?.problems ?? []) if (p.severity === 'critical' || p.severity === 'major') out.push(`проверяющий: ${p.description}`);
+    return uniq(out);
   }
 
   private reviewBlocking(m: MissionRow): string[] {
@@ -1993,15 +2031,14 @@ export class MissionEngine implements RuntimeService {
     if (m.mode === 'plan' || criteria.some((c) => c.status === 'pending')) {
       const ctx = { mode: m.mode, checks: [], checksNotRun: review.checksNotRun ?? [], artifacts: this.artifacts(m), verifiedClaims: 0, verifiedDomains: 0, verifiedEvidence: 0, changesOnlyProposed: false };
       criteria = criteria.map((c) => (c.status === 'pending' || m.mode === 'plan' ? guardCriteria([c], null, ctx)[0]! : c));
-      if (m.mode === 'execute' && criteria.some((c) => c.decidedBy === 'guard' && c.notes.includes('не оценил'))) this.addLimitation(m.id, 'Часть критериев не проверялась: этап проверки не выполнен.');
+      if (m.mode === 'execute' && criteria.some((c) => c.decidedBy === 'guard' && c.notes.includes('не оценил'))) this.addLimitation(m.id, 'Часть критериев не проверялась: этап проверки не выполнен.', true);
       this.patch(m.id, { criteria: JSON.stringify(criteria) });
     }
     const cur = this.row(m.id);
     const execSteps = this.currentExecSteps(m.id);
     const failedSteps = execSteps.filter((s) => s.status === 'failed' || s.status === 'cancelled').map((s) => `${s.plan_step} «${s.title}»`);
-    const skippedByUser = execSteps.filter((s) => s.status === 'skipped' && (s.error ?? '').includes('пропущен пользователем')).map((s) => `${s.plan_step} «${s.title}»`);
-    const limitations = [...this.limitationsOf(cur), ...skippedByUser.map((s) => `этап ${s} пропущен по решению пользователя`)];
-    const status = finalStatus(criteria, { mode: m.mode, failedSteps: [...failedSteps, ...skippedByUser], skippedSteps: [], limitations, reviewBlocking: this.reviewBlocking(cur), planProduced: this.planOf(cur).length > 0 });
+    const limitations = this.limitationsOf(cur);
+    const status = finalStatus(criteria, { mode: m.mode, failedSteps, notExecuted: this.gapsOf(cur), limitations, blocking: this.blockingProblems(cur), planProduced: this.planOf(cur).length > 0 });
     const set = this.openSet(m.id);
     const allSets = this.missionSets(m.id);
     const files: MissionSummary['files'] = allSets.flatMap((s) => s.files.map((f) => ({ path: f.path, source: f.sourceName, op: f.op, status: s.status === 'proposed' ? (f.status === 'skipped' ? 'отклонено' : 'предложено (не применено)') : f.status === 'applied' ? 'применено к проекту' : f.status })));
@@ -2204,12 +2241,12 @@ export class MissionEngine implements RuntimeService {
       const s = this.rt.db.get<StepRow>('SELECT * FROM mission_steps WHERE id = ? AND mission_id = ?', sid, id);
       if (s && (s.status === 'failed' || s.status === 'cancelled')) {
         this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify({ code: 'CANCELLED', message: 'Этап пропущен пользователем.', hint: '' }) });
-        this.addLimitation(id, `Этап «${s.title}» пропущен по решению пользователя.`);
+        this.addLimitation(id, `Этап «${s.title}» пропущен по решению пользователя.`, true);
       }
     }
     // a non-step phase error: the phase is skipped explicitly (e.g. planning cannot be skipped — it is retried)
     if (!ids.length && p.resumePhase !== 'planning' && p.resumePhase !== 'analysis') {
-      this.addLimitation(id, `Этап «${PHASE_LABELS[p.resumePhase]}» пропущен по решению пользователя.`);
+      this.addLimitation(id, `Этап «${PHASE_LABELS[p.resumePhase]}» пропущен по решению пользователя.`, true);
       const m = this.row(id);
       this.patch(id, { phase: this.nextPhase(m, p.resumePhase) });
       p.resumePhase = this.nextPhase(m, p.resumePhase);
@@ -2257,7 +2294,7 @@ export class MissionEngine implements RuntimeService {
     const cur = this.row(id);
     this.patch(id, { review: JSON.stringify({ ...this.reviewOf(cur), apply: { decision: 'applied', changeSetId: setId, at: nowIso(), result: res.status } }) });
     this.event(id, null, res.status === 'applied' ? 'info' : 'warn', 'changes.applied', res.status === 'applied' ? `Изменения применены к исходному проекту (${res.files.filter((f) => f.status === 'applied').length} файлов); создана резервная копия` : `Изменения применены частично (${res.status}) — подробности в наборе изменений`, { changeSetId: setId, status: res.status, backupId: res.backupId });
-    if (res.status !== 'applied') this.addLimitation(id, `Применение изменений: ${res.status === 'partially_applied' ? 'частично' : res.status}. Неприменённые файлы перечислены в наборе изменений.`);
+    if (res.status !== 'applied') this.addLimitation(id, `Применение изменений: ${res.status === 'partially_applied' ? 'частично' : res.status}. Неприменённые файлы перечислены в наборе изменений.`, true);
   }
 
   // ============================================================================================ intervention (28.13)

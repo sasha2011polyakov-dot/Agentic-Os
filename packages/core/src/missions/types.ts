@@ -232,6 +232,8 @@ export interface MissionView {
   artifacts: Artifact[];
   sourceReferences: { kind: string; ref: string; title: string; systemId: string; verified: boolean | null }[];
   limitations: string[];
+  /** Stages and capabilities that did not run (no agent, tool, access, model, or skipped by the user): they rule out «Выполнена». */
+  notExecuted: string[];
   fixRounds: number;
   review: unknown;
   summary: MissionSummary | null;
