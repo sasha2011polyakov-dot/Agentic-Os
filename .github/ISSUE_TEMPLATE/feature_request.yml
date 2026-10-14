@@ -1,0 +1,27 @@
+name: Feature request / Предложение
+description: Suggest an improvement or a new capability. / Предложить улучшение или новую возможность.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Какую задачу это решает
+      description: Describe the situation, not only the solution. / Опишите ситуацию, а не только решение.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal / Предложение
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered / Рассмотренные альтернативы
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution / Участие
+      options:
+        - label: I would like to implement this myself / Хочу реализовать сам(а)

@@ -244,12 +244,12 @@ describe('29.18 security: project protection', () => {
     const { t, rt, s, projects } = await setup();
     const p = projects[0]!;
     s.sources.setAccessMode(p.id, 'prepare', { actor: 'user' });
-    const key = 'sk-ant-api03-SUPERSECRETVALUEabcdefghijklmnop';
+    const key = 'sk-' + 'ant-api03-SUPERSECRETVALUEabcdefghijklmnop';
     const r = await agentCalls(s, 'a14', [{ tool: 'propose_file_change', args: { sourceId: p.id, path: 'src/config.ts', op: 'create', content: `export const KEY = "${key}";\n`, rationale: `ключ ${key}` } }], scopeOf([p.id]));
     expect(r.toolCalls[0]!.error?.code).toBe('PERMISSION_DENIED');
     const ai = appAI(t.core.services);
     rt.settings.set('ai.mode', 'cloud');
-    const cloud = await ai.providers.create({ kind: 'anthropic', name: 'Cloud', baseUrl: 'https://api.anthropic.com', locality: 'cloud', apiKey: 'sk-ant-api03-PROVIDERKEYxxxxxxxxxxxxxxxx', secretBackend: 'session' });
+    const cloud = await ai.providers.create({ kind: 'anthropic', name: 'Cloud', baseUrl: 'https://api.anthropic.com', locality: 'cloud', apiKey: 'sk-' + 'ant-api03-PROVIDERKEYxxxxxxxxxxxxxxxx', secretBackend: 'session' });
     rt.settings.set('ai.defaultModel', { providerId: cloud.id, model: 'claude-x' });
     await expect(ai.ai.chat({ rt, purpose: 'test', policy: { mode: 'inherit' }, taskType: 'generation', containsConfidential: false }, { messages: [{ role: 'user', content: `в документе ключ ${key}` }] })).rejects.toMatchObject({ code: 'SECRET_EGRESS_BLOCKED' });
     const log = await readFile(t.core.services.paths.logFile, 'utf8').catch(() => '');

@@ -1,1 +1,7 @@
-{"name":"@aos/desktop","version":"0.1.0","private":true,"type":"module"}
+{
+  "name": "@aos/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0"
+}

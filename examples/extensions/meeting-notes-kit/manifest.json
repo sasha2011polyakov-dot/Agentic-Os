@@ -1,0 +1,15 @@
+{
+  "formatVersion": 1,
+  "id": "examples.meeting-notes-kit",
+  "name": "Meeting notes kit",
+  "version": "1.0.0",
+  "description": "An agent role that turns raw meeting notes into decisions and action items, plus a meeting notes template. Example of a content extension.",
+  "author": "Agentic OS contributors",
+  "kind": "content",
+  "platform": ">=0.1.0 <1.0.0",
+  "contributes": {
+    "agents": ["agents/meeting-summarizer"],
+    "templates": [{ "id": "meeting", "name": "Встреча", "file": "templates/meeting.md", "folder": "Meetings" }]
+  },
+  "permissions": []
+}

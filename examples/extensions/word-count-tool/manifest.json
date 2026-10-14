@@ -1,0 +1,23 @@
+{
+  "formatVersion": 1,
+  "id": "examples.word-count",
+  "name": "Word count",
+  "version": "1.0.0",
+  "description": "Counts words, characters and headings of a document. Example of a tool plugin that reads data only through the app API.",
+  "author": "Agentic OS contributors",
+  "kind": "tools",
+  "platform": ">=0.1.0 <1.0.0",
+  "contributes": {
+    "tools": [
+      {
+        "name": "count_words",
+        "title": "Подсчёт слов",
+        "description": "Считает слова, символы и заголовки документа.",
+        "entry": "tools/count.mjs",
+        "inputSchema": { "type": "object", "required": ["docId"], "additionalProperties": false, "properties": { "docId": { "type": "string" } } },
+        "timeoutSec": 10
+      }
+    ]
+  },
+  "permissions": [{ "permission": "documents.read", "reason": "Прочитать документ, который нужно посчитать." }]
+}

@@ -1,0 +1,30 @@
+{
+  "formatVersion": 1,
+  "id": "examples.ocean-theme",
+  "name": "Ocean",
+  "version": "1.0.0",
+  "description": "A calm dark theme: deep blue surfaces and a cyan accent. Example of a theme extension (design tokens + sanitized CSS).",
+  "author": "Agentic OS contributors",
+  "kind": "theme",
+  "platform": ">=0.1.0 <1.0.0",
+  "contributes": {
+    "themes": [
+      {
+        "id": "ocean",
+        "name": "Ocean",
+        "mode": "dark",
+        "tokens": {
+          "--aos-color-bg": "#0b1220",
+          "--aos-color-surface": "#111a2e",
+          "--aos-color-text": "#e6edf7",
+          "--aos-color-muted": "#93a4bf",
+          "--aos-color-accent": "#22d3ee",
+          "--aos-radius-card": "10px",
+          "--aos-font-body": "Inter, system-ui, sans-serif"
+        },
+        "css": "themes/ocean.css"
+      }
+    ]
+  },
+  "permissions": []
+}

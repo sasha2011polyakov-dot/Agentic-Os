@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["decisions", "action_items", "open_questions"],
+  "properties": {
+    "decisions": { "type": "array", "items": { "type": "object", "required": ["text", "quote"], "properties": { "text": { "type": "string" }, "quote": { "type": "string" } } } },
+    "action_items": { "type": "array", "items": { "type": "object", "required": ["task", "owner", "due", "quote"], "properties": { "task": { "type": "string" }, "owner": { "type": ["string", "null"] }, "due": { "type": ["string", "null"] }, "quote": { "type": "string" } } } },
+    "open_questions": { "type": "array", "items": { "type": "string" } }
+  }
+}

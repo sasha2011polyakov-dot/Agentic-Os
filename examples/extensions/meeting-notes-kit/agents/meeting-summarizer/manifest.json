@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "id": "meeting-summarizer",
+  "name": "Итоги встречи",
+  "version": "1.0.0",
+  "description": "Выделяет из заметок встречи решения, задачи с ответственными и открытые вопросы.",
+  "author": "Agentic OS contributors",
+  "category": "productivity",
+  "entry": "instructions.md",
+  "platform": ">=0.1.0 <1.0.0",
+  "schemas": {
+    "input": "schemas/input.schema.json",
+    "output": "schemas/output.schema.json"
+  },
+  "tools": "tools.json",
+  "permissions": [{ "permission": "documents.read", "reason": "Прочитать заметку встречи, указанную пользователем." }],
+  "dependencies": [],
+  "model": { "taskType": "extraction", "structuredOutput": "preferred" },
+  "defaults": { "temperature": 0.1, "maxOutputTokens": 3000, "maxToolRounds": 3, "repairAttempts": 2 }
+}

@@ -20,5 +20,6 @@
   },
   "devDependencies": {
     "esbuild": "0.25.12"
-  }
+  },
+  "license": "Apache-2.0"
 }

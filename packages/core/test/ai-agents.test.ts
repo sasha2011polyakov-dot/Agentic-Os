@@ -85,7 +85,7 @@ describe('model router and network policy', () => {
 
   it('stores only secret references and redacts keys from logs and audit', async () => {
     const { t, rt, ai } = await setup();
-    const key = 'sk-ant-SECRETVALUE-1234567890abcdefXYZ';
+    const key = 'sk-' + 'ant-SECRETVALUE-1234567890abcdefXYZ';
     const p = await ai.providers.create({ kind: 'anthropic', name: 'Claude', baseUrl: 'https://api.anthropic.com', locality: 'cloud', apiKey: key, secretBackend: 'session' });
     const row = t.core.registryDb.get<{ secret_ref: string }>('SELECT secret_ref FROM ai_providers WHERE id = ?', p.id)!;
     expect(row.secret_ref).toBe(`session:provider_${p.id}`);

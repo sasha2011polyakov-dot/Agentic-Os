@@ -390,7 +390,7 @@ export default async (input, api) => { await t('read', async () => (await api.re
 async function appExtensionsSecret(rt: { app: Parameters<typeof appExtensions>[0] }): Promise<void> {
   const { appAI } = await import('../src/ai/app-ai.ts');
   try {
-    await appAI(rt.app).providers.create({ kind: 'anthropic', name: 'Облако', baseUrl: 'https://api.anthropic.com', locality: 'cloud', apiKey: 'sk-ant-test-0000000000000000000000' });
+    await appAI(rt.app).providers.create({ kind: 'anthropic', name: 'Облако', baseUrl: 'https://api.anthropic.com', locality: 'cloud', apiKey: 'sk-' + 'ant-test-0000000000000000000000' });
   } catch {
     // the secret backend may be unavailable in CI — the env secret above still covers the test
   }

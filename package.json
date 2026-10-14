@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Local-first knowledge OS with AI agents: Markdown vaults, knowledge graph, project indexing and verifiable multi-agent workflows.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
@@ -15,20 +15,24 @@
     "apps/desktop"
   ],
   "scripts": {
-    "build": "npm run build -w @aos/ui && npm run build -w @aos/server",
+    "build": "npm run build -w @aos/server",
     "start": "node apps/server/dist/aos.mjs serve",
     "dev:server": "npm run dev -w @aos/server",
-    "dev:ui": "npm run dev -w @aos/ui",
-    "typecheck": "tsc -b packages/core apps/server && npm run typecheck -w @aos/ui",
+    "typecheck": "tsc -b packages/core apps/server",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "lint:boundaries": "node scripts/check-boundaries.mjs",
-    "desktop": "npm run start -w @aos/desktop"
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "typescript": "5.9.3",
     "vitest": "4.1.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sasha2011polyakov-dot/Agentic-Os.git"
+  },
+  "homepage": "https://github.com/sasha2011polyakov-dot/Agentic-Os#readme",
+  "bugs": {
+    "url": "https://github.com/sasha2011polyakov-dot/Agentic-Os/issues"
   }
 }

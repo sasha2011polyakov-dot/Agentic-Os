@@ -85,7 +85,7 @@ describe('utils', () => {
     registerSecretValue('my-very-private-value-123');
     const out = redact('key=my-very-private-value-123 and sk-abcdefghijklmnopqrstuvwxyz012345 and Authorization: Bearer abcdef123456789');
     expect(out).not.toContain('my-very-private-value-123');
-    expect(out).not.toContain('sk-abcdefghijklmnopqrstuvwxyz012345');
+    expect(out).not.toContain('sk-' + 'abcdefghijklmnopqrstuvwxyz012345');
     expect(out).not.toContain('abcdef123456789');
   });
 

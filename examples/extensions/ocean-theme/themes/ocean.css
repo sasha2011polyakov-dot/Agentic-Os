@@ -1,0 +1,7 @@
+/* Only appearance: colors, spacing, borders, transitions. No url(), @import, attribute selectors or hiding properties —
+   the sanitizer removes them (see docs/architecture/extensions.md). */
+.card { background-color: #111a2e; border: 1px solid #1e2a44; border-radius: 10px; box-shadow: 0 1px 2px #0006; }
+.button { color: #0b1220; background-color: #22d3ee; border-radius: 8px; transition: background-color 150ms ease; }
+.button:hover { background-color: #67e8f9; }
+.link { color: #22d3ee; text-decoration: underline; text-underline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .button { transition: none; } }
