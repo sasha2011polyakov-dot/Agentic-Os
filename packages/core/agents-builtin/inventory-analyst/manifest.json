@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "inventory-analyst",
-  "name": "Инвентаризатор проекта",
-  "version": "1.0.0",
-  "description": "Строит достоверную карту структуры проекта на основе детерминированной инвентаризации и чтения ключевых файлов.",
+  "name": "Project inventory analyst",
+  "version": "1.0.1",
+  "description": "Builds a reliable map of the project structure from the deterministic inventory and by reading key files.",
   "author": "Agentic OS",
   "category": "spec",
   "entry": "instructions.md",
@@ -16,11 +16,11 @@
   "permissions": [
     {
       "permission": "projects.read",
-      "reason": "Чтение файлов подключённых проектов для построения карты"
+      "reason": "Read files of connected projects to build the map"
     },
     {
       "permission": "documents.read",
-      "reason": "Чтение выбранных документов"
+      "reason": "Read selected documents"
     }
   ],
   "dependencies": [],

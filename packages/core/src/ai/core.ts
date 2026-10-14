@@ -132,8 +132,8 @@ export class AICore {
       const kinds = secretKindsIn([input.system ?? '', ...input.messages.map((m) => m.content)].join('\n'));
       if (kinds.length) {
         this.recordUsage(ctx, route, route.model, { inputTokens: null, outputTokens: null, latencyMs: 0, cost: null, status: 'denied', errorCode: 'SECRET_EGRESS_BLOCKED' });
-        ctx.rt.security.record({ actor: ctx.agentId ? `agent:${ctx.agentId}` : ctx.purpose, action: 'secret.blocked', outcome: 'denied', taskId: ctx.runId ?? null, resources: [route.providerId], message: `Запрос к облачной модели заблокирован: в данных найдено ${kinds.join(', ')}. Данные не отправлены.` });
-        throw new AppError('SECRET_EGRESS_BLOCKED', `Запрос к облачной модели не отправлен: в данных найдено ${kinds.join(', ')}.`);
+        ctx.rt.security.record({ actor: ctx.agentId ? `agent:${ctx.agentId}` : ctx.purpose, action: 'secret.blocked', outcome: 'denied', taskId: ctx.runId ?? null, resources: [route.providerId], message: `A request to a cloud model was blocked: the data contains ${kinds.join(', ')}. The data was not sent.` });
+        throw new AppError('SECRET_EGRESS_BLOCKED', `The request to the cloud model was not sent: the data contains ${kinds.join(', ')}.`);
       }
     }
     const provider = await this.providers.instance(route.providerId);
@@ -182,7 +182,7 @@ export class AICore {
     const route = this.router.select({ policy: ctx.policy, taskType: 'embedding', needs: { embeddings: true }, containsConfidential: ctx.containsConfidential }, this.environment(ctx.rt));
     this.budget.checkCloud(route.locality);
     const provider = await this.providers.instance(route.providerId);
-    if (!provider.embed) throw new AppError('MODEL_UNAVAILABLE', 'Провайдер не поддерживает эмбеддинги.');
+    if (!provider.embed) throw new AppError('MODEL_UNAVAILABLE', 'The provider does not support embeddings.');
     const release = await this.semaphore(route.providerId).acquire(ctx.signal);
     const started = Date.now();
     try {
@@ -200,16 +200,16 @@ export class AICore {
 
   /** Model download through a local engine. Offline mode forbids it: the engine itself would go to the internet. */
   async pull(providerId: string, model: string, onProgress: (p: PullProgress) => void, signal?: AbortSignal): Promise<void> {
-    if (this.app.appSettings.get<boolean>('net.offline')) throw new AppError('OFFLINE_MODE', 'Загрузка моделей недоступна в офлайн-режиме.');
+    if (this.app.appSettings.get<boolean>('net.offline')) throw new AppError('OFFLINE_MODE', 'Downloading models is not available in offline mode.');
     const p = (await this.providers.instance(providerId)) as LocalModelProvider;
-    if (!p.pullModel) throw new AppError('VALIDATION_FAILED', 'Этот провайдер не умеет загружать модели. Загрузите модель в самом приложении (например, в LM Studio).');
+    if (!p.pullModel) throw new AppError('VALIDATION_FAILED', 'This provider cannot download models. Download the model in the provider application itself (for example LM Studio).');
     await p.pullModel(model, onProgress, signal);
     await this.providers.models(providerId, { refresh: true });
   }
 
   async deleteModel(providerId: string, model: string): Promise<void> {
     const p = (await this.providers.instance(providerId)) as LocalModelProvider;
-    if (!p.deleteModel) throw new AppError('VALIDATION_FAILED', 'Этот провайдер не поддерживает удаление моделей из приложения.');
+    if (!p.deleteModel) throw new AppError('VALIDATION_FAILED', 'This provider does not support deleting models from the application.');
     await p.deleteModel(model);
     await this.providers.models(providerId, { refresh: true });
   }

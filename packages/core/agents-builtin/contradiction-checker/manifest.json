@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "contradiction-checker",
-  "name": "Проверяющий противоречия",
-  "version": "1.0.0",
-  "description": "Находит противоречия, дубликаты, неоднозначности и непроверяемые требования; предлагает варианты разрешения.",
+  "name": "Contradiction checker",
+  "version": "1.0.1",
+  "description": "Finds contradictions, duplicates, ambiguities and unverifiable requirements, and proposes ways to resolve them.",
   "author": "Agentic OS",
   "category": "spec",
   "entry": "instructions.md",

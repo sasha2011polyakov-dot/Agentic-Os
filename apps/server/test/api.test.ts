@@ -46,10 +46,10 @@ describe('systems and documents over HTTP', () => {
     const created = await api<{ system: { systemId: string } }>('POST', '/api/systems', { name: 'API', storagePath: join(root, 'sys'), template: 'starter' });
     expect(created.status).toBe(200);
     const sid = created.data.system.systemId;
-    const doc = await api<{ doc: { id: string; diskHash: string } }>('POST', `/api/systems/${sid}/docs`, { title: 'HTTP заметка', content: 'Текст про пингвинов' });
+    const doc = await api<{ doc: { id: string; diskHash: string } }>('POST', `/api/systems/${sid}/docs`, { title: 'HTTP note', content: 'Text about penguins' });
     expect(doc.status).toBe(200);
-    const search = await api<{ total: number; hits: { title: string }[] }>('GET', `/api/systems/${sid}/search?q=${encodeURIComponent('пингвин')}`);
-    expect(search.data.hits[0]!.title).toBe('HTTP заметка');
+    const search = await api<{ total: number; hits: { title: string }[] }>('GET', `/api/systems/${sid}/search?q=${encodeURIComponent('penguin')}`);
+    expect(search.data.hits[0]!.title).toBe('HTTP note');
     const conflict = await api<{ error: { code: string; hint: string } }>('PUT', `/api/systems/${sid}/docs/${doc.data.doc.id}`, { content: 'x', expectedHash: 'stale' });
     expect(conflict.status).toBe(409);
     expect(conflict.data.error.code).toBe('WRITE_CONFLICT');
@@ -96,7 +96,7 @@ describe('AI, agents and change sets over HTTP', () => {
     const imp = await fetch(`${app.http.url}/api/systems/${sid}/agents/import`, { method: 'POST', headers: { cookie, 'content-type': 'application/zip', 'x-aos-request': '1', origin: app.http.url }, body: zip });
     const impData = (await imp.json()) as { error?: { code: string; message: string } };
     expect(impData.error?.code).toBe('AGENT_PACKAGE_INVALID'); // id is taken by the built-in agent
-    expect(impData.error?.message).toContain('занят встроенным');
+    expect(impData.error?.message).toContain('is taken by a built-in agent');
 
     const changes = await api<{ changeSets: unknown[] }>('GET', `/api/systems/${sid}/changes`);
     expect(changes.data.changeSets).toEqual([]);
@@ -113,13 +113,13 @@ describe('workflows and tasks over HTTP', () => {
     expect(list.data.workflows.filter((w) => w.builtin).map((w) => w.id).sort()).toEqual(['spec-pipeline', 'web-research']);
     const definition = {
       id: 'check-only',
-      name: 'Проверка',
+      name: 'Check',
       description: '',
       version: 1,
       inputSchema: { type: 'object' },
       nodes: [
-        { id: 'v', type: 'function', fn: 'spec.validate_tasks', title: 'Проверка', input: { tasks: [], requirements: [{ id: 'REQ-001', statement: 'x', type: 'functional', sources: [], priority: 'must', acceptance_criteria: ['y'], depends_on: [], status: 'confirmed' }] } },
-        { id: 'ok', type: 'approval', title: 'Утвердить', dependsOn: ['v'], prompt: { findings: { $path: 'nodes.v.output.findings' } } },
+        { id: 'v', type: 'function', fn: 'spec.validate_tasks', title: 'Check', input: { tasks: [], requirements: [{ id: 'REQ-001', statement: 'x', type: 'functional', sources: [], priority: 'must', acceptance_criteria: ['y'], depends_on: [], status: 'confirmed' }] } },
+        { id: 'ok', type: 'approval', title: 'Approve', dependsOn: ['v'], prompt: { findings: { $path: 'nodes.v.output.findings' } } },
       ],
       output: { coverage: { $path: 'nodes.v.output.metrics.coveragePct' } },
     };
@@ -142,14 +142,14 @@ describe('workflows and tasks over HTTP', () => {
     const events = await api<{ events: { type: string }[] }>('GET', `/api/systems/${sid}/runs/${runId}/events`);
     expect(events.data.events.map((e) => e.type)).toContain('approval.decided');
 
-    const task = await api<{ task: { id: string; key: string } }>('POST', `/api/systems/${sid}/tasks`, { title: 'Задача из API', acceptanceCriteria: ['готово'] });
+    const task = await api<{ task: { id: string; key: string } }>('POST', `/api/systems/${sid}/tasks`, { title: 'Task from the API', acceptanceCriteria: ['done'] });
     expect(task.data.task.key).toBe('T-001');
     const done = await api<{ error: { code: string } }>('POST', `/api/systems/${sid}/tasks/${task.data.task.id}/status`, { status: 'done' });
     expect(done.data.error.code).toBe('CONFIRMATION_REQUIRED');
-    await api('POST', `/api/systems/${sid}/tasks/${task.data.task.id}/status`, { status: 'done', evidence: 'проверено вручную' });
+    await api('POST', `/api/systems/${sid}/tasks/${task.data.task.id}/status`, { status: 'done', evidence: 'checked manually' });
     const csv = await fetch(`${app.http.url}/api/systems/${sid}/tasks/export?format=csv`, { headers: { cookie } });
     expect(csv.headers.get('content-type')).toContain('text/csv');
-    expect(await csv.text()).toContain('"T-001","Задача из API","done"');
+    expect(await csv.text()).toContain('"T-001","Task from the API","done"');
   });
 });
 
@@ -157,14 +157,14 @@ describe('missions over HTTP', () => {
   it('creates a mission, reports honestly that no model is configured, and lets the user cancel it', async () => {
     const sys = await api<{ system: { systemId: string } }>('POST', '/api/systems', { name: 'Missions API', storagePath: join(root, 'sys-mis'), template: 'empty' });
     const sid = sys.data.system.systemId;
-    const bad = await api<{ error: { code: string } }>('POST', `/api/systems/${sid}/missions`, { request: 'Изучи источники', scope: { kind: 'public', allowWeb: false } });
+    const bad = await api<{ error: { code: string } }>('POST', `/api/systems/${sid}/missions`, { request: 'Study the sources', scope: { kind: 'public', allowWeb: false } });
     expect(bad.data.error.code).toBe('VALIDATION_FAILED');
     const pre = await api<{ preflight: { ok: boolean; problems: string[] } }>('POST', `/api/systems/${sid}/missions/preflight`, { mode: 'plan' });
     expect(pre.data.preflight.ok).toBe(false);
-    expect(pre.data.preflight.problems.join(' ')).toContain('Подготовить агентов');
+    expect(pre.data.preflight.problems.join(' ')).toContain('Set up agents');
     const setup = await api<{ installed: string[] }>('POST', `/api/systems/${sid}/missions/setup-agents`, {});
     expect(setup.data.installed).toContain('mission-analyst');
-    const created = await api<{ mission: { id: string; key: string; status: string; originalRequest: string } }>('POST', `/api/systems/${sid}/missions`, { request: 'Составь план документации проекта.', mode: 'plan' });
+    const created = await api<{ mission: { id: string; key: string; status: string; originalRequest: string } }>('POST', `/api/systems/${sid}/missions`, { request: 'Make a documentation plan for the project.', mode: 'plan' });
     expect(created.status).toBe(200);
     expect(created.data.mission.key).toBe('M-001');
     const mid = created.data.mission.id;
@@ -178,9 +178,9 @@ describe('missions over HTTP', () => {
     // no model, no imitation: the mission waits for the user with a concrete question
     expect(m!.status).toBe('needs_input');
     expect(m!.pending?.kind).toBe('model');
-    expect(m!.pending?.message).toContain('Автоматического переключения на облако нет');
+    expect(m!.pending?.message).toContain('There is no automatic switch to the cloud');
     const list = await api<{ total: number; items: { key: string; statusLabel: string }[] }>('GET', `/api/systems/${sid}/missions`);
-    expect(list.data.items[0]).toMatchObject({ key: 'M-001', statusLabel: 'Требуется вмешательство' });
+    expect(list.data.items[0]).toMatchObject({ key: 'M-001', statusLabel: 'Needs your input' });
     const events = await api<{ events: { type: string }[] }>('GET', `/api/systems/${sid}/missions/${mid}/events`);
     expect(events.data.events.map((e) => e.type)).toContain('step.failed');
     const cancelled = await api<{ mission: { status: string } }>('POST', `/api/systems/${sid}/missions/${mid}/cancel`, {});

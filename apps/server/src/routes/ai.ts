@@ -13,20 +13,20 @@ function ai(ctx: RouteContext) {
 
 function obj(v: unknown, name: string): Record<string, unknown> {
   if (v === undefined || v === null) return {};
-  if (typeof v !== 'object' || Array.isArray(v)) throw new AppError('VALIDATION_FAILED', `Поле «${name}» должно быть объектом.`);
+  if (typeof v !== 'object' || Array.isArray(v)) throw new AppError('VALIDATION_FAILED', `The field "${name}" must be an object.`);
   return v as Record<string, unknown>;
 }
 
 function zipBody(ctx: RouteContext): Uint8Array {
-  if (!Buffer.isBuffer(ctx.body)) throw new AppError('VALIDATION_FAILED', 'Ожидается ZIP-архив пакета (Content-Type: application/zip).');
+  if (!Buffer.isBuffer(ctx.body)) throw new AppError('VALIDATION_FAILED', 'A ZIP archive of the package is expected (Content-Type: application/zip).');
   return ctx.body;
 }
 
 function permissionList(v: unknown): PermissionId[] {
   if (v === undefined) return [];
-  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', 'Разрешения — список идентификаторов.');
+  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', 'Permissions must be a list of identifiers.');
   const known = new Set(PERMISSIONS.map((p) => p.id));
-  for (const p of v) if (!known.has(p as PermissionId)) throw new AppError('VALIDATION_FAILED', `Неизвестное разрешение: ${p}`);
+  for (const p of v) if (!known.has(p as PermissionId)) throw new AppError('VALIDATION_FAILED', `Unknown permission: ${p}`);
   return v as PermissionId[];
 }
 
@@ -39,7 +39,7 @@ function grantScopes(v: unknown): Partial<Record<PermissionId, GrantScope>> {
     for (const f of ['sources', 'folders', 'domains'] as const) {
       const val = sc[f];
       if (val === undefined) continue;
-      if (!Array.isArray(val) || !val.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', `${k}.${f}: ожидается список строк.`);
+      if (!Array.isArray(val) || !val.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', `${k}.${f}: a list of strings is expected.`);
       scope[f] = val as string[];
     }
     out[k as PermissionId] = scope;
@@ -53,9 +53,9 @@ export function registerAiRoutes(r: Router): void {
   r.post('/api/ai/providers', async (ctx) => {
     const b = body(ctx);
     const kind = str(b.kind, 'kind') as ProviderKind;
-    if (!PROVIDER_KINDS.has(kind)) throw new AppError('VALIDATION_FAILED', 'Неизвестный тип провайдера.');
+    if (!PROVIDER_KINDS.has(kind)) throw new AppError('VALIDATION_FAILED', 'Unknown provider type.');
     const locality = str(b.locality, 'locality') as Locality;
-    if (locality !== 'local' && locality !== 'cloud') throw new AppError('VALIDATION_FAILED', 'locality: local или cloud.');
+    if (locality !== 'local' && locality !== 'cloud') throw new AppError('VALIDATION_FAILED', 'locality: local or cloud.');
     const input: Parameters<ReturnType<typeof ai>['providers']['create']>[0] = { kind, name: str(b.name, 'name', { max: 100 }), baseUrl: str(b.baseUrl, 'baseUrl', { max: 500 }), locality, options: obj(b.options, 'options') };
     const apiKey = optStr(b.apiKey, 'apiKey', 4000);
     if (apiKey) input.apiKey = apiKey;
@@ -115,7 +115,7 @@ export function registerAiRoutes(r: Router): void {
   r.post('/api/ai/providers/:id/pull', async (ctx) => {
     const model = str(body(ctx).model, 'model', { max: 200 });
     const key = `${ctx.params.id}:${model}`;
-    if (pulls.has(key)) throw new AppError('VALIDATION_FAILED', 'Загрузка этой модели уже выполняется.');
+    if (pulls.has(key)) throw new AppError('VALIDATION_FAILED', 'This model is already being downloaded.');
     const ac = new AbortController();
     pulls.set(key, ac);
     const events = ctx.core.services.events;
@@ -141,7 +141,7 @@ export function registerAiRoutes(r: Router): void {
   r.get('/api/ai/prices', async (ctx) => ({ prices: ai(ctx).providers.prices() }));
   r.put('/api/ai/prices', async (ctx) => {
     const b = body(ctx);
-    const num = (v: unknown) => (v === null || v === undefined ? null : typeof v === 'number' && v >= 0 ? v : (() => { throw new AppError('VALIDATION_FAILED', 'Цена — неотрицательное число или null.'); })());
+    const num = (v: unknown) => (v === null || v === undefined ? null : typeof v === 'number' && v >= 0 ? v : (() => { throw new AppError('VALIDATION_FAILED', 'A price is a non-negative number or null.'); })());
     ai(ctx).providers.setPrice(str(b.providerId, 'providerId'), str(b.model, 'model', { max: 200 }), num(b.inputPerMTok), num(b.outputPerMTok));
     return { ok: true };
   });
@@ -216,7 +216,7 @@ export function registerAgentRoutes(r: Router): void {
   r.post(`${base}/install`, async (ctx) => {
     const b = body(ctx);
     const scope = str(b.scope, 'scope') as AgentScope;
-    if (!['builtin', 'app', 'system'].includes(scope)) throw new AppError('VALIDATION_FAILED', 'scope: builtin, app или system.');
+    if (!['builtin', 'app', 'system'].includes(scope)) throw new AppError('VALIDATION_FAILED', 'scope: builtin, app or system.');
     const version = optStr(b.version, 'version', 40);
     return { agent: await services(await sys(ctx)).agents.install({ id: str(b.id, 'id', { max: 64 }), scope, ...(version ? { version } : {}), grants: permissionList(b.grants), grantScopes: grantScopes(b.grantScopes) }) };
   });
@@ -228,7 +228,7 @@ export function registerAgentRoutes(r: Router): void {
   r.post(`${base}/definitions`, async (ctx) => {
     const b = body(ctx);
     const arr = (v: unknown, n: string) => {
-      if (!Array.isArray(v)) throw new AppError('VALIDATION_FAILED', `Поле «${n}» — список.`);
+      if (!Array.isArray(v)) throw new AppError('VALIDATION_FAILED', `The field "${n}" must be a list.`);
       return v;
     };
     const def = {
@@ -293,7 +293,7 @@ export function registerChangeRoutes(r: Router): void {
   r.post(`${base}/:id/review`, async (ctx) => ({ changeSet: services(await sys(ctx)).changes.review(ctx.params.id!, 'user') }));
   r.post(`${base}/:id/reject-files`, async (ctx) => {
     const ids = body(ctx).fileIds;
-    if (!Array.isArray(ids) || !ids.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', 'fileIds — список идентификаторов файлов.');
+    if (!Array.isArray(ids) || !ids.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', 'fileIds must be a list of file identifiers.');
     return { changeSet: services(await sys(ctx)).changes.rejectFiles(ctx.params.id!, ids as string[], 'user') };
   });
   r.get(`${base}/:id/check-plan`, async (ctx) => ({ plan: await services(await sys(ctx)).changes.checkPlan(ctx.params.id!, 'user') }));
@@ -380,7 +380,7 @@ export function registerWebRoutes(r: Router): void {
           const u = new URL(b.searxngUrl);
           if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('protocol');
         } catch {
-          throw new AppError('VALIDATION_FAILED', 'Некорректный адрес SearXNG.');
+          throw new AppError('VALIDATION_FAILED', 'Invalid SearXNG address.');
         }
       }
       next.searxngUrl = b.searxngUrl;

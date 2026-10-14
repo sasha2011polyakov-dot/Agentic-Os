@@ -10,13 +10,13 @@ export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done' 
 export type TaskPriority = 'critical' | 'high' | 'medium' | 'low';
 
 export const TASK_STATUSES: { id: TaskStatus; label: string }[] = [
-  { id: 'backlog', label: 'Бэклог' },
-  { id: 'todo', label: 'К выполнению' },
-  { id: 'in_progress', label: 'В работе' },
-  { id: 'review', label: 'На проверке' },
-  { id: 'blocked', label: 'Заблокирована' },
-  { id: 'done', label: 'Готово' },
-  { id: 'cancelled', label: 'Отменена' },
+  { id: 'backlog', label: 'Backlog' },
+  { id: 'todo', label: 'To do' },
+  { id: 'in_progress', label: 'In progress' },
+  { id: 'review', label: 'In review' },
+  { id: 'blocked', label: 'Blocked' },
+  { id: 'done', label: 'Done' },
+  { id: 'cancelled', label: 'Cancelled' },
 ];
 
 const PRIORITIES = new Set<TaskPriority>(['critical', 'high', 'medium', 'low']);
@@ -106,7 +106,7 @@ interface Row {
 
 function strList(v: unknown, name: string, max = 100): string[] {
   if (v === undefined) return [];
-  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', `${name}: ожидается список строк.`);
+  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', `${name}: a list of strings is expected.`);
   return (v as string[]).map((s) => s.trim()).filter(Boolean).slice(0, max);
 }
 
@@ -119,7 +119,7 @@ export class TaskService {
 
   private row(id: string): Row {
     const r = this.rt.db.get<Row>('SELECT * FROM tasks WHERE id = ? OR key = ?', id, id);
-    if (!r) throw new AppError('NOT_FOUND', 'Задача не найдена.');
+    if (!r) throw new AppError('NOT_FOUND', 'Task not found.');
     return r;
   }
 
@@ -244,15 +244,15 @@ export class TaskService {
 
   create(input: TaskInput): TaskView {
     const title = input.title?.trim();
-    if (!title) throw new AppError('VALIDATION_FAILED', 'Укажите название задачи.');
-    if (title.length > 300) throw new AppError('VALIDATION_FAILED', 'Название задачи длиннее 300 символов.');
+    if (!title) throw new AppError('VALIDATION_FAILED', 'Enter a task title.');
+    if (title.length > 300) throw new AppError('VALIDATION_FAILED', 'The task title is longer than 300 characters.');
     const status = input.status ?? 'todo';
-    if (!STATUSES.has(status)) throw new AppError('VALIDATION_FAILED', `Неизвестный статус: ${status}`);
-    if (status === 'done') throw new AppError('VALIDATION_FAILED', 'Новая задача не может быть сразу выполненной: отметьте выполнение с подтверждением.');
+    if (!STATUSES.has(status)) throw new AppError('VALIDATION_FAILED', `Unknown status: ${status}`);
+    if (status === 'done') throw new AppError('VALIDATION_FAILED', 'A new task cannot be done right away: mark it done with a confirmation.');
     const priority = input.priority ?? 'medium';
-    if (!PRIORITIES.has(priority)) throw new AppError('VALIDATION_FAILED', `Неизвестный приоритет: ${priority}`);
+    if (!PRIORITIES.has(priority)) throw new AppError('VALIDATION_FAILED', `Unknown priority: ${priority}`);
     if (input.parentId) this.row(input.parentId);
-    if (input.projectId && !this.rt.db.get('SELECT id FROM sources WHERE id = ?', input.projectId)) throw new AppError('NOT_FOUND', 'Проект не найден.');
+    if (input.projectId && !this.rt.db.get('SELECT id FROM sources WHERE id = ?', input.projectId)) throw new AppError('NOT_FOUND', 'Project not found.');
     const id = newId('task');
     const now = nowIso();
     const key = this.nextKey();
@@ -303,21 +303,21 @@ export class TaskService {
     };
     if (patch.title !== undefined) {
       const t = patch.title.trim();
-      if (!t) throw new AppError('VALIDATION_FAILED', 'Название задачи не может быть пустым.');
+      if (!t) throw new AppError('VALIDATION_FAILED', 'The task title cannot be empty.');
       set('title', t.slice(0, 300));
     }
     if (patch.description !== undefined) set('description', patch.description.slice(0, 20000));
     if (patch.goal !== undefined) set('goal', patch.goal.slice(0, 2000));
     if (patch.rationale !== undefined) set('rationale', patch.rationale.slice(0, 2000));
     if (patch.priority !== undefined) {
-      if (!PRIORITIES.has(patch.priority)) throw new AppError('VALIDATION_FAILED', `Неизвестный приоритет: ${patch.priority}`);
+      if (!PRIORITIES.has(patch.priority)) throw new AppError('VALIDATION_FAILED', `Unknown priority: ${patch.priority}`);
       set('priority', patch.priority);
     }
     if (patch.parentId !== undefined) {
       if (patch.parentId) {
         const p = this.row(patch.parentId);
         // a task cannot become a child of its own descendant
-        for (let cur: Row | undefined = p; cur; cur = cur.parent_id ? this.row(cur.parent_id) : undefined) if (cur.id === r.id) throw new AppError('DEPENDENCY_CYCLE', 'Задача не может быть вложена в собственную подзадачу.');
+        for (let cur: Row | undefined = p; cur; cur = cur.parent_id ? this.row(cur.parent_id) : undefined) if (cur.id === r.id) throw new AppError('DEPENDENCY_CYCLE', 'A task cannot be nested in its own subtask.');
         set('parent_id', p.id);
       } else set('parent_id', null);
     }
@@ -347,19 +347,19 @@ export class TaskService {
    */
   setStatus(id: string, status: TaskStatus, opts: { evidence?: string; confirm?: boolean; actor?: string; force?: boolean } = {}): TaskView {
     const r = this.row(id);
-    if (!STATUSES.has(status)) throw new AppError('VALIDATION_FAILED', `Неизвестный статус: ${status}`);
+    if (!STATUSES.has(status)) throw new AppError('VALIDATION_FAILED', `Unknown status: ${status}`);
     if (r.status === status) return this.get(r.id);
     const actor = opts.actor ?? 'user';
     const view = this.view(r);
     if ((status === 'in_progress' || status === 'done') && view.openDependencies > 0 && !opts.force) {
-      throw new AppError('VALIDATION_FAILED', `Сначала завершите зависимости: ${view.dependsOn.filter((d) => d.status !== 'done' && d.status !== 'cancelled').map((d) => d.key).join(', ')}.`, { hint: 'Или отметьте зависимости отменёнными, если они больше не нужны.' });
+      throw new AppError('VALIDATION_FAILED', `Finish the dependencies first: ${view.dependsOn.filter((d) => d.status !== 'done' && d.status !== 'cancelled').map((d) => d.key).join(', ')}.`, { hint: 'Or mark the dependencies as cancelled if they are no longer needed.' });
     }
     let evidence = r.completion_evidence;
     if (status === 'done') {
       const ev = opts.evidence?.trim();
-      if (!ev && !opts.confirm) throw new AppError('CONFIRMATION_REQUIRED', 'Чтобы отметить задачу выполненной, укажите подтверждение (что проверено, где результат) или подтвердите вручную.');
-      if (actor.startsWith('agent:') && !ev) throw new AppError('VALIDATION_FAILED', 'Агент может отметить задачу выполненной только с подтверждением результата.');
-      evidence = ev || `Подтверждено пользователем ${nowIso().slice(0, 10)}`;
+      if (!ev && !opts.confirm) throw new AppError('CONFIRMATION_REQUIRED', 'To mark the task as done, give a confirmation (what was checked, where the result is) or confirm it manually.');
+      if (actor.startsWith('agent:') && !ev) throw new AppError('VALIDATION_FAILED', 'An agent can mark a task as done only with a confirmation of the result.');
+      evidence = ev || `Confirmed by the user on ${nowIso().slice(0, 10)}`;
     }
     const now = nowIso();
     this.rt.db.run('UPDATE tasks SET status = ?, completion_evidence = ?, completed_at = ?, updated_at = ? WHERE id = ?', status, status === 'done' ? evidence : r.completion_evidence, status === 'done' ? now : null, now, r.id);
@@ -383,7 +383,7 @@ export class TaskService {
   }
 
   private addDependencyRaw(taskId: string, dependsOn: string): void {
-    if (taskId === dependsOn) throw new AppError('DEPENDENCY_CYCLE', 'Задача не может зависеть от самой себя.');
+    if (taskId === dependsOn) throw new AppError('DEPENDENCY_CYCLE', 'A task cannot depend on itself.');
     if (this.wouldCycle(taskId, dependsOn)) throw new AppError('DEPENDENCY_CYCLE', undefined, { details: { taskId, dependsOn } });
     this.rt.db.run('INSERT OR IGNORE INTO task_deps(task_id, depends_on) VALUES (?, ?)', taskId, dependsOn);
   }
@@ -411,21 +411,21 @@ export class TaskService {
   addComment(id: string, body: string, author = 'user'): TaskView {
     const r = this.row(id);
     const text = body.trim();
-    if (!text) throw new AppError('VALIDATION_FAILED', 'Пустой комментарий.');
+    if (!text) throw new AppError('VALIDATION_FAILED', 'Empty comment.');
     this.rt.db.run('INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES (?, ?, ?, ?, ?)', newId('tc'), r.id, author, text.slice(0, 20000), nowIso());
     this.rt.emit('tasks.changed', { taskId: r.id });
     return this.get(r.id);
   }
 
   private addLinkRaw(taskId: string, type: 'document' | 'url' | 'requirement', target: string, label: string): void {
-    if (!['document', 'url', 'requirement'].includes(type)) throw new AppError('VALIDATION_FAILED', 'Тип ссылки: document, url или requirement.');
-    if (type === 'document' && !this.rt.db.get('SELECT id FROM documents WHERE id = ?', target)) throw new AppError('NOT_FOUND', 'Документ не найден.');
+    if (!['document', 'url', 'requirement'].includes(type)) throw new AppError('VALIDATION_FAILED', 'Link type: document, url or requirement.');
+    if (type === 'document' && !this.rt.db.get('SELECT id FROM documents WHERE id = ?', target)) throw new AppError('NOT_FOUND', 'Document not found.');
     if (type === 'url') {
       try {
         const u = new URL(target);
         if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('protocol');
       } catch {
-        throw new AppError('VALIDATION_FAILED', 'Некорректный URL.');
+        throw new AppError('VALIDATION_FAILED', 'Invalid URL.');
       }
     }
     this.rt.db.run('INSERT OR REPLACE INTO task_links(task_id, target_type, target_id, label) VALUES (?, ?, ?, ?)', taskId, type, target, label.slice(0, 200));
@@ -511,15 +511,15 @@ export class TaskService {
       return { fileName: `tasks-${stamp}.csv`, contentType: 'text/csv; charset=utf-8', body: `﻿${head.join(',')}\n${lines.join('\n')}\n` };
     }
     const label = new Map(TASK_STATUSES.map((s) => [s.id, s.label]));
-    const md = [`# Задачи (${stamp})`, ''];
+    const md = [`# Tasks (${stamp})`, ''];
     for (const s of TASK_STATUSES) {
       const group = items.filter((t) => t.status === s.id);
       if (!group.length) continue;
       md.push(`## ${label.get(s.id)} (${group.length})`, '');
       for (const t of group) {
-        md.push(`- [${t.status === 'done' ? 'x' : ' '}] **${t.key}** ${t.title} — приоритет: ${t.priority}${t.requirementIds.length ? `; требования: ${t.requirementIds.join(', ')}` : ''}${t.dependsOn.length ? `; зависит от: ${t.dependsOn.map((d) => d.key).join(', ')}` : ''}`);
-        for (const c of t.acceptanceCriteria) md.push(`  - критерий: ${c}`);
-        if (t.completionEvidence) md.push(`  - подтверждение: ${t.completionEvidence}`);
+        md.push(`- [${t.status === 'done' ? 'x' : ' '}] **${t.key}** ${t.title}: priority ${t.priority}${t.requirementIds.length ? `; requirements: ${t.requirementIds.join(', ')}` : ''}${t.dependsOn.length ? `; depends on: ${t.dependsOn.map((d) => d.key).join(', ')}` : ''}`);
+        for (const c of t.acceptanceCriteria) md.push(`  - criterion: ${c}`);
+        if (t.completionEvidence) md.push(`  - confirmation: ${t.completionEvidence}`);
       }
       md.push('');
     }

@@ -5,33 +5,33 @@ import { flattenProperties, inferType } from '../src/markdown/properties.ts';
 
 const DOC = `---
 id: req-auth-001
-title: Авторизация пользователей
+title: User authorization
 type: requirement
 status: draft
 tags:
   - backend
   - security
-aliases: [Вход]
-depends_on: "[[Хранилище сессий]]"
+aliases: [Login]
+depends_on: "[[Session store]]"
 created: 2026-10-12
 ---
 
-# Заголовок H1
+# Heading H1
 
-Ссылки: [[Note A]], [[Folder/Note B|алиас]], [[Note C#Раздел]], [[Note D#^blk-1]], ![[image.png]].
-Markdown: [текст](Other%20Note.md) и [сайт](https://example.com) и [секция](#local).
-Теги: #проект/архитектура, #1984 не тег, #y1984 тег, email@test#nottag.
+Links: [[Note A]], [[Folder/Note B|alias]], [[Note C#Section]], [[Note D#^blk-1]], ![[image.png]].
+Markdown: [text](Other%20Note.md) and [site](https://example.com) and [section](#local).
+Tags: #projekt/größe, #1984 is not a tag, #y1984 is a tag, email@test#nottag.
 
 \`\`\`js
 const x = "[[Not a link]] #nottag";
 \`\`\`
 
-Инлайн \`[[also not]]\` и %%[[hidden]] #hidden%% и <!-- [[html comment]] -->.
+Inline \`[[also not]]\` and %%[[hidden]] #hidden%% and <!-- [[html comment]] -->.
 
-- [ ] открытая задача
-- [x] закрытая задача ^task-1
+- [ ] open task
+- [x] closed task ^task-1
 
-## Второй раздел ##
+## Second section ##
 `;
 
 describe('markdown parser', () => {
@@ -41,21 +41,21 @@ describe('markdown parser', () => {
     expect(p.frontmatterError).toBeNull();
     expect(p.frontmatter.id).toBe('req-auth-001');
     expect(p.frontmatter.created).toBe('2026-10-12');
-    expect(p.title).toBe('Авторизация пользователей');
-    expect(p.aliases).toEqual(['Вход']);
+    expect(p.title).toBe('User authorization');
+    expect(p.aliases).toEqual(['Login']);
   });
 
   it('extracts wikilinks, embeds and markdown links with headings and blocks', () => {
     const body = p.links.filter((l) => l.kind !== 'frontmatter');
     expect(body.map((l) => [l.kind, l.target, l.heading, l.blockId, l.alias])).toEqual([
       ['wikilink', 'Note A', null, null, null],
-      ['wikilink', 'Folder/Note B', null, null, 'алиас'],
-      ['wikilink', 'Note C', 'Раздел', null, null],
+      ['wikilink', 'Folder/Note B', null, null, 'alias'],
+      ['wikilink', 'Note C', 'Section', null, null],
       ['wikilink', 'Note D', null, 'blk-1', null],
       ['embed', 'image.png', null, null, null],
-      ['markdown', 'Other Note.md', null, null, 'текст'],
-      ['markdown', 'https://example.com', null, null, 'сайт'],
-      ['markdown', '', 'local', null, 'секция'],
+      ['markdown', 'Other Note.md', null, null, 'text'],
+      ['markdown', 'https://example.com', null, null, 'site'],
+      ['markdown', '', 'local', null, 'section'],
     ]);
     expect(body.find((l) => l.target === 'https://example.com')?.external).toBe(true);
   });
@@ -69,7 +69,7 @@ describe('markdown parser', () => {
 
   it('applies Obsidian tag rules', () => {
     const tags = p.tags.map((t) => t.tag);
-    expect(tags).toContain('проект/архитектура');
+    expect(tags).toContain('projekt/größe');
     expect(tags).toContain('y1984');
     expect(tags).not.toContain('1984');
     expect(tags).toContain('backend');
@@ -78,25 +78,25 @@ describe('markdown parser', () => {
 
   it('turns typed frontmatter keys into relation links', () => {
     const fmLinks = p.links.filter((l) => l.kind === 'frontmatter');
-    expect(fmLinks).toEqual([expect.objectContaining({ relation: 'depends_on', target: 'Хранилище сессий' })]);
+    expect(fmLinks).toEqual([expect.objectContaining({ relation: 'depends_on', target: 'Session store' })]);
   });
 
   it('reports exact positions so links can be rewritten', () => {
     const b = p.links.find((l) => l.target === 'Folder/Note B')!;
     expect(DOC.slice(b.targetStart, b.targetEnd)).toBe('Folder/Note B');
-    expect(DOC.split('\n')[b.line]).toContain('[[Folder/Note B|алиас]]');
+    expect(DOC.split('\n')[b.line]).toContain('[[Folder/Note B|alias]]');
     const md = p.links.find((l) => l.target === 'Other Note.md')!;
     expect(DOC.slice(md.targetStart, md.targetEnd)).toBe('Other%20Note.md');
   });
 
   it('extracts headings, tasks and block ids', () => {
     expect(p.headings.map((h) => [h.level, h.text])).toEqual([
-      [1, 'Заголовок H1'],
-      [2, 'Второй раздел'],
+      [1, 'Heading H1'],
+      [2, 'Second section'],
     ]);
     expect(p.tasks.map((t) => [t.text.replace(/ \^task-1$/, ''), t.done])).toEqual([
-      ['открытая задача', false],
-      ['закрытая задача', true],
+      ['open task', false],
+      ['closed task', true],
     ]);
     expect(p.blockIds).toEqual(['task-1']);
   });

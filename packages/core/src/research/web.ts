@@ -59,7 +59,7 @@ export class WebResearch {
     }
     if (s.provider === 'brave') {
       const key = await this.secrets.resolve(s.braveSecretRef);
-      if (!key) throw new AppError('WEB_SEARCH_NOT_CONFIGURED', 'Не задан ключ Brave Search.');
+      if (!key) throw new AppError('WEB_SEARCH_NOT_CONFIGURED', 'No Brave Search key is set.');
       return new BraveProvider(this.app.http, key);
     }
     throw new AppError('WEB_SEARCH_NOT_CONFIGURED');
@@ -71,9 +71,9 @@ export class WebResearch {
   }
 
   async search(query: string, limit: number, signal?: AbortSignal, systemId?: string): Promise<WebSearchResult[]> {
-    if (!query.trim()) throw new AppError('VALIDATION_FAILED', 'Пустой поисковый запрос.');
+    if (!query.trim()) throw new AppError('VALIDATION_FAILED', 'Empty search query.');
     const kinds = secretKindsIn(query);
-    if (kinds.length) throw new AppError('SECRET_EGRESS_BLOCKED', `Поисковый запрос не отправлен: в нём найдено ${kinds.join(', ')}.`);
+    if (kinds.length) throw new AppError('SECRET_EGRESS_BLOCKED', `The search query was not sent: it contains ${kinds.join(', ')}.`);
     const p = await this.provider();
     return p.search(query.slice(0, 400), { limit: Math.min(limit, 20), ...(signal ? { signal } : {}), ...(systemId ? { systemId } : {}) });
   }
@@ -82,8 +82,8 @@ export class WebResearch {
   async fetchAndStore(rt: SystemRuntime, url: string, opts: { signal?: AbortSignal; maxChars?: number; provider?: string } = {}): Promise<StoredPage> {
     const kinds = secretKindsIn(url);
     if (kinds.length) {
-      rt.security.record({ actor: 'web', action: 'secret.blocked', outcome: 'denied', resources: [new URL(url).hostname], message: `Загрузка адреса заблокирована: в URL найдено ${kinds.join(', ')}. Данные не отправлены.` });
-      throw new AppError('SECRET_EGRESS_BLOCKED', `Адрес не загружен: в URL найдено ${kinds.join(', ')}.`);
+      rt.security.record({ actor: 'web', action: 'secret.blocked', outcome: 'denied', resources: [new URL(url).hostname], message: `Downloading the address was blocked: the URL contains ${kinds.join(', ')}. The data was not sent.` });
+      throw new AppError('SECRET_EGRESS_BLOCKED', `The address was not downloaded: the URL contains ${kinds.join(', ')}.`);
     }
     const page = await this.fetcher.fetch(url, { systemId: rt.systemId, allowHttp: this.settings().allowHttp, ...(opts.signal ? { signal: opts.signal } : {}) });
     const raw = page.body.toString('utf8');

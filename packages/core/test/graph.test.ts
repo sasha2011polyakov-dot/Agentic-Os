@@ -45,7 +45,7 @@ describe('graph algorithms', () => {
 
   it('keeps AI suggestions hidden until confirmed, and remembers rejections', () => {
     const { g, db } = graphWith(['a', 'b', 'c'], []);
-    g.addEdge({ src: 'a', dst: 'b', relation: 'references', origin: 'ai_suggested', confidence: 0.82, evidence: 'похожие термины' });
+    g.addEdge({ src: 'a', dst: 'b', relation: 'references', origin: 'ai_suggested', confidence: 0.82, evidence: 'similar terms' });
     const e2 = g.addEdge({ src: 'a', dst: 'c', relation: 'references', origin: 'ai_suggested', confidence: 0.4 });
     expect(g.graph().edges).toHaveLength(0);
     expect(g.graph({ includeSuggested: true }).edges).toHaveLength(2);
@@ -67,9 +67,9 @@ describe('graph from documents', () => {
       const sys = await t.core.systems.create({ name: 'G', storagePath: t.sysDir('g') });
       const rt = await t.core.systems.runtime(sys.systemId);
       const s = services(rt);
-      await s.docs.create({ title: 'Задача А', content: '---\ntype: task\ndepends_on: "[[Задача Б]]"\n---\n# А' });
-      await s.docs.create({ title: 'Задача Б', content: '---\ntype: task\ndepends_on: "[[Задача А]]"\n---\n# Б\nСм. [[Нет такой]]' });
-      await s.docs.create({ title: 'Требование без id', content: '---\ntype: requirement\n---\n# R' });
+      await s.docs.create({ title: 'Task A', content: '---\ntype: task\ndepends_on: "[[Task B]]"\n---\n# A' });
+      await s.docs.create({ title: 'Task B', content: '---\ntype: task\ndepends_on: "[[Task A]]"\n---\n# B\nSee [[No such note]]' });
+      await s.docs.create({ title: 'Requirement without id', content: '---\ntype: requirement\n---\n# R' });
       const report = integrityReport(rt, s.graph);
       expect(report.counts['dependency-cycle']).toBe(1);
       expect(report.counts['broken-link']).toBe(1);

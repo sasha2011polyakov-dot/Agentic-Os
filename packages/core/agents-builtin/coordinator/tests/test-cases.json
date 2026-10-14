@@ -1,9 +1,9 @@
 {
   "cases": [
     {
-      "name": "простая цель",
+      "name": "simple goal",
       "input": {
-        "goal": "Добавить вход по email и паролю",
+        "goal": "Add login with email and password",
         "constraints": [],
         "sources": [
           {

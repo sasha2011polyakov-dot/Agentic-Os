@@ -68,7 +68,7 @@ export class WorkCopyService {
 
   private source(id: string): { id: string; kind: string; name: string; root_path: string; access_mode: AccessMode } {
     const s = this.rt.db.get<{ id: string; kind: string; name: string; root_path: string; access_mode: AccessMode }>('SELECT id, kind, name, root_path, access_mode FROM sources WHERE id = ?', id);
-    if (!s) throw new AppError('NOT_FOUND', 'Проект не найден.');
+    if (!s) throw new AppError('NOT_FOUND', 'Project not found.');
     return s;
   }
 
@@ -78,7 +78,7 @@ export class WorkCopyService {
 
   get(id: string): WorkCopyInfo {
     const r = this.rt.db.get<Row>('SELECT * FROM work_copies WHERE id = ?', id);
-    if (!r) throw new AppError('NOT_FOUND', 'Рабочая копия не найдена.');
+    if (!r) throw new AppError('NOT_FOUND', 'Work copy not found.');
     return this.view(r);
   }
 
@@ -103,30 +103,30 @@ export class WorkCopyService {
       try {
         list = await readdir(dirAbs, { withFileTypes: true });
       } catch (e) {
-        skipped.push({ path: rel || '.', reason: `папка не читается: ${toAppError(e).message}` });
+        skipped.push({ path: rel || '.', reason: `the folder cannot be read: ${toAppError(e).message}` });
         return;
       }
       for (const e of list) {
         const childRel = rel ? `${rel}/${e.name}` : e.name;
         if (e.isSymbolicLink()) {
           // links are not followed: they could point outside the project (29.11)
-          skipped.push({ path: childRel, reason: 'символическая ссылка не копируется' });
+          skipped.push({ path: childRel, reason: 'symbolic links are not copied' });
           continue;
         }
         if (e.isDirectory()) {
           if (NEVER_COPY.has(e.name)) {
-            skipped.push({ path: childRel, reason: e.name === '.git' ? 'служебная папка Git не копируется' : 'служебная папка' });
+            skipped.push({ path: childRel, reason: e.name === '.git' ? 'the Git service folder is not copied' : 'service folder' });
             continue;
           }
           await walk(join(dirAbs, e.name), childRel, heavy || HEAVY.has(e.name));
         } else if (e.isFile()) {
           if (isSecretFileName(childRel)) {
-            skipped.push({ path: childRel, reason: 'файл с секретами не копируется' });
+            skipped.push({ path: childRel, reason: 'files with secrets are not copied' });
             continue;
           }
           const st = await lstat(join(dirAbs, e.name));
           entries.push({ rel: childRel, size: st.size, heavy });
-          if (entries.length > MAX_FILES) throw new AppError('WORKCOPY_FAILED', `В проекте больше ${MAX_FILES} файлов — полная копия не создаётся.`);
+          if (entries.length > MAX_FILES) throw new AppError('WORKCOPY_FAILED', `The project has more than ${MAX_FILES} files: no full copy is created.`);
         }
       }
     };
@@ -134,20 +134,20 @@ export class WorkCopyService {
     return { entries, skipped };
   }
 
-  /** Creates a work copy. Requires the project mode «Работать в копии» or higher. */
+  /** Creates a work copy. Requires the project mode "Work in a copy" or higher. */
   async create(sourceId: string, opts: { missionId?: string | null; actor: string }): Promise<WorkCopyInfo> {
     const src = this.source(sourceId);
-    if (src.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Рабочие копии создаются для подключённых проектов.');
+    if (src.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Work copies are created for connected projects.');
     if (!modeAtLeast(src.access_mode, 'workcopy')) {
-      this.rt.security.record({ actor: opts.actor, action: 'workcopy.create', outcome: 'denied', sourceId, taskId: opts.missionId ?? null, message: `Рабочая копия не создана: режим проекта «${modeLabel(src.access_mode)}»` });
-      throw new AppError('MODE_FORBIDS', `Проект «${src.name}» в режиме «${modeLabel(src.access_mode)}»: рабочие копии не разрешены.`, { hint: 'Включите режим «Работать в копии» в карточке проекта.' });
+      this.rt.security.record({ actor: opts.actor, action: 'workcopy.create', outcome: 'denied', sourceId, taskId: opts.missionId ?? null, message: `The work copy was not created: the project mode is "${modeLabel(src.access_mode)}"` });
+      throw new AppError('MODE_FORBIDS', `The project "${src.name}" is in "${modeLabel(src.access_mode)}" mode: work copies are not allowed.`, { hint: 'Enable the "Work in a copy" mode on the project card.' });
     }
     const id = newId('wc');
     const dir = join(this.root(), id);
     const now = nowIso();
     this.rt.db.run("INSERT INTO work_copies(id, source_id, mission_id, root_path, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'creating', ?, ?)", id, sourceId, opts.missionId ?? null, dir, now, now);
     try {
-      if (isInside(dir, src.root_path) || isInside(src.root_path, dir)) throw new AppError('WORKCOPY_FAILED', 'Папка рабочей копии пересекается с проектом.');
+      if (isInside(dir, src.root_path) || isInside(src.root_path, dir)) throw new AppError('WORKCOPY_FAILED', 'The work copy folder overlaps the project.');
       const { entries, skipped } = await this.scan(src.root_path);
       const max = this.rt.app.appSettings.get<number>('security.workCopyMaxBytes');
       const total = entries.reduce((s, e) => s + e.size, 0);
@@ -156,9 +156,9 @@ export class WorkCopyService {
       let toCopy = entries;
       const excluded = [...skipped];
       if (total > max) {
-        if (lightTotal > max) throw new AppError('WORKCOPY_FAILED', `Проект слишком большой для рабочей копии (${Math.round(lightTotal / 1048576)} МБ без зависимостей, лимит ${Math.round(max / 1048576)} МБ).`);
+        if (lightTotal > max) throw new AppError('WORKCOPY_FAILED', `The project is too large for a work copy (${Math.round(lightTotal / 1048576)} MB without dependencies, the limit is ${Math.round(max / 1048576)} MB).`);
         toCopy = light;
-        excluded.push({ path: '(зависимости и результаты сборки)', reason: `не скопированы из-за размера (${Math.round((total - lightTotal) / 1048576)} МБ): проверки, которым они нужны, могут не пройти; автоматическая установка зависимостей не выполняется` });
+        excluded.push({ path: '(dependencies and build output)', reason: `not copied because of the size (${Math.round((total - lightTotal) / 1048576)} MB): checks that need them may fail; dependencies are not installed automatically` });
       }
       await mkdir(dir, { recursive: true });
       let bytes = 0;
@@ -173,13 +173,13 @@ export class WorkCopyService {
         bytes += e.size;
       }
       this.rt.db.run("UPDATE work_copies SET status = 'ready', files = ?, bytes = ?, excluded = ?, updated_at = ? WHERE id = ?", toCopy.length, bytes, JSON.stringify(excluded.slice(0, 500)), nowIso(), id);
-      this.rt.security.record({ actor: opts.actor, action: 'workcopy.create', outcome: 'ok', sourceId, taskId: opts.missionId ?? null, resources: [dir], message: `Создана рабочая копия «${src.name}»: ${toCopy.length} файлов, ${Math.round(bytes / 1024)} КБ`, details: { excluded: excluded.length } });
+      this.rt.security.record({ actor: opts.actor, action: 'workcopy.create', outcome: 'ok', sourceId, taskId: opts.missionId ?? null, resources: [dir], message: `A work copy of "${src.name}" was created: ${toCopy.length} files, ${Math.round(bytes / 1024)} KB`, details: { excluded: excluded.length } });
       return this.get(id);
     } catch (e) {
       const err = toAppError(e);
       this.rt.db.run("UPDATE work_copies SET status = 'error', error = ?, updated_at = ? WHERE id = ?", err.message, nowIso(), id);
       await this.removeDir(dir).catch(() => undefined);
-      this.rt.security.record({ actor: opts.actor, action: 'workcopy.create', outcome: 'error', sourceId, taskId: opts.missionId ?? null, message: `Рабочая копия не создана: ${err.message}. Исходный проект не изменялся.` });
+      this.rt.security.record({ actor: opts.actor, action: 'workcopy.create', outcome: 'error', sourceId, taskId: opts.missionId ?? null, message: `The work copy was not created: ${err.message}. The original project was not changed.` });
       throw err.code === 'WORKCOPY_FAILED' || err.code === 'MODE_FORBIDS' ? err : new AppError('WORKCOPY_FAILED', `${err.message}`, { cause: e });
     }
   }
@@ -187,7 +187,7 @@ export class WorkCopyService {
   /** Writes the (non-skipped) files of a change set into the copy. Only content from the set is written. */
   async applySet(workCopyId: string, files: { path: string; op: 'create' | 'modify' | 'delete'; content: string | null }[], opts: { changeSetId: string; actor: string; missionId?: string | null }): Promise<{ written: string[]; deleted: string[] }> {
     const wc = this.get(workCopyId);
-    if (wc.status !== 'ready' && wc.status !== 'stale') throw new AppError('INVALID_STATE_TRANSITION', 'Рабочая копия недоступна.');
+    if (wc.status !== 'ready' && wc.status !== 'stale') throw new AppError('INVALID_STATE_TRANSITION', 'The work copy is not available.');
     const scope = { roots: [wc.rootPath], writable: true };
     const written: string[] = [];
     const deleted: string[] = [];
@@ -206,7 +206,7 @@ export class WorkCopyService {
     }
     const applied = [...new Set([...wc.appliedSets, opts.changeSetId])];
     this.rt.db.run('UPDATE work_copies SET applied_sets = ?, updated_at = ? WHERE id = ?', JSON.stringify(applied), nowIso(), workCopyId);
-    this.rt.security.record({ actor: opts.actor, action: 'workcopy.apply', outcome: 'ok', sourceId: wc.sourceId, taskId: opts.missionId ?? opts.changeSetId, resources: [...written, ...deleted], message: `Изменения применены к рабочей копии (${written.length} записано, ${deleted.length} удалено). Исходный проект не изменялся.` });
+    this.rt.security.record({ actor: opts.actor, action: 'workcopy.apply', outcome: 'ok', sourceId: wc.sourceId, taskId: opts.missionId ?? opts.changeSetId, resources: [...written, ...deleted], message: `Changes were applied to the work copy (${written.length} written, ${deleted.length} deleted). The original project was not changed.` });
     return { written, deleted };
   }
 
@@ -222,12 +222,12 @@ export class WorkCopyService {
     const wc = this.get(workCopyId);
     await this.removeDir(wc.rootPath);
     this.rt.db.run("UPDATE work_copies SET status = 'discarded', updated_at = ? WHERE id = ?", nowIso(), workCopyId);
-    this.rt.security.record({ actor, action: 'workcopy.discard', outcome: 'ok', sourceId: wc.sourceId, taskId: wc.missionId, resources: [wc.rootPath], message: 'Рабочая копия удалена. Исходный проект не затронут.' });
+    this.rt.security.record({ actor, action: 'workcopy.discard', outcome: 'ok', sourceId: wc.sourceId, taskId: wc.missionId, resources: [wc.rootPath], message: 'The work copy was deleted. The original project was not touched.' });
   }
 
   private async removeDir(dir: string): Promise<void> {
     const root = this.root();
-    if (!isInside(dir, root) || dir === root) throw new AppError('PATH_OUTSIDE_SCOPE', 'Удаление вне папки рабочих копий запрещено.');
+    if (!isInside(dir, root) || dir === root) throw new AppError('PATH_OUTSIDE_SCOPE', 'Deleting outside the work copies folder is not allowed.');
     await rm(dir, { recursive: true, force: true });
   }
 }

@@ -24,17 +24,17 @@ export type SkipReason =
   | 'unreadable';
 
 export const SKIP_REASON_TEXT: Record<SkipReason, string> = {
-  'excluded-dir': 'служебная папка (исключена по умолчанию)',
-  'excluded-default': 'служебный файл (исключён по умолчанию)',
-  'excluded-user': 'исключён правилом пользователя',
-  'not-included': 'не попадает под правила включения',
-  gitignore: 'исключён .gitignore',
-  'secret-name': 'похож на файл с секретами (по имени)',
-  'secret-content': 'содержит похожие на секреты строки',
-  'too-large': 'превышает лимит размера',
-  binary: 'бинарный файл',
-  'unsupported-format': 'формат пока не поддерживается',
-  unreadable: 'нет прав на чтение',
+  'excluded-dir': 'service folder (excluded by default)',
+  'excluded-default': 'service file (excluded by default)',
+  'excluded-user': 'excluded by a user rule',
+  'not-included': 'does not match the include rules',
+  gitignore: 'excluded by .gitignore',
+  'secret-name': 'looks like a secrets file (by name)',
+  'secret-content': 'contains strings that look like secrets',
+  'too-large': 'exceeds the size limit',
+  binary: 'binary file',
+  'unsupported-format': 'format not supported yet',
+  unreadable: 'no read permission',
 };
 
 export interface RuleSet {

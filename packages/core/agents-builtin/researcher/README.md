@@ -1,14 +1,15 @@
-# Исследователь
+# Researcher
 
-Собирает подтверждённые факты из документов и проекта с цитатами и уровнем уверенности.
+Collects confirmed facts from documents and the project, with quotes and a confidence level.
 
-- Тип задачи для маршрутизации моделей: `extraction`
-- Инструменты: `search_documents`, `read_document`, `list_documents`, `read_project_file`, `graph_neighbors`
+- Task type for model routing: `extraction`
+- Tools: `search_documents`, `read_document`, `list_documents`, `read_project_file`, `graph_neighbors`
 
-## Запрашиваемые разрешения
-- `search.use` — Поиск по базе знаний
-- `documents.read` — Чтение документов
-- `projects.read` — Чтение файлов проекта
-- `graph.read` — Изучение связей
+## Requested permissions
+- `search.use`: Search the knowledge base
+- `documents.read`: Read documents
+- `projects.read`: Read project files
+- `graph.read`: Explore links
+- `systems.read`: Read other systems explicitly selected for the mission (results show which system they come from)
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

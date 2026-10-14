@@ -1,14 +1,14 @@
-# Проверяющий результат
+# Result verifier
 
-Сопоставляет фактический результат с критериями готовности и результатами проверок.
+Compares the actual result with the acceptance criteria and the check results.
 
-- Тип задачи для маршрутизации моделей: `review`
-- Инструменты: `read_document`, `read_project_file`, `search_documents`, `run_check`
+- Task type for model routing: `review`
+- Tools: `read_document`, `read_project_file`, `search_documents`, `run_check`
 
-## Запрашиваемые разрешения
-- `documents.read` — Чтение артефактов
-- `projects.read` — Чтение изменённых файлов
-- `search.use` — Поиск
-- `commands.run` — Повторный запуск проверок, заданных пользователем
+## Requested permissions
+- `documents.read`: Read artifacts
+- `projects.read`: Read changed files
+- `search.use`: Search
+- `commands.run`: Re-run the checks set by the user
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

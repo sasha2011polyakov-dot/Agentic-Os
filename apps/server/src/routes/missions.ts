@@ -5,13 +5,13 @@ import { body, int, optStr, str, sys } from './util.ts';
 
 function obj(v: unknown, name: string): Record<string, unknown> | undefined {
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== 'object' || Array.isArray(v)) throw new AppError('VALIDATION_FAILED', `Поле «${name}» — объект.`);
+  if (typeof v !== 'object' || Array.isArray(v)) throw new AppError('VALIDATION_FAILED', `The field "${name}" must be an object.`);
   return v as Record<string, unknown>;
 }
 
 function arr<T>(v: unknown, name: string): T[] | undefined {
   if (v === undefined || v === null) return undefined;
-  if (!Array.isArray(v)) throw new AppError('VALIDATION_FAILED', `Поле «${name}» — список.`);
+  if (!Array.isArray(v)) throw new AppError('VALIDATION_FAILED', `The field "${name}" must be a list.`);
   return v as T[];
 }
 

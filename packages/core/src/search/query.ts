@@ -157,7 +157,7 @@ export function parseQuery(input: string): QueryNode {
   return root;
 }
 
-/** Escapes a term for FTS5: always a quoted string; words get a prefix star (helps with Russian endings). */
+/** Escapes a term for FTS5: always a quoted string; words get a prefix star (so "session" also matches "sessions"). */
 export function ftsTerm(value: string, phrase: boolean): string {
   const clean = value.replace(/"/g, ' ').trim();
   if (!clean) return '';

@@ -34,12 +34,12 @@ function writeKv(db: Db, table: 'app_settings' | 'settings', key: string, value:
 
 function def(key: string): SettingDef {
   const d = SETTINGS_BY_KEY.get(key);
-  if (!d) throw new AppError('VALIDATION_FAILED', `Неизвестная настройка: ${key}`);
+  if (!d) throw new AppError('VALIDATION_FAILED', `Unknown setting: ${key}`);
   return d;
 }
 
 function validate(d: SettingDef, value: unknown): void {
-  if (d.validate && !d.validate(value)) throw new AppError('VALIDATION_FAILED', `Недопустимое значение настройки «${d.label}».`, { details: { key: d.key } });
+  if (d.validate && !d.validate(value)) throw new AppError('VALIDATION_FAILED', `Invalid value for the setting "${d.label}".`, { details: { key: d.key } });
 }
 
 /** Application-level settings (registry.db). */
@@ -60,7 +60,7 @@ export class AppSettings {
 
   set(key: string, value: unknown): void {
     const d = def(key);
-    if (d.level === 'system') throw new AppError('VALIDATION_FAILED', `Настройка «${d.label}» задаётся только для системы.`);
+    if (d.level === 'system') throw new AppError('VALIDATION_FAILED', `The setting "${d.label}" is set per system only.`);
     validate(d, value);
     writeKv(this.registry, 'app_settings', key, value);
   }
@@ -110,7 +110,7 @@ export class SystemSettings {
 
   set(key: string, value: unknown): void {
     const d = def(key);
-    if (d.level === 'app') throw new AppError('VALIDATION_FAILED', `Настройка «${d.label}» задаётся только на уровне приложения.`);
+    if (d.level === 'app') throw new AppError('VALIDATION_FAILED', `The setting "${d.label}" is set at the application level only.`);
     validate(d, value);
     writeKv(this.systemDb, 'settings', key, value);
   }

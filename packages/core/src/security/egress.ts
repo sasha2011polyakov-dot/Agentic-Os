@@ -7,6 +7,6 @@ import { redact } from '../util/redact.ts';
  */
 export function secretKindsIn(text: string): string[] {
   const kinds = findSecretKinds(text);
-  if (!kinds.length && redact(text) !== text) kinds.push('секретное значение (ключ или токен)');
+  if (!kinds.length && redact(text) !== text) kinds.push('a secret value (a key or a token)');
   return kinds;
 }

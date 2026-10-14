@@ -13,20 +13,20 @@ export type Relation =
   | 'uses_source' | 'supersedes' | 'conflicts_with' | 'part_of' | 'blocks' | 'tagged' | 'produced';
 
 export const RELATIONS: { id: Relation; label: string }[] = [
-  { id: 'references', label: 'Ссылается на' },
-  { id: 'belongs_to', label: 'Принадлежит проекту' },
-  { id: 'derived_from', label: 'Создано на основании' },
-  { id: 'depends_on', label: 'Зависит от' },
-  { id: 'implements', label: 'Реализует требование' },
-  { id: 'verifies', label: 'Проверяет' },
-  { id: 'created_by', label: 'Создано агентом' },
-  { id: 'uses_source', label: 'Использует источник' },
-  { id: 'supersedes', label: 'Заменяет предыдущую версию' },
-  { id: 'conflicts_with', label: 'Конфликтует с' },
-  { id: 'part_of', label: 'Является частью' },
-  { id: 'blocks', label: 'Блокирует выполнение' },
-  { id: 'tagged', label: 'Отмечено тегом' },
-  { id: 'produced', label: 'Результат выполнения' },
+  { id: 'references', label: 'References' },
+  { id: 'belongs_to', label: 'Belongs to project' },
+  { id: 'derived_from', label: 'Derived from' },
+  { id: 'depends_on', label: 'Depends on' },
+  { id: 'implements', label: 'Implements requirement' },
+  { id: 'verifies', label: 'Verifies' },
+  { id: 'created_by', label: 'Created by agent' },
+  { id: 'uses_source', label: 'Uses source' },
+  { id: 'supersedes', label: 'Supersedes previous version' },
+  { id: 'conflicts_with', label: 'Conflicts with' },
+  { id: 'part_of', label: 'Part of' },
+  { id: 'blocks', label: 'Blocks' },
+  { id: 'tagged', label: 'Tagged' },
+  { id: 'produced', label: 'Produced by run' },
 ];
 
 export type EdgeOrigin = 'explicit' | 'extracted' | 'ai_suggested' | 'system';
@@ -117,20 +117,15 @@ export function nodeTypeForDoc(docType: string | null, sourceKind: 'vault' | 'pr
   switch ((docType ?? '').toLowerCase()) {
     case 'requirement':
     case 'req':
-    case 'требование':
       return 'requirement';
     case 'spec':
     case 'technical-spec':
-    case 'tz':
-    case 'тз':
       return 'spec';
     case 'decision':
     case 'adr':
     case 'architecture-decision':
-    case 'решение':
       return 'decision';
     case 'research':
-    case 'исследование':
       return 'research';
     case 'task':
       return 'task';
@@ -190,8 +185,8 @@ export class GraphService {
   }
 
   addEdge(e: EdgeInput, derivedKey: string | null = null): string {
-    if (e.src === e.dst) throw new AppError('VALIDATION_FAILED', 'Связь узла с самим собой не допускается.');
-    for (const n of [e.src, e.dst]) if (!this.getNode(n)) throw new AppError('NOT_FOUND', `Узел графа не найден: ${n}`);
+    if (e.src === e.dst) throw new AppError('VALIDATION_FAILED', 'A node cannot link to itself.');
+    for (const n of [e.src, e.dst]) if (!this.getNode(n)) throw new AppError('NOT_FOUND', `Graph node not found: ${n}`);
     return this.insertEdge(e, derivedKey);
   }
 
@@ -226,8 +221,8 @@ export class GraphService {
   /** Confirms or rejects an AI-suggested edge. Rejected suggestions are kept so they are not re-proposed. */
   reviewSuggestion(edgeId: string, decision: 'confirmed' | 'rejected'): GraphEdge {
     const e = this.db.get<EdgeRow>('SELECT * FROM graph_edges WHERE id = ?', edgeId);
-    if (!e) throw new AppError('NOT_FOUND', 'Связь не найдена.');
-    if (e.origin !== 'ai_suggested') throw new AppError('VALIDATION_FAILED', 'Подтверждать можно только предложенные связи.');
+    if (!e) throw new AppError('NOT_FOUND', 'Link not found.');
+    if (e.origin !== 'ai_suggested') throw new AppError('VALIDATION_FAILED', 'Only suggested links can be confirmed.');
     this.db.run('UPDATE graph_edges SET status = ?, updated_at = ? WHERE id = ?', decision, nowIso(), edgeId);
     return toEdge({ ...e, status: decision });
   }
@@ -333,7 +328,7 @@ export class GraphService {
 
   /** Neighbourhood of a node up to `depth` hops (both directions). */
   local(nodeId: string, depth = 1, q: GraphQuery = {}): GraphResult {
-    if (!this.getNode(nodeId)) throw new AppError('NOT_FOUND', 'Узел графа не найден.');
+    if (!this.getNode(nodeId)) throw new AppError('NOT_FOUND', 'Graph node not found.');
     const maxDepth = Math.max(1, Math.min(depth, 4));
     const params: (string | number)[] = [];
     const edgeWhere = this.edgeFilterSql(q, params);
@@ -454,9 +449,9 @@ export class GraphService {
   integrity(): string[] {
     const problems: string[] = [];
     const missingNodes = this.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM documents d WHERE NOT EXISTS (SELECT 1 FROM graph_nodes n WHERE n.id = 'doc:' || d.id)")!.c;
-    if (missingNodes) problems.push(`${missingNodes} документ(ов) без узла графа`);
+    if (missingNodes) problems.push(`${missingNodes} document(s) without a graph node`);
     const danglingNodes = this.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM graph_nodes n WHERE n.id LIKE 'doc:%' AND NOT EXISTS (SELECT 1 FROM documents d WHERE 'doc:' || d.id = n.id)")!.c;
-    if (danglingNodes) problems.push(`${danglingNodes} узел(ов) графа без документа`);
+    if (danglingNodes) problems.push(`${danglingNodes} graph node(s) without a document`);
     return problems;
   }
 

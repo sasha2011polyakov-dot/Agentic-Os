@@ -7,7 +7,7 @@ import { writeProject } from './fixtures/project.ts';
 
 async function setup() {
   const t = await startTestApp();
-  const sys = await t.core.systems.create({ name: 'Знания', storagePath: t.sysDir('main'), template: 'starter' });
+  const sys = await t.core.systems.create({ name: 'Knowledge', storagePath: t.sysDir('main'), template: 'starter' });
   const rt = await t.core.systems.runtime(sys.systemId);
   const s = services(rt);
   await s.indexer.indexSource(rt.primaryVaultId());
@@ -27,7 +27,7 @@ describe('projects: connect, index, rules', () => {
       expect(preview.git.remotes[0]!.url).not.toContain('secret');
       expect(preview.skippedByReason['secret-name']?.count).toBeGreaterThanOrEqual(2);
 
-      const src = await s.sources.connect({ path: proj, name: 'Demo Shop', purpose: 'тест' });
+      const src = await s.sources.connect({ path: proj, name: 'Demo Shop', purpose: 'test' });
       await waitFor(() => s.sources.get(src.id).status === 'ready', { message: 'index ready' });
       const info = s.sources.get(src.id);
       expect(info.isGit).toBe(true);
@@ -65,12 +65,12 @@ describe('projects: connect, index, rules', () => {
       const src = await s.sources.connect({ path: proj, name: 'Demo Shop' });
       await waitFor(() => s.sources.get(src.id).status === 'ready');
       const auth = s.docs.list({ type: 'requirement' }).items.find((d) => d.fmId === 'REQ-001')!;
-      expect(auth.title).toBe('Требования к авторизации');
+      expect(auth.title).toBe('Authorization requirements');
       const detail = await s.docs.get(auth.id);
       const backTitles = detail.backlinks.map((b) => b.title).sort();
       // README links [[REQ-001]] (resolved via frontmatter id), architecture links by title, sessions via depends_on
-      expect(backTitles).toEqual(expect.arrayContaining(['Demo Shop', 'Архитектура', 'Хранение сессий']));
-      expect(detail.backlinks.find((b) => b.title === 'Хранение сессий')?.relation).toBe('depends_on');
+      expect(backTitles).toEqual(expect.arrayContaining(['Demo Shop', 'Architecture', 'Session storage']));
+      expect(detail.backlinks.find((b) => b.title === 'Session storage')?.relation).toBe('depends_on');
       expect(detail.editable).toBe(false);
 
       const local = s.graph.local(`doc:${auth.id}`, 1);
@@ -94,21 +94,21 @@ describe('search', () => {
       const src = await s.sources.connect({ path: proj, name: 'Demo Shop' });
       await waitFor(() => s.sources.get(src.id).status === 'ready');
       const titles = (q: string) => s.search.search(q).hits.map((h) => h.title).sort();
-      expect(titles('сессия')).toEqual(expect.arrayContaining(['Требования к авторизации', 'Хранение сессий']));
-      expect(titles('"через 24 часа"')).toEqual(['Хранение сессий']);
-      expect(titles('сессия -24')).not.toContain('Хранение сессий');
-      expect(titles('tag:security')).toEqual(['Требования к авторизации']);
-      expect(titles('type:requirement [priority:high]')).toEqual(['Требования к авторизации']);
+      expect(titles('session')).toEqual(expect.arrayContaining(['Authorization requirements', 'Session storage']));
+      expect(titles('"after 24 hours"')).toEqual(['Session storage']);
+      expect(titles('session -24')).not.toContain('Session storage');
+      expect(titles('tag:security')).toEqual(['Authorization requirements']);
+      expect(titles('type:requirement [priority:high]')).toEqual(['Authorization requirements']);
       expect(titles('[status:draft] path:requirements')).toHaveLength(2);
-      expect(titles('linksto:"Требования к авторизации"')).toEqual(expect.arrayContaining(['Архитектура']));
+      expect(titles('linksto:"Authorization requirements"')).toEqual(expect.arrayContaining(['Architecture']));
       expect(titles('file:auth')).toEqual(expect.arrayContaining(['auth', 'auth.test']));
-      expect(titles('Redis OR PostgreSQL')).toContain('Архитектура');
+      expect(titles('Redis OR PostgreSQL')).toContain('Architecture');
       const hit = s.search.search('Redis').hits[0]!;
       expect(hit.snippet).toContain('\u0002Redis\u0003');
-      await s.docs.create({ title: 'План', content: '- [ ] позвонить поставщику\n- [x] отправить письмо' });
-      expect(titles('task-todo:позвонить')).toEqual(['План']);
-      expect(titles('task-done:позвонить')).toEqual([]);
-      expect(titles('task-done:письмо')).toEqual(['План']);
+      await s.docs.create({ title: 'Plan', content: '- [ ] call the supplier\n- [x] send the letter' });
+      expect(titles('task-todo:call')).toEqual(['Plan']);
+      expect(titles('task-done:call')).toEqual([]);
+      expect(titles('task-done:letter')).toEqual(['Plan']);
     } finally {
       await t.cleanup();
     }
@@ -119,30 +119,30 @@ describe('vault documents', () => {
   it('creates from templates, saves with conflict detection, keeps history and restores', async () => {
     const { t, rt, s } = await setup();
     try {
-      const req = await s.docs.create({ title: 'Вход по паролю', templateId: 'builtin:requirement' });
-      expect(req.relPath).toBe('Requirements/Вход по паролю.md');
+      const req = await s.docs.create({ title: 'Password login', templateId: 'builtin:requirement' });
+      expect(req.relPath).toBe('Requirements/Password login.md');
       expect(req.fmId).toBe('REQ-001');
-      const req2 = await s.docs.create({ title: 'Второе', templateId: 'builtin:requirement' });
+      const req2 = await s.docs.create({ title: 'Second', templateId: 'builtin:requirement' });
       expect(req2.fmId).toBe('REQ-002');
 
-      const note = await s.docs.create({ title: 'Заметка', content: 'Первая версия' });
-      const saved = await s.docs.save(note.id, '# Заметка\n\nВторая версия со ссылкой на [[Вход по паролю]]', note.diskHash);
+      const note = await s.docs.create({ title: 'Note', content: 'First version' });
+      const saved = await s.docs.save(note.id, '# Note\n\nSecond version with a link to [[Password login]]', note.diskHash);
       const detail = await s.docs.get(note.id);
-      expect(detail.outgoing.find((o) => o.targetRaw === 'Вход по паролю')?.resolved).toBe(true);
+      expect(detail.outgoing.find((o) => o.targetRaw === 'Password login')?.resolved).toBe(true);
       // stale hash → conflict, nothing overwritten
       await expect(s.docs.save(note.id, 'conflict', note.diskHash)).rejects.toMatchObject({ code: 'WRITE_CONFLICT' });
       // external edit is detected too
-      await writeFile(join(rt.paths.root, note.relPath), 'внешняя правка');
+      await writeFile(join(rt.paths.root, note.relPath), 'external edit');
       await expect(s.docs.save(note.id, 'mine', saved.hash)).rejects.toMatchObject({ code: 'WRITE_CONFLICT' });
-      expect(await readFile(join(rt.paths.root, note.relPath), 'utf8')).toBe('внешняя правка');
+      expect(await readFile(join(rt.paths.root, note.relPath), 'utf8')).toBe('external edit');
 
-      await waitFor(async () => (await s.docs.get(note.id)).content === 'внешняя правка');
+      await waitFor(async () => (await s.docs.get(note.id)).content === 'external edit');
       const versions = s.docs.versions(note.id);
       expect(versions.length).toBeGreaterThanOrEqual(1);
       const first = versions[versions.length - 1]!;
       const current = await s.docs.get(note.id);
       await s.docs.restore(note.id, first.id, current.diskHash);
-      expect(await readFile(join(rt.paths.root, note.relPath), 'utf8')).toContain('Первая версия');
+      expect(await readFile(join(rt.paths.root, note.relPath), 'utf8')).toContain('First version');
     } finally {
       await t.cleanup();
     }
@@ -151,21 +151,21 @@ describe('vault documents', () => {
   it('renames with a link-update plan and keeps the document id', async () => {
     const { t, rt, s } = await setup();
     try {
-      const target = await s.docs.create({ title: 'Старое имя', folder: 'Notes' });
-      const a = await s.docs.create({ title: 'A', content: 'См. [[Старое имя]] и [[Старое имя#Раздел|алиас]].' });
-      const b = await s.docs.create({ title: 'B', content: 'Markdown: [ссылка](Notes/Старое%20имя.md)' });
-      const plan = await s.docs.planRename(target.id, 'Notes/Новое имя.md');
+      const target = await s.docs.create({ title: 'Old name', folder: 'Notes' });
+      const a = await s.docs.create({ title: 'A', content: 'See [[Old name]] and [[Old name#Section|alias]].' });
+      const b = await s.docs.create({ title: 'B', content: 'Markdown: [link](Notes/Old%20name.md)' });
+      const plan = await s.docs.planRename(target.id, 'Notes/Café menu.md');
       expect(plan.changes).toHaveLength(3);
-      expect(plan.changes.map((c) => c.after).join('\n')).toContain('[[Новое имя]]');
-      const res = await s.docs.rename(target.id, 'Notes/Новое имя.md', { updateLinks: true, planHash: plan.planHash });
+      expect(plan.changes.map((c) => c.after).join('\n')).toContain('[[Café menu]]');
+      const res = await s.docs.rename(target.id, 'Notes/Café menu.md', { updateLinks: true, planHash: plan.planHash });
       expect(res.failed).toEqual([]);
       expect(res.docId).toBe(target.id);
       const aText = await readFile(join(rt.paths.root, a.relPath), 'utf8');
-      expect(aText).toContain('[[Новое имя]]');
-      expect(aText).toContain('[[Новое имя#Раздел|алиас]]');
-      expect(await readFile(join(rt.paths.root, b.relPath), 'utf8')).toContain('(Notes/%D0%9D%D0%BE%D0%B2%D0%BE%D0%B5%20%D0%B8%D0%BC%D1%8F.md)');
+      expect(aText).toContain('[[Café menu]]');
+      expect(aText).toContain('[[Café menu#Section|alias]]');
+      expect(await readFile(join(rt.paths.root, b.relPath), 'utf8')).toContain('(Notes/Caf%C3%A9%20menu.md)');
       const moved = await s.docs.get(target.id);
-      expect(moved.relPath).toBe('Notes/Новое имя.md');
+      expect(moved.relPath).toBe('Notes/Café menu.md');
       expect([...new Set(moved.backlinks.map((x) => x.title))].sort()).toEqual(['A', 'B']);
       expect(moved.backlinks).toHaveLength(3); // each link occurrence is a separate mention, like Obsidian
     } finally {
@@ -176,15 +176,15 @@ describe('vault documents', () => {
   it('detects external file changes through the watcher and moves deletions to trash', async () => {
     const { t, rt, s } = await setup();
     try {
-      await writeFile(join(rt.paths.root, 'Снаружи.md'), '# Снаружи\n\nтекст про ежей');
-      await waitFor(() => s.search.search('ежей').total === 1, { message: 'watcher picked up new file' });
-      await rm(join(rt.paths.root, 'Снаружи.md'));
-      await waitFor(() => s.search.search('ежей').total === 0, { message: 'watcher picked up deletion' });
+      await writeFile(join(rt.paths.root, 'Outside.md'), '# Outside\n\ntext about hedgehogs');
+      await waitFor(() => s.search.search('hedgehogs').total === 1, { message: 'watcher picked up new file' });
+      await rm(join(rt.paths.root, 'Outside.md'));
+      await waitFor(() => s.search.search('hedgehogs').total === 0, { message: 'watcher picked up deletion' });
 
-      const doc = await s.docs.create({ title: 'Удаляемый' });
+      const doc = await s.docs.create({ title: 'To be deleted' });
       const res = await s.docs.delete(doc.id);
       expect(res.trashedTo).toContain('.trash');
-      expect(await readFile(res.trashedTo, 'utf8')).toContain('Удаляемый');
+      expect(await readFile(res.trashedTo, 'utf8')).toContain('To be deleted');
     } finally {
       await t.cleanup();
     }
@@ -197,14 +197,14 @@ describe('vault documents', () => {
       const d2 = await s.docs.daily(new Date(2026, 9, 12));
       expect(d1.id).toBe(d2.id);
       expect(d1.relPath).toBe('Daily/2026-10-12.md');
-      const n = await s.docs.create({ title: 'С пустой ссылкой', content: 'Будущая [[Несуществующая заметка]]' });
+      const n = await s.docs.create({ title: 'With a dangling link', content: 'Future [[Missing note]]' });
       const g = s.graph.local(`doc:${n.id}`, 1, { includeUnresolved: true });
-      expect(g.nodes.some((x) => x.type === 'unresolved' && x.label === 'Несуществующая заметка')).toBe(true);
+      expect(g.nodes.some((x) => x.type === 'unresolved' && x.label === 'Missing note')).toBe(true);
       // creating the target resolves the link (forward reference)
-      await s.docs.create({ title: 'Несуществующая заметка' });
+      await s.docs.create({ title: 'Missing note' });
       const after = await s.docs.get(n.id);
       expect(after.outgoing[0]?.resolved).toBe(true);
-      expect(s.graph.graph({ includeUnresolved: true }).nodes.some((x) => x.label === 'Несуществующая заметка' && x.type === 'unresolved')).toBe(false);
+      expect(s.graph.graph({ includeUnresolved: true }).nodes.some((x) => x.label === 'Missing note' && x.type === 'unresolved')).toBe(false);
     } finally {
       await t.cleanup();
     }

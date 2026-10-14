@@ -39,8 +39,8 @@ CREATE TABLE sources (
   watch             INTEGER NOT NULL DEFAULT 1,
   -- user-defined verification commands for missions: [{name, program, args, timeoutSec}] (agents can only run these by name)
   checks            TEXT NOT NULL DEFAULT '[]',
-  -- access mode (section 29.2): read_only «Только изучение» (default) → prepare «Подготовить изменения»
-  -- → workcopy «Работать в копии» → apply «Применить к исходному проекту» (privileged, never set automatically)
+  -- access mode (section 29.2): read_only "Read only" (default) → prepare "Prepare changes"
+  -- → workcopy "Work in a copy" → apply "Apply to the original project" (privileged, never set automatically)
   access_mode       TEXT NOT NULL DEFAULT 'read_only' CHECK (access_mode IN ('read_only','prepare','workcopy','apply')),
   status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','indexing','ready','error','unavailable')),
   status_message    TEXT,
@@ -695,7 +695,7 @@ CREATE INDEX idx_error_log_ts ON error_log(ts);
     version: 2,
     name: 'missions-gaps',
     sql: `
--- Stages or capabilities a mission could not execute (no agent, tool, access, model…): they prevent «Выполнена» (28.15)
+-- Stages or capabilities a mission could not execute (no agent, tool, access, model…): they prevent "Completed" (28.15)
 ALTER TABLE missions ADD COLUMN gaps TEXT NOT NULL DEFAULT '[]';
 `,
   },

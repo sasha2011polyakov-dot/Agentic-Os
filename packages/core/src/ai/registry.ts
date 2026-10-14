@@ -31,11 +31,11 @@ export interface ProviderView extends ProviderConfig {
 }
 
 export const PROVIDER_PRESETS: { kind: ProviderKind; name: string; baseUrl: string; locality: Locality; needsKey: boolean; options?: Record<string, unknown>; description: string }[] = [
-  { kind: 'ollama', name: 'Ollama (локально)', baseUrl: 'http://127.0.0.1:11434', locality: 'local', needsKey: false, description: 'Локальные модели через Ollama. API-ключ не нужен.' },
-  { kind: 'openai-compatible', name: 'LM Studio (локально)', baseUrl: 'http://127.0.0.1:1234/v1', locality: 'local', needsKey: false, options: { flavor: 'lmstudio' }, description: 'Локальный сервер LM Studio (вкладка Developer → Start server).' },
-  { kind: 'openai-compatible', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', locality: 'cloud', needsKey: true, options: { flavor: 'openai' }, description: 'Облачные модели OpenAI по API-ключу.' },
-  { kind: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com', locality: 'cloud', needsKey: true, description: 'Облачные модели Claude по API-ключу.' },
-  { kind: 'openai-compatible', name: 'Другой OpenAI-совместимый', baseUrl: 'http://127.0.0.1:8000/v1', locality: 'local', needsKey: false, options: { flavor: 'generic' }, description: 'llama.cpp server, vLLM, LocalAI и другие совместимые серверы.' },
+  { kind: 'ollama', name: 'Ollama (local)', baseUrl: 'http://127.0.0.1:11434', locality: 'local', needsKey: false, description: 'Local models through Ollama. No API key needed.' },
+  { kind: 'openai-compatible', name: 'LM Studio (local)', baseUrl: 'http://127.0.0.1:1234/v1', locality: 'local', needsKey: false, options: { flavor: 'lmstudio' }, description: 'The local LM Studio server (Developer tab → Start server).' },
+  { kind: 'openai-compatible', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', locality: 'cloud', needsKey: true, options: { flavor: 'openai' }, description: 'OpenAI cloud models with an API key.' },
+  { kind: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com', locality: 'cloud', needsKey: true, description: 'Claude cloud models with an API key.' },
+  { kind: 'openai-compatible', name: 'Other OpenAI-compatible', baseUrl: 'http://127.0.0.1:8000/v1', locality: 'local', needsKey: false, options: { flavor: 'generic' }, description: 'llama.cpp server, vLLM, LocalAI and other compatible servers.' },
 ];
 
 /** Shared (application-level) AI providers. Keys live in the SecretStore; the database keeps only references. */
@@ -60,7 +60,7 @@ export class ProviderRegistry {
     const test = this.db.get<{ id: string }>("SELECT id FROM ai_providers WHERE id = 'test'");
     if (this.testEnabled && !test) {
       const now = nowIso();
-      this.db.run("INSERT INTO ai_providers(id, kind, name, base_url, locality, enabled, secret_ref, options, created_at, updated_at) VALUES ('test', 'test', 'Тестовый провайдер (для автоматических тестов)', 'http://127.0.0.1:0', 'local', 1, NULL, '{}', ?, ?)", now, now);
+      this.db.run("INSERT INTO ai_providers(id, kind, name, base_url, locality, enabled, secret_ref, options, created_at, updated_at) VALUES ('test', 'test', 'Test provider (for automated tests)', 'http://127.0.0.1:0', 'local', 1, NULL, '{}', ?, ?)", now, now);
     }
     if (!this.testEnabled && test) this.db.run("UPDATE ai_providers SET enabled = 0 WHERE id = 'test'");
   }
@@ -71,7 +71,7 @@ export class ProviderRegistry {
 
   config(id: string): ProviderConfig {
     const r = this.db.get<Row>('SELECT * FROM ai_providers WHERE id = ?', id);
-    if (!r || (r.kind === 'test' && !this.testEnabled)) throw new AppError('NOT_FOUND', 'Провайдер не найден.');
+    if (!r || (r.kind === 'test' && !this.testEnabled)) throw new AppError('NOT_FOUND', 'Provider not found.');
     return toConfig(r);
   }
 
@@ -86,16 +86,16 @@ export class ProviderRegistry {
     try {
       url = new URL(baseUrl);
     } catch {
-      throw new AppError('VALIDATION_FAILED', 'Некорректный адрес провайдера.');
+      throw new AppError('VALIDATION_FAILED', 'Invalid provider address.');
     }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new AppError('VALIDATION_FAILED', 'Адрес должен начинаться с http:// или https://.');
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new AppError('VALIDATION_FAILED', 'The address must start with http:// or https://.');
     if (locality === 'local' && !isPrivateNetworkHost(url.hostname)) {
-      throw new AppError('VALIDATION_FAILED', 'Локальный провайдер должен указывать на этот компьютер или локальную сеть.', { hint: 'Для удалённого сервера выберите тип «облачный» — тогда к нему применяются политики облака.' });
+      throw new AppError('VALIDATION_FAILED', 'A local provider must point to this computer or the local network.', { hint: 'For a remote server choose the "cloud" type: cloud policies then apply to it.' });
     }
     if (locality === 'cloud' && url.protocol === 'http:' && !isPrivateNetworkHost(url.hostname)) {
-      throw new AppError('VALIDATION_FAILED', 'Облачный провайдер должен использовать HTTPS.');
+      throw new AppError('VALIDATION_FAILED', 'A cloud provider must use HTTPS.');
     }
-    if (kind === 'test') throw new AppError('VALIDATION_FAILED', 'Тестовый провайдер нельзя создать вручную.');
+    if (kind === 'test') throw new AppError('VALIDATION_FAILED', 'The test provider cannot be created manually.');
   }
 
   async create(input: { kind: ProviderKind; name: string; baseUrl: string; locality: Locality; options?: Record<string, unknown>; apiKey?: string; secretBackend?: string; envKey?: string }): Promise<ProviderConfig> {
@@ -122,7 +122,7 @@ export class ProviderRegistry {
 
   async update(id: string, patch: { name?: string; baseUrl?: string; enabled?: boolean; options?: Record<string, unknown>; locality?: Locality }): Promise<ProviderConfig> {
     const c = this.config(id);
-    if (c.kind === 'test') throw new AppError('VALIDATION_FAILED', 'Тестовый провайдер не редактируется.');
+    if (c.kind === 'test') throw new AppError('VALIDATION_FAILED', 'The test provider cannot be edited.');
     const baseUrl = patch.baseUrl ?? c.baseUrl;
     const locality = patch.locality ?? c.locality;
     this.validate(c.kind, baseUrl, locality);
@@ -163,7 +163,7 @@ export class ProviderRegistry {
 
   async remove(id: string): Promise<void> {
     const c = this.config(id);
-    if (c.kind === 'test') throw new AppError('VALIDATION_FAILED', 'Тестовый провайдер не удаляется.');
+    if (c.kind === 'test') throw new AppError('VALIDATION_FAILED', 'The test provider cannot be deleted.');
     await this.secrets.remove(c.secretRef).catch(() => undefined);
     this.db.run('DELETE FROM ai_providers WHERE id = ?', id);
     this.instances.delete(id);
@@ -173,7 +173,7 @@ export class ProviderRegistry {
     const cached = this.instances.get(id);
     if (cached) return cached;
     const c = this.config(id);
-    if (!c.enabled) throw new AppError('MODEL_UNAVAILABLE', `Провайдер «${c.name}» отключён.`);
+    if (!c.enabled) throw new AppError('MODEL_UNAVAILABLE', `The provider "${c.name}" is disabled.`);
     const apiKey = await this.secrets.resolve(c.secretRef);
     let p: AIProvider;
     switch (c.kind) {

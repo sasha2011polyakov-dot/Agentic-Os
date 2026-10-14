@@ -65,8 +65,8 @@ export class SystemRuntime {
   static async open(storagePath: string, expectedSystemId: string | null, app: AppServices): Promise<SystemRuntime> {
     const manifest = await readManifest(storagePath);
     if (expectedSystemId && manifest.systemId !== expectedSystemId) {
-      throw new AppError('SYSTEM_UNAVAILABLE', 'По сохранённому пути находится другая система.', {
-        hint: 'Папку могли заменить. Укажите правильное расположение системы или подключите найденную систему отдельно.',
+      throw new AppError('SYSTEM_UNAVAILABLE', 'Another system is at the saved path.', {
+        hint: 'The folder may have been replaced. Enter the correct system location or connect the found system separately.',
         details: { expected: expectedSystemId, found: manifest.systemId, path: storagePath },
       });
     }
@@ -75,7 +75,7 @@ export class SystemRuntime {
     const metaId = db.get<{ value: string }>("SELECT value FROM meta WHERE key = 'system_id'")?.value;
     if (metaId && metaId !== manifest.systemId) {
       db.close();
-      throw new AppError('SYSTEM_UNAVAILABLE', 'Идентификатор в базе системы не совпадает с паспортом system.json.', { details: { manifest: manifest.systemId, db: metaId } });
+      throw new AppError('SYSTEM_UNAVAILABLE', 'The identifier in the system database does not match the system.json manifest.', { details: { manifest: manifest.systemId, db: metaId } });
     }
     if (!metaId) {
       db.run("INSERT INTO meta(key, value) VALUES ('system_id', ?)", manifest.systemId);
@@ -124,9 +124,9 @@ export class SystemRuntime {
       `INSERT INTO sources(id, kind, name, root_path, purpose, writable, created_at, updated_at, status)
        VALUES (?, 'vault', ?, ?, ?, 1, ?, ?, 'pending')`,
       id,
-      'Хранилище системы',
+      'System vault',
       this.paths.root,
-      'Документы и заметки этой системы',
+      'Documents and notes of this system',
       now,
       now,
     );
@@ -146,7 +146,7 @@ export class SystemRuntime {
 
   getOwned<T>(name: string): T {
     const v = this.owned.get(name);
-    if (v === undefined) throw new AppError('INTERNAL', `Сервис «${name}» не инициализирован для системы.`);
+    if (v === undefined) throw new AppError('INTERNAL', `The service "${name}" is not initialized for the system.`);
     return v as T;
   }
 

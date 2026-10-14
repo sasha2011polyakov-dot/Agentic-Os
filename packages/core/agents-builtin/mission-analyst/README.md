@@ -1,11 +1,11 @@
-# Аналитик поручения
+# Mission analyst
 
-Разбирает запрос на естественном языке во внутреннее ТЗ: результат, требования, ограничения, критерии готовности, риски, нужные этапы.
+Turns a natural-language request into an internal specification: outcome, requirements, constraints, acceptance criteria, risks, stages needed.
 
-- Тип задачи для маршрутизации моделей: `planning`
-- Инструменты: нет (работает только с переданными данными)
+- Task type for model routing: `planning`
+- Tools: none (works only with the data it receives)
 
-## Запрашиваемые разрешения
-- не требуются
+## Requested permissions
+- none
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

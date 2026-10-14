@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "coordinator",
-  "name": "Координатор",
-  "version": "1.0.0",
-  "description": "Превращает запрос пользователя в план процесса создания ТЗ и проверяет, достаточно ли данных.",
+  "name": "Coordinator",
+  "version": "1.0.1",
+  "description": "Turns the user request into a plan for the specification workflow and checks whether there is enough data.",
   "author": "Agentic OS",
   "category": "spec",
   "entry": "instructions.md",

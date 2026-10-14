@@ -50,7 +50,7 @@ const ENTRY_RE = /(^|\/)(main|index|app|server|cli|manage)\.(ts|tsx|js|mjs|py|go
  */
 export async function projectInventory(rt: SystemRuntime, sourceId: string): Promise<ProjectInventory> {
   const src = rt.db.get<{ id: string; name: string; root_path: string; kind: string }>('SELECT id, name, root_path, kind FROM sources WHERE id = ?', sourceId);
-  if (!src) throw new AppError('NOT_FOUND', 'Источник не найден.');
+  if (!src) throw new AppError('NOT_FOUND', 'Source not found.');
   const files = rt.db.all<{ rel_path: string; kind: string; language: string | null; status: string; skip_reason: string | null; hash: string | null; error: string | null }>(
     'SELECT rel_path, kind, language, status, skip_reason, hash, error FROM files WHERE source_id = ? ORDER BY rel_path',
     sourceId,
@@ -66,7 +66,7 @@ export async function projectInventory(rt: SystemRuntime, sourceId: string): Pro
   let indexed = 0;
   let errors = 0;
   for (const f of files) {
-    const first = f.rel_path.includes('/') ? f.rel_path.slice(0, f.rel_path.indexOf('/')) : '(корень)';
+    const first = f.rel_path.includes('/') ? f.rel_path.slice(0, f.rel_path.indexOf('/')) : '(root)';
     top.set(first, (top.get(first) ?? 0) + 1);
     if (f.status === 'indexed') {
       indexed++;
@@ -90,7 +90,7 @@ export async function projectInventory(rt: SystemRuntime, sourceId: string): Pro
         const pkg = JSON.parse(await readFile(join(src.root_path, f.rel_path), 'utf8')) as { name?: string; version?: string; main?: string; bin?: unknown; scripts?: Record<string, string>; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
         Object.assign(summary, { name: pkg.name, version: pkg.version, main: pkg.main, scripts: Object.keys(pkg.scripts ?? {}), dependencies: Object.keys(pkg.dependencies ?? {}).slice(0, 40), devDependencies: Object.keys(pkg.devDependencies ?? {}).length });
       } catch {
-        summary.error = 'не удалось разобрать';
+        summary.error = 'could not be parsed';
       }
     }
     manifests.push({ path: f.rel_path, kind, summary });
@@ -106,10 +106,10 @@ export async function projectInventory(rt: SystemRuntime, sourceId: string): Pro
   const keyFiles = [...new Set([...manifests.map((m) => m.path), ...entryPoints, ...documentation.filter((d) => /readme|architecture|design|adr|requirement/i.test(d.path)).map((d) => d.path)])].slice(0, 40);
   const limitations: string[] = [];
   const skippedCount = [...skipped.values()].reduce((s, l) => s + l.length, 0);
-  if (skippedCount) limitations.push(`${skippedCount} файл(ов) не проиндексировано (см. список пропусков) — их содержимое не анализировалось.`);
-  if (errors) limitations.push(`${errors} файл(ов) не удалось прочитать.`);
-  if (skipped.has('secret-name') || skipped.has('secret-content')) limitations.push('Файлы, похожие на секреты, намеренно не читались.');
-  limitations.push('Структура кода определена эвристически (регулярные выражения), без полного синтаксического анализа.');
+  if (skippedCount) limitations.push(`${skippedCount} file(s) were not indexed (see the skipped list): their content was not analyzed.`);
+  if (errors) limitations.push(`${errors} file(s) could not be read.`);
+  if (skipped.has('secret-name') || skipped.has('secret-content')) limitations.push('Files that look like secrets were deliberately not read.');
+  limitations.push('The code structure was detected heuristically (regular expressions), without full parsing.');
   const documents = rt.db.get<{ c: number }>('SELECT COUNT(*) AS c FROM documents WHERE source_id = ?', sourceId)!.c;
   const inventory: ProjectInventory = {
     sourceId,

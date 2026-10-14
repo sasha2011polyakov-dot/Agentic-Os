@@ -8,7 +8,7 @@ import { getPath } from '../util/json.ts';
  *   { "$concat": [ <mapping>, <mapping> ] }                       — arrays concatenated, scalars appended
  *   { "$pluck": "nodes.review.output.defects", "field": "description", "where": { "field": "stage", "in": ["spec"] } }
  *   { "$count": "nodes.x.output.items", "where": { "field": "severity", "equals": "critical" } }
- *   { "$template": "Цель: {{input.goal}}" }
+ *   { "$template": "Goal: {{input.goal}}" }
  *   { "$literal": { "$path": "not resolved" } }
  *
  * Conditions:

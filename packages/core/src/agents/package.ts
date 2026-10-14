@@ -112,13 +112,13 @@ export const KNOWN_TOOLS = new Set([
 function parseJsonFile(files: Map<string, Buffer>, path: string, errors: string[]): unknown {
   const buf = files.get(path);
   if (!buf) {
-    errors.push(`Нет файла ${path}`);
+    errors.push(`Missing file ${path}`);
     return undefined;
   }
   try {
     return JSON.parse(buf.toString('utf8'));
   } catch (e) {
-    errors.push(`${path}: некорректный JSON (${e instanceof Error ? e.message : String(e)})`);
+    errors.push(`${path}: invalid JSON (${e instanceof Error ? e.message : String(e)})`);
     return undefined;
   }
 }
@@ -128,30 +128,30 @@ export function validatePackageFiles(files: Map<string, Buffer>): { report: Vali
   const errors: string[] = [];
   const warnings: string[] = [];
   let total = 0;
-  if (files.size > MAX_FILES) errors.push(`Слишком много файлов (${files.size} > ${MAX_FILES}).`);
+  if (files.size > MAX_FILES) errors.push(`Too many files (${files.size} > ${MAX_FILES}).`);
   for (const [path, buf] of files) {
     total += buf.length;
-    if (!ALLOWED_FILE.test(path)) errors.push(`Недопустимый файл в пакете: ${path}. Пакет агента может содержать только manifest.json, instructions.md, tools.json, README.md, schemas/*.json и tests/*.json — исполняемый код запрещён.`);
+    if (!ALLOWED_FILE.test(path)) errors.push(`File not allowed in a package: ${path}. An agent package may contain only manifest.json, instructions.md, tools.json, README.md, schemas/*.json and tests/*.json; executable code is not allowed.`);
   }
-  if (total > MAX_TOTAL) errors.push('Пакет больше 5 МБ.');
+  if (total > MAX_TOTAL) errors.push('The package is larger than 5 MB.');
   const ajv = createAjv();
   const manifest = parseJsonFile(files, 'manifest.json', errors) as AgentManifest | undefined;
   if (manifest) {
     const validate = ajv.compile(MANIFEST_SCHEMA);
     if (!validate(manifest)) for (const e of validate.errors ?? []) errors.push(`manifest.json${e.instancePath}: ${e.message}`);
-    if (manifest.formatVersion > PACKAGE_FORMAT_VERSION) errors.push(`Формат пакета ${manifest.formatVersion} новее поддерживаемого (${PACKAGE_FORMAT_VERSION}).`);
-    if (manifest.version && !semver.valid(manifest.version)) errors.push(`Версия «${manifest.version}» не соответствует semver.`);
-    if (manifest.platform && !semver.validRange(manifest.platform)) errors.push(`Некорректный диапазон совместимости platform: ${manifest.platform}`);
-    else if (manifest.platform && !semver.satisfies(PLATFORM_VERSION, manifest.platform)) errors.push(`Пакет несовместим с платформой ${PLATFORM_VERSION} (требуется ${manifest.platform}).`);
-    for (const p of manifest.permissions ?? []) if (!PERMISSION_IDS.has(p.permission)) errors.push(`Неизвестное разрешение: ${p.permission}`);
+    if (manifest.formatVersion > PACKAGE_FORMAT_VERSION) errors.push(`Package format ${manifest.formatVersion} is newer than the supported one (${PACKAGE_FORMAT_VERSION}).`);
+    if (manifest.version && !semver.valid(manifest.version)) errors.push(`The version "${manifest.version}" is not valid semver.`);
+    if (manifest.platform && !semver.validRange(manifest.platform)) errors.push(`Invalid platform compatibility range: ${manifest.platform}`);
+    else if (manifest.platform && !semver.satisfies(PLATFORM_VERSION, manifest.platform)) errors.push(`The package is not compatible with platform ${PLATFORM_VERSION} (requires ${manifest.platform}).`);
+    for (const p of manifest.permissions ?? []) if (!PERMISSION_IDS.has(p.permission)) errors.push(`Unknown permission: ${p.permission}`);
   }
   const instructions = files.get('instructions.md')?.toString('utf8') ?? '';
-  if (!instructions.trim()) errors.push('instructions.md отсутствует или пуст.');
-  if (instructions.length > 100_000) errors.push('instructions.md длиннее 100 000 символов.');
+  if (!instructions.trim()) errors.push('instructions.md is missing or empty.');
+  if (instructions.length > 100_000) errors.push('instructions.md is longer than 100,000 characters.');
   const toolsJson = manifest ? (parseJsonFile(files, manifest.tools ?? 'tools.json', errors) as { tools?: unknown } | undefined) : undefined;
   const tools = Array.isArray(toolsJson?.tools) ? (toolsJson!.tools as unknown[]).filter((t): t is string => typeof t === 'string') : [];
-  if (toolsJson && !Array.isArray(toolsJson.tools)) errors.push('tools.json: ожидается {"tools": [...]}');
-  for (const t of tools) if (!KNOWN_TOOLS.has(t)) errors.push(`Неизвестный инструмент: ${t}. Пакеты не могут объявлять собственные исполняемые инструменты.`);
+  if (toolsJson && !Array.isArray(toolsJson.tools)) errors.push('tools.json: expected {"tools": [...]}');
+  for (const t of tools) if (!KNOWN_TOOLS.has(t)) errors.push(`Unknown tool: ${t}. Packages cannot declare their own executable tools.`);
   let inputSchema: Record<string, unknown> = {};
   let outputSchema: Record<string, unknown> = {};
   if (manifest?.schemas) {
@@ -161,23 +161,23 @@ export function validatePackageFiles(files: Map<string, Buffer>): { report: Vali
       try {
         ajv.compile(s);
       } catch (e) {
-        errors.push(`Схема ${label} некорректна: ${e instanceof Error ? e.message : String(e)}`);
+        errors.push(`The ${label} schema is invalid: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
-    if (outputSchema.type !== 'object') errors.push('Схема выхода должна описывать объект (type: object).');
+    if (outputSchema.type !== 'object') errors.push('The output schema must describe an object (type: object).');
   }
   let tests: AgentTestCase[] = [];
   const testFile = files.get('tests/test-cases.json');
   if (testFile) {
     const parsed = parseJsonFile(files, 'tests/test-cases.json', errors) as { cases?: AgentTestCase[] } | undefined;
     tests = Array.isArray(parsed?.cases) ? parsed!.cases : [];
-    if (!Array.isArray(parsed?.cases)) errors.push('tests/test-cases.json: ожидается {"cases": [...]}');
-  } else warnings.push('Нет тестовых сценариев (tests/test-cases.json): тестовый запуск будет выполняться на минимальном входе.');
+    if (!Array.isArray(parsed?.cases)) errors.push('tests/test-cases.json: expected {"cases": [...]}');
+  } else warnings.push('No test cases (tests/test-cases.json): a test run will use a minimal input.');
   if (manifest && tools.length) {
     const needed = new Set<string>();
     for (const t of tools) for (const p of TOOL_PERMISSIONS[t] ?? []) needed.add(p);
     const requested = new Set((manifest.permissions ?? []).map((p) => p.permission));
-    for (const p of needed) if (!requested.has(p as PermissionId)) warnings.push(`Инструменты требуют разрешение ${p}, но пакет его не запрашивает: вызовы будут отклонены.`);
+    for (const p of needed) if (!requested.has(p as PermissionId)) warnings.push(`The tools need the permission ${p}, but the package does not request it: calls will be denied.`);
   }
   const ok = errors.length === 0 && !!manifest;
   return {
@@ -191,13 +191,13 @@ export async function readPackageDir(dir: string): Promise<Map<string, Buffer>> 
   async function walk(d: string): Promise<void> {
     for (const e of await readdir(d, { withFileTypes: true })) {
       const p = join(d, e.name);
-      if (e.isSymbolicLink()) throw new AppError('AGENT_PACKAGE_INVALID', 'Символические ссылки в пакете запрещены.');
+      if (e.isSymbolicLink()) throw new AppError('AGENT_PACKAGE_INVALID', 'Symbolic links are not allowed in a package.');
       if (e.isDirectory()) await walk(p);
       else if (e.isFile()) {
-        if ((await stat(p)).size > MAX_TOTAL) throw new AppError('AGENT_PACKAGE_INVALID', 'Файл пакета слишком большой.');
+        if ((await stat(p)).size > MAX_TOTAL) throw new AppError('AGENT_PACKAGE_INVALID', 'A package file is too large.');
         files.set(relative(dir, p).split(sep).join('/'), await readFile(p));
       }
-      if (files.size > MAX_FILES) throw new AppError('AGENT_PACKAGE_INVALID', 'Слишком много файлов в пакете.');
+      if (files.size > MAX_FILES) throw new AppError('AGENT_PACKAGE_INVALID', 'Too many files in the package.');
     }
   }
   await walk(dir);
@@ -206,20 +206,20 @@ export async function readPackageDir(dir: string): Promise<Map<string, Buffer>> 
 
 /** Unzips with traversal/size protection. A single top-level folder (id/...) is stripped. */
 export function unzipPackage(zip: Uint8Array): Map<string, Buffer> {
-  if (zip.length > MAX_TOTAL * 2) throw new AppError('AGENT_PACKAGE_INVALID', 'Архив слишком большой.');
+  if (zip.length > MAX_TOTAL * 2) throw new AppError('AGENT_PACKAGE_INVALID', 'The archive is too large.');
   let total = 0;
   let count = 0;
   const raw = unzipSync(zip, {
     filter: (f) => {
       count++;
       total += f.originalSize;
-      if (count > MAX_FILES || total > MAX_TOTAL) throw new AppError('AGENT_PACKAGE_INVALID', 'Архив содержит слишком много данных.');
+      if (count > MAX_FILES || total > MAX_TOTAL) throw new AppError('AGENT_PACKAGE_INVALID', 'The archive contains too much data.');
       return !f.name.endsWith('/');
     },
   });
   const names = Object.keys(raw);
   for (const n of names) {
-    if (n.includes('..') || n.startsWith('/') || /^[a-zA-Z]:/.test(n) || n.includes('\\')) throw new AppError('AGENT_PACKAGE_INVALID', `Недопустимый путь в архиве: ${n}`);
+    if (n.includes('..') || n.startsWith('/') || /^[a-zA-Z]:/.test(n) || n.includes('\\')) throw new AppError('AGENT_PACKAGE_INVALID', `Path not allowed in the archive: ${n}`);
   }
   const prefixes = new Set(names.map((n) => (n.includes('/') ? n.slice(0, n.indexOf('/')) : '')));
   const strip = prefixes.size === 1 && !prefixes.has('') && !names.includes('manifest.json') ? `${[...prefixes][0]}/` : '';

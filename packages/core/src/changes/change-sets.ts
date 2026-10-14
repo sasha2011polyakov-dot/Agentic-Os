@@ -144,7 +144,7 @@ const PROTECTED = new Set(['.git', 'node_modules', '.aos', '.trash']);
  * Change sets (29.2 mode 2 / 29.7): agents only PROPOSE file changes; content is stored separately from the project
  * with the hash of the file it was based on. The user reviews exactly that content; any later change makes the
  * review stale. Changes reach a work copy for checks, and the ORIGINAL project only through `apply`, which requires:
- * mode «Применить к исходному проекту», fresh review, passed checks, confirmed risks and a verified backup.
+ * mode "Apply to the original project", fresh review, passed checks, confirmed risks and a verified backup.
  */
 export class ChangeSetService {
   /** Test hook (fault injection): the write of this relative path fails during apply. */
@@ -159,13 +159,13 @@ export class ChangeSetService {
 
   private source(id: string): SourceRowLite {
     const s = this.rt.db.get<SourceRowLite>('SELECT id, kind, name, root_path, writable, access_mode FROM sources WHERE id = ?', id);
-    if (!s) throw new AppError('NOT_FOUND', `Источник ${id} не найден в этой системе.`);
+    if (!s) throw new AppError('NOT_FOUND', `Source ${id} was not found in this system.`);
     return s;
   }
 
   private setRow(id: string): SetRow {
     const r = this.rt.db.get<SetRow>('SELECT * FROM change_sets WHERE id = ?', id);
-    if (!r) throw new AppError('NOT_FOUND', 'Набор изменений не найден.');
+    if (!r) throw new AppError('NOT_FOUND', 'Change set not found.');
     return r;
   }
 
@@ -187,7 +187,7 @@ export class ChangeSetService {
     const hash = this.contentHash(setId);
     this.rt.db.run('UPDATE change_sets SET content_hash = ? WHERE id = ?', hash, setId);
     if (s.reviewed_hash && s.reviewed_hash !== hash) {
-      this.rt.security.record({ actor, action: 'review.stale', outcome: 'warning', taskId: s.mission_id ?? setId, message: `Набор «${s.title}» изменился после проверки — прежнее согласование недействительно, нужна повторная проверка.`, details: { changeSetId: setId } });
+      this.rt.security.record({ actor, action: 'review.stale', outcome: 'warning', taskId: s.mission_id ?? setId, message: `The set "${s.title}" changed after the review: the earlier approval is no longer valid, a new review is needed.`, details: { changeSetId: setId } });
     }
   }
 
@@ -216,7 +216,7 @@ export class ChangeSetService {
   /** Adds (or replaces) one file change in a proposed set. Never touches the project. */
   async propose(setId: string, input: ProposeFileInput, actor = 'user'): Promise<ChangeFileView> {
     const set = this.setRow(setId);
-    if (set.status !== 'proposed') throw new AppError('INVALID_STATE_TRANSITION', 'Набор изменений уже применён или отклонён — создайте новый.');
+    if (set.status !== 'proposed') throw new AppError('INVALID_STATE_TRANSITION', 'The change set was already applied or rejected: create a new one.');
     const src = this.source(input.sourceId);
     const rel = normalizeRelPath(input.path);
     const deny = (message: string, code: 'MODE_FORBIDS' | 'PATH_OUTSIDE_SCOPE' | 'PERMISSION_DENIED') => {
@@ -224,19 +224,19 @@ export class ChangeSetService {
       throw new AppError(code, message);
     };
     if (src.kind === 'project' && !modeAtLeast(src.access_mode, 'prepare')) {
-      deny(`Проект «${src.name}» в режиме «${modeLabel(src.access_mode)}»: подготовка изменений не разрешена.`, 'MODE_FORBIDS');
+      deny(`The project "${src.name}" is in "${modeLabel(src.access_mode)}" mode: preparing changes is not allowed.`, 'MODE_FORBIDS');
     }
-    for (const seg of rel.split('/')) if (PROTECTED.has(seg)) deny(`Изменения в служебной папке «${seg}» запрещены.`, 'PATH_OUTSIDE_SCOPE');
+    for (const seg of rel.split('/')) if (PROTECTED.has(seg)) deny(`Changes in the service folder "${seg}" are not allowed.`, 'PATH_OUTSIDE_SCOPE');
     const cats = categorize(rel);
     for (const c of cats) if (NEVER_WRITE.includes(c)) deny(`${CATEGORY_TEXT[c].label}: ${CATEGORY_TEXT[c].risk}`, 'PERMISSION_DENIED');
     if (input.op !== 'delete') {
-      if (typeof input.content !== 'string') throw new AppError('VALIDATION_FAILED', 'Для создания или изменения файла нужно новое содержимое (content).');
-      if (input.content.length > MAX_FILE_CHARS) throw new AppError('FILE_TOO_LARGE', 'Предлагаемое содержимое больше 1 млн символов.');
-      if (detectSecretContent(input.content)) deny('Предлагаемое содержимое похоже на секрет (ключ, токен, приватный ключ). Такие изменения не принимаются.', 'PERMISSION_DENIED');
+      if (typeof input.content !== 'string') throw new AppError('VALIDATION_FAILED', 'Creating or modifying a file needs the new content (content).');
+      if (input.content.length > MAX_FILE_CHARS) throw new AppError('FILE_TOO_LARGE', 'The proposed content is longer than 1 million characters.');
+      if (detectSecretContent(input.content)) deny('The proposed content looks like a secret (a key, a token, a private key). Such changes are not accepted.', 'PERMISSION_DENIED');
     }
     const count = this.rt.db.get<{ c: number }>('SELECT COUNT(*) AS c FROM change_set_files WHERE change_set_id = ?', setId)!.c;
     const replacing = this.rt.db.get<{ id: string }>('SELECT id FROM change_set_files WHERE change_set_id = ? AND source_id = ? AND rel_path = ?', setId, src.id, rel);
-    if (!replacing && count >= MAX_FILES_PER_SET) throw new AppError('VALIDATION_FAILED', `В одном наборе не больше ${MAX_FILES_PER_SET} файлов.`);
+    if (!replacing && count >= MAX_FILES_PER_SET) throw new AppError('VALIDATION_FAILED', `No more than ${MAX_FILES_PER_SET} files in one set.`);
 
     let current: { text: string; hash: string } | null = null;
     try {
@@ -245,13 +245,13 @@ export class ChangeSetService {
     } catch (e) {
       if (toAppError(e).code !== 'NOT_FOUND') throw e;
     }
-    if (input.op === 'create' && current) throw new AppError('WRITE_CONFLICT', `Файл ${rel} уже существует — предложите изменение (modify), а не создание.`);
-    if (input.op !== 'create' && !current) throw new AppError('NOT_FOUND', `Файл ${rel} не найден — его нельзя изменить или удалить.`);
+    if (input.op === 'create' && current) throw new AppError('WRITE_CONFLICT', `The file ${rel} already exists: propose a change (modify), not a creation.`);
+    if (input.op !== 'create' && !current) throw new AppError('NOT_FOUND', `The file ${rel} was not found: it cannot be modified or deleted.`);
 
     const baseBlob = current ? this.rt.history.putBlob(current.text) : null;
     const newBlob = input.op === 'delete' ? null : this.rt.history.putBlob(input.content!);
     const newHash = input.op === 'delete' ? null : sha256(input.content!);
-    if (input.op === 'modify' && newHash === current?.hash) throw new AppError('VALIDATION_FAILED', `Предлагаемое содержимое ${rel} совпадает с текущим — изменений нет.`);
+    if (input.op === 'modify' && newHash === current?.hash) throw new AppError('VALIDATION_FAILED', `The proposed content of ${rel} is the same as the current one: there are no changes.`);
     const rationale = (input.rationale ?? '').slice(0, 2000);
     let id: string;
     if (replacing) {
@@ -320,22 +320,22 @@ export class ChangeSetService {
     for (const sid of new Set(files.filter((f) => f.status !== 'skipped').map((f) => f.source_id))) {
       const src = this.rt.db.get<SourceRowLite>('SELECT id, kind, name, root_path, writable, access_mode FROM sources WHERE id = ?', sid);
       if (!src) {
-        out.push({ sourceId: sid, sourceName: '(источник отключён)', kind: 'project', mode: 'read_only', modeLabel: '—', modeAllows: false, checksConfigured: [], checksPassed: false, allowed: false, reasons: ['источник отключён от системы'] });
+        out.push({ sourceId: sid, sourceName: '(source disconnected)', kind: 'project', mode: 'read_only', modeLabel: '—', modeAllows: false, checksConfigured: [], checksPassed: false, allowed: false, reasons: ['the source is disconnected from the system'] });
         continue;
       }
       const reasons: string[] = [];
       if (src.kind === 'vault') {
-        if (!src.writable) reasons.push('хранилище открыто только для чтения');
-        if (s.reviewed_hash !== s.content_hash) reasons.push(s.reviewed_hash ? 'набор изменился после проверки' : 'изменения не просмотрены');
-        out.push({ sourceId: sid, sourceName: src.name, kind: 'vault', mode: 'vault', modeLabel: 'Хранилище системы', modeAllows: !!src.writable, checksConfigured: [], checksPassed: true, allowed: reasons.length === 0, reasons });
+        if (!src.writable) reasons.push('the vault is open read only');
+        if (s.reviewed_hash !== s.content_hash) reasons.push(s.reviewed_hash ? 'the set changed after the review' : 'the changes were not reviewed');
+        out.push({ sourceId: sid, sourceName: src.name, kind: 'vault', mode: 'vault', modeLabel: 'System vault', modeAllows: !!src.writable, checksConfigured: [], checksPassed: true, allowed: reasons.length === 0, reasons });
         continue;
       }
       const required = projectChecks(this.rt, sid).filter((c) => c.required !== false).map((c) => c.name);
       const modeAllows = src.access_mode === 'apply';
-      if (!modeAllows) reasons.push(`режим проекта «${modeLabel(src.access_mode)}» не разрешает применение к исходным файлам`);
-      if (s.reviewed_hash !== s.content_hash) reasons.push(s.reviewed_hash ? 'набор изменился после проверки — нужна повторная проверка' : 'изменения не просмотрены');
+      if (!modeAllows) reasons.push(`the project mode "${modeLabel(src.access_mode)}" does not allow applying to the original files`);
+      if (s.reviewed_hash !== s.content_hash) reasons.push(s.reviewed_hash ? 'the set changed after the review: a new review is needed' : 'the changes were not reviewed');
       const checksPassed = !required.length || verifiedNow;
-      if (!checksPassed) reasons.push(verification && s.verified_hash === s.content_hash ? 'проверки в рабочей копии не пройдены' : `нужно пройти проверки (${required.join(', ')}) в рабочей копии для текущего содержимого`);
+      if (!checksPassed) reasons.push(verification && s.verified_hash === s.content_hash ? 'the checks in the work copy failed' : `the checks (${required.join(', ')}) must pass in a work copy for the current content`);
       out.push({ sourceId: sid, sourceName: src.name, kind: 'project', mode: src.access_mode, modeLabel: modeLabel(src.access_mode), modeAllows, checksConfigured: required, checksPassed, allowed: reasons.length === 0, reasons });
     }
     return out;
@@ -346,7 +346,7 @@ export class ChangeSetService {
     const all = this.files(id);
     const names = new Map<string, string>();
     const files = all.map((f) => {
-      if (!names.has(f.source_id)) names.set(f.source_id, this.rt.db.get<{ name: string }>('SELECT name FROM sources WHERE id = ?', f.source_id)?.name ?? '(источник отключён)');
+      if (!names.has(f.source_id)) names.set(f.source_id, this.rt.db.get<{ name: string }>('SELECT name FROM sources WHERE id = ?', f.source_id)?.name ?? '(source disconnected)');
       return this.fileView(f, names.get(f.source_id)!, opts.withDiff ?? true);
     });
     const active = all.filter((f) => f.status !== 'skipped');
@@ -401,7 +401,7 @@ export class ChangeSetService {
   /** The whole set as one unified diff (review, or applying manually with `git apply`). Export is logged. */
   patch(id: string, actor = 'user'): string {
     const view = this.get(id, { withDiff: true });
-    this.rt.security.record({ actor, action: 'patch.export', outcome: 'ok', taskId: view.missionId ?? id, resources: view.files.filter((f) => f.status !== 'skipped').map((f) => f.path), message: `Экспортирован патч набора «${view.title}»` });
+    this.rt.security.record({ actor, action: 'patch.export', outcome: 'ok', taskId: view.missionId ?? id, resources: view.files.filter((f) => f.status !== 'skipped').map((f) => f.path), message: `Exported the patch of the set "${view.title}"` });
     return view.files
       .filter((f) => f.status !== 'skipped')
       .map((f) => f.diff ?? '')
@@ -411,19 +411,19 @@ export class ChangeSetService {
   /** The user confirms they reviewed exactly the current content (29.7). */
   review(id: string, actor = 'user'): ChangeSetView {
     const s = this.setRow(id);
-    if (s.status !== 'proposed' && s.status !== 'conflict' && s.status !== 'partially_applied') throw new AppError('INVALID_STATE_TRANSITION', 'Набор уже применён или отклонён.');
+    if (s.status !== 'proposed' && s.status !== 'conflict' && s.status !== 'partially_applied') throw new AppError('INVALID_STATE_TRANSITION', 'The set was already applied or rejected.');
     const hash = this.contentHash(id);
     this.rt.db.run('UPDATE change_sets SET content_hash = ?, reviewed_hash = ?, reviewed_at = ?, reviewed_by = ? WHERE id = ?', hash, hash, nowIso(), actor, id);
-    this.rt.security.record({ actor, action: 'review.approve', outcome: 'ok', taskId: s.mission_id ?? id, resources: this.files(id).filter((f) => f.status !== 'skipped').map((f) => f.rel_path), message: `Набор «${s.title}» просмотрен и отмечен как проверенный`, details: { contentHash: hash } });
+    this.rt.security.record({ actor, action: 'review.approve', outcome: 'ok', taskId: s.mission_id ?? id, resources: this.files(id).filter((f) => f.status !== 'skipped').map((f) => f.rel_path), message: `The set "${s.title}" was reviewed and marked as checked`, details: { contentHash: hash } });
     this.rt.emit('changes.changed', { changeSetId: id, missionId: s.mission_id });
     return this.get(id);
   }
 
-  /** «Отклонить выбранные изменения»: the files are excluded; the review must be repeated for the rest. */
+  /** "Reject selected changes": the files are excluded; the review must be repeated for the rest. */
   rejectFiles(id: string, fileIds: string[], actor = 'user'): ChangeSetView {
     const s = this.setRow(id);
-    if (s.status !== 'proposed' && s.status !== 'conflict') throw new AppError('INVALID_STATE_TRANSITION', 'Отклонять файлы можно только в неприменённом наборе.');
-    for (const f of fileIds) this.rt.db.run("UPDATE change_set_files SET status = 'skipped', status_detail = 'отклонено пользователем' WHERE id = ? AND change_set_id = ?", f, id);
+    if (s.status !== 'proposed' && s.status !== 'conflict') throw new AppError('INVALID_STATE_TRANSITION', 'Files can be rejected only in a set that is not applied.');
+    for (const f of fileIds) this.rt.db.run("UPDATE change_set_files SET status = 'skipped', status_detail = 'rejected by the user' WHERE id = ? AND change_set_id = ?", f, id);
     this.refreshHash(id, actor);
     this.rt.audit.record({ actor, action: 'changeset.reject_files', target: id, details: { fileIds } });
     this.rt.emit('changes.changed', { changeSetId: id, missionId: s.mission_id });
@@ -456,7 +456,7 @@ export class ChangeSetService {
 
   /**
    * Brings the set's files of one project into the project's work copy (created on first use, never the original).
-   * Requires mode «Работать в копии» or higher — enforced by WorkCopyService.create.
+   * Requires mode "Work in a copy" or higher — enforced by WorkCopyService.create.
    */
   async applyToWorkCopy(setId: string, sourceId: string, actor: string): Promise<{ id: string; rootPath: string }> {
     const s = this.setRow(setId);
@@ -478,12 +478,12 @@ export class ChangeSetService {
   }
 
   /**
-   * «Повторно проверить»: applies the set to a work copy and runs the project's checks there. The original
+   * "Check again": applies the set to a work copy and runs the project's checks there. The original
    * project is not touched. The result is bound to the current content hash.
    */
   async verifyInWorkCopy(id: string, opts: { actor: string; approvedScripts?: Record<string, string>; signal?: AbortSignal }): Promise<ChangeSetView> {
     const s = this.setRow(id);
-    if (s.status !== 'proposed' && s.status !== 'conflict') throw new AppError('INVALID_STATE_TRANSITION', 'Проверять можно только неприменённый набор.');
+    if (s.status !== 'proposed' && s.status !== 'conflict') throw new AppError('INVALID_STATE_TRANSITION', 'Only a set that is not applied can be checked.');
     const hash = this.contentHash(id);
     const results: Verification['results'] = [];
     const notes: string[] = [];
@@ -492,7 +492,7 @@ export class ChangeSetService {
       if (src.kind !== 'project') continue;
       const wc = await this.applyToWorkCopy(id, sid, opts.actor);
       const defs = projectChecks(this.rt, sid);
-      if (!defs.length) notes.push(`Для проекта «${src.name}» проверки не настроены: корректность изменений не подтверждена автоматически.`);
+      if (!defs.length) notes.push(`No checks are configured for the project "${src.name}": the correctness of the changes is not confirmed automatically.`);
       for (const def of defs) {
         try {
           const r = await runCheck(this.rt, sid, def.name, { workCopy: wc, actor: opts.actor, runId: s.mission_id ?? id, approvedContentHash: opts.approvedScripts?.[`${sid}:${def.name}`] ?? null, ...(opts.signal ? { signal: opts.signal } : {}) });
@@ -515,29 +515,29 @@ export class ChangeSetService {
    */
   async apply(id: string, opts: { actor: string; fileIds?: string[]; confirmRisks?: string[] }): Promise<ChangeSetView> {
     const s = this.setRow(id);
-    if (!['proposed', 'partially_applied', 'conflict'].includes(s.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Набор уже применён, отменён или отклонён.');
+    if (!['proposed', 'partially_applied', 'conflict'].includes(s.status)) throw new AppError('INVALID_STATE_TRANSITION', 'The set was already applied, reverted or rejected.');
     const all = this.files(id);
     const targets = all.filter((f) => (f.status === 'pending' || f.status === 'conflict' || f.status === 'failed') && (!opts.fileIds || opts.fileIds.includes(f.id)));
-    if (!targets.length) throw new AppError('VALIDATION_FAILED', 'В наборе нет файлов для применения.');
+    if (!targets.length) throw new AppError('VALIDATION_FAILED', 'The set has no files to apply.');
     const hash = this.contentHash(id);
     if (hash !== s.content_hash) this.rt.db.run('UPDATE change_sets SET content_hash = ? WHERE id = ?', hash, id);
     const view = this.get(id, { withDiff: false });
     const deny = (code: 'MODE_FORBIDS' | 'REVIEW_REQUIRED' | 'REVIEW_STALE' | 'CHECKS_REQUIRED' | 'CONFIRMATION_REQUIRED', message: string, details?: unknown) => {
-      this.rt.security.record({ actor: opts.actor, action: 'files.apply', outcome: 'denied', taskId: s.mission_id ?? id, resources: targets.map((t) => t.rel_path), message: `Применение заблокировано: ${message}` });
+      this.rt.security.record({ actor: opts.actor, action: 'files.apply', outcome: 'denied', taskId: s.mission_id ?? id, resources: targets.map((t) => t.rel_path), message: `Applying was blocked: ${message}` });
       throw new AppError(code, message, details ? { details } : undefined);
     };
     // 1. every gate for every touched source, before writing anything
     for (const g of view.gates.filter((x) => targets.some((t) => t.source_id === x.sourceId))) {
-      if (!g.modeAllows) deny('MODE_FORBIDS', g.kind === 'vault' ? 'Хранилище открыто только для чтения.' : `Проект «${g.sourceName}» в режиме «${g.modeLabel}»: применение к исходным файлам не разрешено.`);
+      if (!g.modeAllows) deny('MODE_FORBIDS', g.kind === 'vault' ? 'The vault is open read only.' : `The project "${g.sourceName}" is in "${g.modeLabel}" mode: applying to the original files is not allowed.`);
     }
-    if (!view.review.reviewed) deny(view.review.stale ? 'REVIEW_STALE' : 'REVIEW_REQUIRED', view.review.stale ? 'Набор изменился после проверки: просмотрите изменения снова.' : 'Сначала просмотрите изменения и отметьте набор как проверенный.');
+    if (!view.review.reviewed) deny(view.review.stale ? 'REVIEW_STALE' : 'REVIEW_REQUIRED', view.review.stale ? 'The set changed after the review: review the changes again.' : 'Review the changes first and mark the set as checked.');
     for (const g of view.gates.filter((x) => targets.some((t) => t.source_id === x.sourceId))) {
-      if (!g.checksPassed) deny('CHECKS_REQUIRED', `Проект «${g.sourceName}»: изменения должны пройти проверки (${g.checksConfigured.join(', ')}) в рабочей копии.`);
+      if (!g.checksPassed) deny('CHECKS_REQUIRED', `Project "${g.sourceName}": the changes must pass the checks (${g.checksConfigured.join(', ')}) in a work copy.`);
     }
     const targetRisks = view.risks.filter((r) => r.files.some((p) => targets.some((t) => t.rel_path === p && r.id.startsWith(`${t.source_id}:`))));
     const missing = targetRisks.filter((r) => !(opts.confirmRisks ?? []).includes(r.id));
-    if (missing.length) deny('CONFIRMATION_REQUIRED', `Требуется отдельное подтверждение: ${missing.map((r) => r.title).join('; ')}.`, { risks: missing });
-    if (targetRisks.length) this.rt.security.record({ actor: opts.actor, action: 'confirm.risky', outcome: 'ok', taskId: s.mission_id ?? id, resources: targetRisks.flatMap((r) => r.files), message: `Подтверждены рискованные изменения: ${targetRisks.map((r) => r.title).join('; ')}` });
+    if (missing.length) deny('CONFIRMATION_REQUIRED', `A separate confirmation is required: ${missing.map((r) => r.title).join('; ')}.`, { risks: missing });
+    if (targetRisks.length) this.rt.security.record({ actor: opts.actor, action: 'confirm.risky', outcome: 'ok', taskId: s.mission_id ?? id, resources: targetRisks.flatMap((r) => r.files), message: `Risky changes were confirmed: ${targetRisks.map((r) => r.title).join('; ')}` });
 
     // 2. conflicts: the original must still be what the proposal was based on
     const conflicts: string[] = [];
@@ -554,13 +554,13 @@ export class ChangeSetService {
       const expected = f.op === 'create' ? null : f.base_hash;
       if (cur !== expected || notFile) {
         conflicts.push(f.rel_path);
-        this.rt.db.run("UPDATE change_set_files SET status = 'conflict', status_detail = ? WHERE id = ?", notFile ? 'На месте файла находится папка.' : cur === null ? 'Файл удалён после подготовки изменения.' : f.op === 'create' ? 'Файл с таким именем уже появился.' : 'Файл изменён после подготовки изменения.', f.id);
+        this.rt.db.run("UPDATE change_set_files SET status = 'conflict', status_detail = ? WHERE id = ?", notFile ? 'There is a folder where the file should be.' : cur === null ? 'The file was deleted after the change was prepared.' : f.op === 'create' ? 'A file with this name has appeared.' : 'The file changed after the change was prepared.', f.id);
       }
     }
     if (conflicts.length) {
       this.rt.db.run("UPDATE change_sets SET status = 'conflict' WHERE id = ?", id);
-      this.rt.security.record({ actor: opts.actor, action: 'files.apply', outcome: 'denied', taskId: s.mission_id ?? id, resources: conflicts, message: `Применение остановлено: файлы изменились после подготовки (${conflicts.length}). Ничего не записано.` });
-      throw new AppError('WRITE_CONFLICT', `Файлы изменились после подготовки изменений: ${conflicts.join(', ')}. Ничего не записано — подготовьте изменения заново или исключите эти файлы.`, { details: { conflicts } });
+      this.rt.security.record({ actor: opts.actor, action: 'files.apply', outcome: 'denied', taskId: s.mission_id ?? id, resources: conflicts, message: `Applying was stopped: files changed after the changes were prepared (${conflicts.length}). Nothing was written.` });
+      throw new AppError('WRITE_CONFLICT', `Files changed after the changes were prepared: ${conflicts.join(', ')}. Nothing was written: prepare the changes again or exclude these files.`, { details: { conflicts } });
     }
 
     // 3. verified backup per project (vault files are covered by version history)
@@ -583,7 +583,7 @@ export class ChangeSetService {
       const scope = { roots: [src.root_path], writable: true };
       const history = { sourceId: src.id, relPath: f.rel_path, docId: null };
       try {
-        if (this.simulateWriteFailure === f.rel_path) throw new AppError('SOURCE_NOT_ACCESSIBLE', 'Ошибка записи на диск (имитация для тестов).');
+        if (this.simulateWriteFailure === f.rel_path) throw new AppError('SOURCE_NOT_ACCESSIBLE', 'Disk write error (simulated for tests).');
         if (f.op === 'delete') {
           const cur = await this.rt.fs.readText(abs, { roots: [src.root_path], writable: false });
           this.rt.history.snapshot({ ...history, content: cur.text, reason: 'before:changeset-delete', actor: opts.actor });
@@ -591,7 +591,7 @@ export class ChangeSetService {
           this.rt.db.run("UPDATE change_set_files SET status = 'applied', status_detail = NULL, trash_path = ? WHERE id = ?", trashed, f.id);
         } else {
           const content = this.rt.history.getBlob(f.new_blob!);
-          if (content === null) throw new AppError('INTEGRITY_CHECK_FAILED', 'Содержимое изменения не найдено в базе.');
+          if (content === null) throw new AppError('INTEGRITY_CHECK_FAILED', 'The content of the change was not found in the database.');
           await this.rt.fs.writeText(abs, content, { scope, expectedHash: f.op === 'create' ? null : f.base_hash!, reason: 'changeset', actor: opts.actor, history });
           this.rt.db.run("UPDATE change_set_files SET status = 'applied', status_detail = NULL WHERE id = ?", f.id);
         }
@@ -623,8 +623,8 @@ export class ChangeSetService {
       taskId: s.mission_id ?? id,
       resources: report.written,
       message: failure
-        ? `Применение остановлено на файле ${failure.path}: ${failure.message}. Записано ${applied} файлов; исходное состояние сохранено в резервной копии — восстановление доступно в разделе «Резервные копии».`
-        : `Применено к исходным файлам: ${applied}. Резервная копия: ${backupIds.join(', ') || 'история версий хранилища'}.`,
+        ? `Applying stopped at the file ${failure.path}: ${failure.message}. ${applied} files were written; the original state is saved in a backup, and you can restore it in "Backups".`
+        : `Applied to the original files: ${applied}. Backup: ${backupIds.join(', ') || 'the vault version history'}.`,
       details: report,
     });
     this.rt.emit('changes.changed', { changeSetId: id, missionId: s.mission_id, status });
@@ -638,7 +638,7 @@ export class ChangeSetService {
    */
   async revert(id: string, opts: { actor: string; confirmOverwrite?: boolean }): Promise<ChangeSetView> {
     const s = this.setRow(id);
-    if (s.status !== 'applied' && s.status !== 'partially_applied') throw new AppError('INVALID_STATE_TRANSITION', 'Откатить можно только применённый набор.');
+    if (s.status !== 'applied' && s.status !== 'partially_applied') throw new AppError('INVALID_STATE_TRANSITION', 'Only an applied set can be reverted.');
     const report = parseJson<{ backups?: string[] }>(s.report, {});
     for (const bid of report.backups ?? []) await this.backups.restore(bid, { actor: opts.actor, ...(opts.confirmOverwrite ? { confirmOverwrite: true } : {}) });
     const touched = new Map<string, string[]>();
@@ -646,7 +646,7 @@ export class ChangeSetService {
     for (const f of this.files(id).filter((x) => x.status === 'applied')) {
       const src = this.source(f.source_id);
       if (src.kind === 'project') {
-        this.rt.db.run("UPDATE change_set_files SET status = 'reverted', status_detail = 'восстановлено из резервной копии' WHERE id = ?", f.id);
+        this.rt.db.run("UPDATE change_set_files SET status = 'reverted', status_detail = 'restored from the backup' WHERE id = ?", f.id);
         touched.set(src.id, [...(touched.get(src.id) ?? []), f.rel_path]);
         continue;
       }
@@ -656,7 +656,7 @@ export class ChangeSetService {
       try {
         if (f.op === 'create') {
           const cur = await this.rt.fs.readText(abs, { roots: [src.root_path], writable: false });
-          if (cur.hash !== f.new_hash) throw new AppError('WRITE_CONFLICT', 'Файл изменён после применения — откат пропущен.');
+          if (cur.hash !== f.new_hash) throw new AppError('WRITE_CONFLICT', 'The file changed after it was applied: the revert was skipped.');
           this.rt.history.snapshot({ ...history, content: cur.text, reason: 'before:changeset-revert', actor: opts.actor });
           await this.rt.fs.trash(abs, f.rel_path, this.rt.paths.trashDir, scope);
         } else {
@@ -668,7 +668,7 @@ export class ChangeSetService {
         touched.set(src.id, [...(touched.get(src.id) ?? []), f.rel_path]);
       } catch (e) {
         conflicts++;
-        this.rt.db.run('UPDATE change_set_files SET status_detail = ? WHERE id = ?', `Откат не выполнен: ${toAppError(e).message}`, f.id);
+        this.rt.db.run('UPDATE change_set_files SET status_detail = ? WHERE id = ?', `The revert failed: ${toAppError(e).message}`, f.id);
       }
     }
     for (const [sid, paths] of touched) await this.indexer.indexPaths(sid, paths).catch(() => undefined);
@@ -681,7 +681,7 @@ export class ChangeSetService {
 
   reject(id: string, opts: { actor: string; reason?: string }): ChangeSetView {
     const s = this.setRow(id);
-    if (s.status !== 'proposed' && s.status !== 'conflict') throw new AppError('INVALID_STATE_TRANSITION', 'Отклонить можно только неприменённый набор.');
+    if (s.status !== 'proposed' && s.status !== 'conflict') throw new AppError('INVALID_STATE_TRANSITION', 'Only a set that is not applied can be rejected.');
     this.rt.db.run("UPDATE change_sets SET status = 'rejected', report = ? WHERE id = ?", JSON.stringify({ reason: opts.reason ?? null }), id);
     this.rt.db.run("UPDATE change_set_files SET status = 'skipped' WHERE change_set_id = ? AND status IN ('pending','conflict','failed')", id);
     this.rt.audit.record({ actor: opts.actor, action: 'changeset.reject', target: id, details: { reason: opts.reason ?? null } });

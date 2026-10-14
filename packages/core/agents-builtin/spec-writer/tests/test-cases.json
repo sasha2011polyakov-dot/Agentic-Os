@@ -1,10 +1,10 @@
 {
   "cases": [
     {
-      "name": "минимальный набор",
+      "name": "minimal set",
       "input": {
-        "title": "Вход",
-        "goal": "Вход по паролю",
+        "title": "Login",
+        "goal": "Password login",
         "requirements": [],
         "tasks": []
       },

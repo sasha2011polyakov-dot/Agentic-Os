@@ -12,7 +12,7 @@ describe('system lifecycle', () => {
       expect(a.systemId).toMatch(/^sys_/);
       expect(a.status).toBe('connected');
       expect(await fileExists(join(t.sysDir('a'), '.aos', 'system.db'))).toBe(true);
-      expect(await fileExists(join(t.sysDir('a'), 'Добро пожаловать.md'))).toBe(true);
+      expect(await fileExists(join(t.sysDir('a'), 'Welcome.md'))).toBe(true);
       const aTree = await hashTree(t.sysDir('a'), { skip: (r) => r.startsWith('.aos/') });
 
       const b = await t.core.systems.create({ name: 'B', storagePath: t.sysDir('b') });

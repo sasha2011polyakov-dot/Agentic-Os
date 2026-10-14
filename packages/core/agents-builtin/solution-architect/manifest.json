@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "solution-architect",
-  "name": "Архитектор решений",
-  "version": "1.0.0",
-  "description": "Формирует и сравнивает варианты решения (готовое, адаптация, библиотека, собственная разработка) и выбирает стратегию.",
+  "name": "Solution architect",
+  "version": "1.0.1",
+  "description": "Builds and compares solution options (ready-made, adaptation, library, own development) and chooses a strategy.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",

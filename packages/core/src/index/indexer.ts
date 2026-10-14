@@ -126,7 +126,7 @@ export class Indexer {
 
   source(sourceId: string): SourceRow {
     const s = this.rt.db.get<SourceRow>('SELECT * FROM sources WHERE id = ?', sourceId);
-    if (!s) throw new AppError('NOT_FOUND', 'Источник не найден.');
+    if (!s) throw new AppError('NOT_FOUND', 'Source not found.');
     return s;
   }
 
@@ -168,12 +168,12 @@ export class Indexer {
       const st = await stat(s.root_path);
       if (!st.isDirectory()) throw new Error('not a directory');
     } catch (e) {
-      this.setStatus(sourceId, 'unavailable', `Папка недоступна: ${errorMessage(e)}`);
+      this.setStatus(sourceId, 'unavailable', `Folder unavailable: ${errorMessage(e)}`);
       throw new AppError('SOURCE_NOT_ACCESSIBLE', undefined, { details: { path: s.root_path } });
     }
     const controller = new AbortController();
     this.controllers.set(sourceId, controller);
-    this.setStatus(sourceId, 'indexing', 'Сканирование…');
+    this.setStatus(sourceId, 'indexing', 'Scanning…');
     try {
       const existing = new Map(this.rt.db.all<ExistingFile>('SELECT id, rel_path, size, mtime_ms, hash, status, skip_reason FROM files WHERE source_id = ?', sourceId).map((f) => [f.rel_path, f]));
       const seen = new Set<string>();
@@ -191,7 +191,7 @@ export class Indexer {
       } else {
         this.controllers.delete(sourceId);
         stats.durationMs = Date.now() - started;
-        this.setStatus(sourceId, 'error', `Ошибка индексации: ${errorMessage(e)}`, { stats });
+        this.setStatus(sourceId, 'error', `Indexing error: ${errorMessage(e)}`, { stats });
         this.rt.log.error('indexing failed', { sourceId, error: e as Error });
         throw e;
       }
@@ -200,7 +200,7 @@ export class Indexer {
     }
     stats.durationMs = Date.now() - started;
     stats.documents = this.rt.db.get<{ c: number }>('SELECT COUNT(*) AS c FROM documents WHERE source_id = ?', sourceId)!.c;
-    const message = stats.cancelled ? 'Индексация отменена: обработанные файлы сохранены.' : stats.errors ? `Готово с ошибками: ${stats.errors}` : null;
+    const message = stats.cancelled ? 'Indexing cancelled: processed files were saved.' : stats.errors ? `Done with errors: ${stats.errors}` : null;
     this.setStatus(sourceId, stats.cancelled ? 'ready' : 'ready', message, { stats });
     this.rt.emit('index.done', stats);
     this.rt.audit.record({ actor: 'system', action: 'index.scan', target: sourceId, outcome: stats.errors ? 'error' : 'ok', details: { ...stats, errorSamples: stats.errorSamples.slice(0, 5) } });
@@ -580,7 +580,7 @@ export class Indexer {
       if (!l.target_key) continue; // same-document anchor
       if (l.resolved_doc_id) {
         if (l.resolved_doc_id === docId) continue;
-        edges.push({ src: from, dst: docNodeId(l.resolved_doc_id), relation: l.relation, origin: 'explicit', evidence: l.kind === 'frontmatter' ? `свойство документа` : null });
+        edges.push({ src: from, dst: docNodeId(l.resolved_doc_id), relation: l.relation, origin: 'explicit', evidence: l.kind === 'frontmatter' ? `document property` : null });
       } else if (!this.resolver.isAttachment(l.target_raw, doc.source_id)) {
         const uid = unresolvedNodeId(l.target_key);
         this.graph.upsertNode({ id: uid, type: 'unresolved', label: l.target_raw, refId: l.target_key, sourceId: null, props: { target: l.target_raw } });
@@ -590,7 +590,7 @@ export class Indexer {
     if (src.kind === 'project') {
       const pid = projectNodeId(doc.source_id);
       this.graph.upsertNode({ id: pid, type: src.is_git ? 'repository' : 'project', label: src.name, refId: doc.source_id, sourceId: doc.source_id, props: {} });
-      edges.push({ src: from, dst: pid, relation: 'belongs_to', origin: 'extracted', evidence: 'файл находится в папке проекта' });
+      edges.push({ src: from, dst: pid, relation: 'belongs_to', origin: 'extracted', evidence: 'the file is in the project folder' });
     }
     const fm = parseJson<Record<string, unknown>>(doc.frontmatter, {});
     const projectRef = typeof fm.project === 'string' ? fm.project.replace(/^\[\[|\]\]$/g, '').trim() : null;
@@ -599,7 +599,7 @@ export class Indexer {
       if (proj) {
         const pid = projectNodeId(proj.id);
         this.graph.upsertNode({ id: pid, type: proj.is_git ? 'repository' : 'project', label: proj.name, refId: proj.id, sourceId: proj.id, props: {} });
-        edges.push({ src: from, dst: pid, relation: 'belongs_to', origin: 'explicit', evidence: 'свойство project' });
+        edges.push({ src: from, dst: pid, relation: 'belongs_to', origin: 'explicit', evidence: 'project property' });
       }
     }
     // Traceability: requirement IDs mentioned in project files (code → implements, tests → verifies).
@@ -608,7 +608,7 @@ export class Indexer {
       const body = db.get<{ body: string }>('SELECT body FROM documents_fts WHERE rowid = ?', doc.n)?.body ?? '';
       for (const reqId of findRequirementIds(body).slice(0, 50)) {
         const req = db.get<{ id: string }>('SELECT id FROM documents WHERE upper(fm_id) = ? AND id <> ?', reqId.toUpperCase(), docId);
-        if (req) edges.push({ src: from, dst: docNodeId(req.id), relation: doc.doc_type === 'test' ? 'verifies' : 'implements', origin: 'extracted', evidence: `упоминание ${reqId}` });
+        if (req) edges.push({ src: from, dst: docNodeId(req.id), relation: doc.doc_type === 'test' ? 'verifies' : 'implements', origin: 'extracted', evidence: `mentions ${reqId}` });
       }
     }
     this.graph.setDerivedEdges(`doc:${docId}`, dedupe(edges));

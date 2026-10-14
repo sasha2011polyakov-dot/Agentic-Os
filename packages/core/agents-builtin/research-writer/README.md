@@ -1,11 +1,11 @@
-# Автор отчёта исследования
+# Research report writer
 
-Пишет отчёт исследования строго на основе проверенных утверждений.
+Writes a research report strictly based on verified claims.
 
-- Тип задачи для маршрутизации моделей: `generation`
-- Инструменты: нет (работает только с переданными данными)
+- Task type for model routing: `generation`
+- Tools: none (works only with the data it receives)
 
-## Запрашиваемые разрешения
-- не требуются
+## Requested permissions
+- none
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

@@ -49,23 +49,23 @@ export class ModelRouter {
     const mode: AiMode = req.policy.mode && req.policy.mode !== 'inherit' ? req.policy.mode : env.aiMode;
     const reasons: string[] = [];
     const cloudAllowed = (taskType: TaskType): { ok: boolean; why: string } => {
-      if (env.offline) return { ok: false, why: 'офлайн-режим' };
-      if (req.containsConfidential) return { ok: false, why: 'контекст содержит конфиденциальный источник' };
-      if (mode === 'local') return { ok: false, why: 'режим «Локальный AI»' };
-      if (mode === 'cloud') return { ok: true, why: 'режим «Облако»' };
+      if (env.offline) return { ok: false, why: 'offline mode' };
+      if (req.containsConfidential) return { ok: false, why: 'the context contains a confidential source' };
+      if (mode === 'local') return { ok: false, why: '"Local AI" mode' };
+      if (mode === 'cloud') return { ok: true, why: '"Cloud" mode' };
       // hybrid
-      if (req.policy.allowCloud) return { ok: true, why: 'политика агента разрешает облако' };
-      if (env.cloudPolicy.allowedTaskTypes.includes(taskType)) return { ok: true, why: `гибридная политика разрешает облако для «${taskType}»` };
-      return { ok: false, why: 'гибридная политика не разрешает облако для этого типа задач' };
+      if (req.policy.allowCloud) return { ok: true, why: 'the agent policy allows the cloud' };
+      if (env.cloudPolicy.allowedTaskTypes.includes(taskType)) return { ok: true, why: `the hybrid policy allows the cloud for "${taskType}"` };
+      return { ok: false, why: 'the hybrid policy does not allow the cloud for this task type' };
     };
     const usable = (providerId: string): { ok: boolean; locality: Locality; why?: string } => {
       let cfg;
       try {
         cfg = this.registry.config(providerId);
       } catch {
-        return { ok: false, locality: 'local', why: 'провайдер удалён' };
+        return { ok: false, locality: 'local', why: 'the provider was deleted' };
       }
-      if (!cfg.enabled) return { ok: false, locality: cfg.locality, why: `провайдер «${cfg.name}» отключён` };
+      if (!cfg.enabled) return { ok: false, locality: cfg.locality, why: `the provider "${cfg.name}" is disabled` };
       if (cfg.locality === 'cloud') {
         const c = cloudAllowed(req.taskType);
         if (!c.ok) return { ok: false, locality: 'cloud', why: c.why };
@@ -83,7 +83,7 @@ export class ModelRouter {
     };
 
     if (req.policy.providerId && req.policy.model) {
-      const r = tryCandidate(req.policy.providerId, req.policy.model, 'модель из настроек агента');
+      const r = tryCandidate(req.policy.providerId, req.policy.model, 'the model from the agent settings');
       if (r) return r;
       if (!req.policy.allowFallback) {
         const cfgLocality = (() => {
@@ -96,31 +96,31 @@ export class ModelRouter {
         if (cfgLocality === 'cloud' && (env.offline || mode === 'local' || req.containsConfidential)) {
           throw new AppError(req.containsConfidential ? 'POLICY_CONFIDENTIAL_SOURCE' : env.offline ? 'OFFLINE_MODE' : 'NETWORK_POLICY_DENIED', undefined, { details: { reasons } });
         }
-        throw new AppError('MODEL_UNAVAILABLE', `Модель агента недоступна: ${reasons.join('; ')}.`, { details: { reasons } });
+        throw new AppError('MODEL_UNAVAILABLE', `The agent model is unavailable: ${reasons.join('; ')}.`, { details: { reasons } });
       }
     }
     if (req.needs.embeddings) {
       if (env.embeddingModel) {
-        const r = tryCandidate(env.embeddingModel.providerId, env.embeddingModel.model, 'модель эмбеддингов из настроек');
+        const r = tryCandidate(env.embeddingModel.providerId, env.embeddingModel.model, 'the embedding model from the settings');
         if (r) return r;
       }
     }
     const routed = env.routing[req.taskType];
     if (routed) {
-      const r = tryCandidate(routed.providerId, routed.model, `маршрутизация для «${req.taskType}»`);
+      const r = tryCandidate(routed.providerId, routed.model, `routing for "${req.taskType}"`);
       if (r) return r;
     }
     if (env.defaultModel && !req.needs.embeddings) {
-      const r = tryCandidate(env.defaultModel.providerId, env.defaultModel.model, 'модель по умолчанию');
+      const r = tryCandidate(env.defaultModel.providerId, env.defaultModel.model, 'the default model');
       if (r) return r;
     }
     // Last resort: first suitable cached model of an enabled LOCAL provider.
     for (const cfg of this.registry.configs()) {
       if (!cfg.enabled || cfg.locality !== 'local') continue;
       const m = this.registry.firstCachedModel(cfg.id, req.needs.embeddings ? 'embeddings' : 'chat');
-      if (m) return { providerId: cfg.id, model: m.id, locality: 'local', reason: `первая доступная локальная модель (${cfg.name})` };
+      if (m) return { providerId: cfg.id, model: m.id, locality: 'local', reason: `the first available local model (${cfg.name})` };
     }
-    if (reasons.some((r) => r.includes('офлайн'))) throw new AppError('OFFLINE_MODE', undefined, { details: { reasons } });
-    throw new AppError('NO_MODEL_CONFIGURED', reasons.length ? `Нет доступной модели: ${reasons.join('; ')}.` : undefined, { details: { reasons } });
+    if (reasons.some((r) => r.includes('offline'))) throw new AppError('OFFLINE_MODE', undefined, { details: { reasons } });
+    throw new AppError('NO_MODEL_CONFIGURED', reasons.length ? `No model is available: ${reasons.join('; ')}.` : undefined, { details: { reasons } });
   }
 }

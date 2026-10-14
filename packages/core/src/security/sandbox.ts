@@ -88,10 +88,10 @@ export function resetSandboxCapabilities(): void {
 export async function runSandboxed(opts: { program: string; args: string[]; cwd: string; timeoutMs: number; allowNetwork?: boolean; mode?: 'auto' | 'limited'; signal?: AbortSignal; maxOutputBytes?: number }): Promise<SandboxResult> {
   const resolved = await resolveProgram(opts.program);
   if (!resolved) {
-    return { exitCode: null, timedOut: false, aborted: false, output: `Программа «${opts.program}» не найдена. Проверьте, что она установлена и доступна в PATH.`, isolation: { level: 'limited', tool: null, network: 'not_blocked', files: '—', limits: [], notes: ['команда не запускалась'] } };
+    return { exitCode: null, timedOut: false, aborted: false, output: `The program "${opts.program}" was not found. Check that it is installed and available in PATH.`, isolation: { level: 'limited', tool: null, network: 'not_blocked', files: '—', limits: [], notes: ['the command did not run'] } };
   }
   const c = opts.mode === 'limited' ? { bwrap: null, prlimit: null } : await sandboxCapabilities();
-  const limits: string[] = [`тайм-аут ${Math.round(opts.timeoutMs / 1000)} с`, `вывод до ${Math.round((opts.maxOutputBytes ?? 8 * 1024 * 1024) / 1048576)} МБ`, 'без командной оболочки', 'окружение без секретов'];
+  const limits: string[] = [`timeout ${Math.round(opts.timeoutMs / 1000)} s`, `output up to ${Math.round((opts.maxOutputBytes ?? 8 * 1024 * 1024) / 1048576)} MB`, 'no command shell', 'environment without secrets'];
   const notes: string[] = [];
   let cmd = resolved;
   let args = [...opts.args];
@@ -104,18 +104,18 @@ export async function runSandboxed(opts: { program: string; args: string[]; cwd:
     for (const extra of new Set([progRoot, nodeRoot])) if (!extra.startsWith('/usr') && extra !== '/') binds.push('--ro-bind-try', extra, extra);
     args = [...binds, '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--bind', opts.cwd, opts.cwd, '--unshare-all', ...(opts.allowNetwork ? ['--share-net'] : []), '--die-with-parent', '--new-session', '--chdir', opts.cwd, '--', resolved, ...opts.args];
     cmd = c.bwrap;
-    isolation = { level: 'isolated', tool: 'bubblewrap', network: opts.allowNetwork ? 'not_blocked' : 'blocked', files: 'запись — только в рабочую копию; домашняя папка и остальной диск недоступны', limits, notes };
+    isolation = { level: 'isolated', tool: 'bubblewrap', network: opts.allowNetwork ? 'not_blocked' : 'blocked', files: 'writes only to the work copy; the home folder and the rest of the disk are not accessible', limits, notes };
   } else {
-    isolation = { level: 'limited', tool: null, network: 'not_blocked', files: 'процесс работает с правами пользователя; рабочая папка — копия проекта', limits, notes };
-    notes.push(platform() === 'linux' ? 'Песочница bubblewrap не найдена: полная изоляция недоступна. Установите пакет bubblewrap, чтобы проверки выполнялись изолированно.' : 'На этой ОС полная изоляция процессов недоступна: команда выполняется с правами пользователя в рабочей копии.');
+    isolation = { level: 'limited', tool: null, network: 'not_blocked', files: 'the process runs with the user\'s rights; the working folder is a copy of the project', limits, notes };
+    notes.push(platform() === 'linux' ? 'The bubblewrap sandbox was not found: full isolation is not available. Install the bubblewrap package so that checks run isolated.' : 'Full process isolation is not available on this OS: the command runs with the user\'s rights in the work copy.');
   }
   if (c.prlimit) {
     const cpu = Math.max(1, Math.ceil(opts.timeoutMs / 1000));
     args = [`--cpu=${cpu}`, `--fsize=${1024 * 1024 * 1024}`, '--core=0', '--', cmd, ...args];
     cmd = c.prlimit;
-    limits.push(`процессорное время до ${cpu} с`, 'файлы до 1 ГБ');
-  } else if (platform() === 'linux') notes.push('Ограничения процессора и размера файлов не применены (prlimit не найден).');
-  notes.push('Лимит памяти не устанавливается: среды выполнения (например, V8) резервируют виртуальную память и не запускаются с жёстким лимитом.');
+    limits.push(`CPU time up to ${cpu} s`, 'files up to 1 GB');
+  } else if (platform() === 'linux') notes.push('CPU and file size limits were not applied (prlimit was not found).');
+  notes.push('No memory limit is set: runtimes (for example V8) reserve virtual memory and do not start under a hard limit.');
   const env = sanitizedEnv(process.env, c.bwrap ? home : undefined);
   let tempHome: string | null = null;
   if (!c.bwrap) {
@@ -130,9 +130,9 @@ export async function runSandboxed(opts: { program: string; args: string[]; cwd:
       const out = `${stdout ?? ''}${stderr ? `${stdout ? '\n' : ''}${stderr}` : ''}`;
       if (!error) return resolve({ exitCode: 0, timedOut: false, aborted: false, out });
       const e = error as NodeJS.ErrnoException & { code?: number | string; killed?: boolean; signal?: string };
-      if (e.code === 'ABORT_ERR') return resolve({ exitCode: null, timedOut: false, aborted: true, out: `${out}\n[проверка отменена]` });
+      if (e.code === 'ABORT_ERR') return resolve({ exitCode: null, timedOut: false, aborted: true, out: `${out}\n[the check was cancelled]` });
       const timedOut = !!e.killed && Date.now() - started >= opts.timeoutMs - 50;
-      resolve({ exitCode: typeof e.code === 'number' ? e.code : null, timedOut, aborted: false, out: timedOut ? `${out}\n[превышен тайм-аут ${Math.round(opts.timeoutMs / 1000)} с]` : out || e.message });
+      resolve({ exitCode: typeof e.code === 'number' ? e.code : null, timedOut, aborted: false, out: timedOut ? `${out}\n[timed out after ${Math.round(opts.timeoutMs / 1000)} s]` : out || e.message });
     });
   });
   if (tempHome) await rm(tempHome, { recursive: true, force: true }).catch(() => undefined);

@@ -1,7 +1,7 @@
 {
   "cases": [
     {
-      "name": "без файлов",
+      "name": "no files",
       "input": {
         "objective": "x",
         "files": []

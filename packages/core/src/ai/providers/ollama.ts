@@ -172,7 +172,7 @@ export class OllamaProvider implements LocalModelProvider {
     }
     if (!res.ok) throw httpError(res, this.config.name, req.model);
     const vectors = res.data?.embeddings ?? [];
-    if (vectors.length !== req.input.length) throw new AppError('PROVIDER_ERROR', 'Ollama вернула неожиданное число эмбеддингов.');
+    if (vectors.length !== req.input.length) throw new AppError('PROVIDER_ERROR', 'Ollama returned an unexpected number of embeddings.');
     return { vectors, model: req.model, usage: { inputTokens: res.data?.prompt_eval_count ?? null } };
   }
 

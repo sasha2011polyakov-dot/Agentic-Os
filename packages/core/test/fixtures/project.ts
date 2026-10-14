@@ -8,22 +8,22 @@ const FAKE_KEY_PREFIX = ['sk', ''].join('-');
 export const PROJECT_FILES: Record<string, string> = {
   'README.md': `# Demo Shop
 
-Интернет-магазин. Архитектура описана в [[docs/architecture|архитектуре]].
-Требования к входу: [[REQ-001]].
+An online shop. The architecture is described in [[docs/architecture|the architecture note]].
+Login requirements: [[REQ-001]].
 `,
   'docs/architecture.md': `---
 type: decision
 status: accepted
 ---
 
-# Архитектура
+# Architecture
 
-Бэкенд на Node.js, хранилище — PostgreSQL. Сессии пользователей хранятся в Redis.
-См. также [[Требования к авторизации]].
+Backend on Node.js, storage in PostgreSQL. User sessions are stored in Redis.
+See also [[Authorization requirements]].
 `,
   'docs/requirements/auth.md': `---
 id: REQ-001
-title: Требования к авторизации
+title: Authorization requirements
 type: requirement
 status: draft
 priority: high
@@ -31,10 +31,10 @@ tags:
   - security
 ---
 
-# Требования к авторизации
+# Authorization requirements
 
-Система должна позволять пользователю входить по email и паролю.
-Сессия должна истекать через 30 минут бездействия.
+The system must let a user log in with email and password.
+A session must expire after 30 minutes of inactivity.
 `,
   'docs/requirements/sessions.md': `---
 id: REQ-002
@@ -43,9 +43,9 @@ status: draft
 depends_on: "[[REQ-001]]"
 ---
 
-# Хранение сессий
+# Session storage
 
-Сессия должна истекать через 24 часа бездействия.
+A session must expire after 24 hours of inactivity.
 `,
   'src/auth.ts': `// Implements REQ-001: login by email and password
 export class AuthService {

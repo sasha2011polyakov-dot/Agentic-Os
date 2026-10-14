@@ -63,7 +63,7 @@ export class BackupService {
 
   private source(id: string): { id: string; root_path: string; name: string } {
     const s = this.rt.db.get<{ id: string; root_path: string; name: string }>('SELECT id, root_path, name FROM sources WHERE id = ?', id);
-    if (!s) throw new AppError('NOT_FOUND', 'Проект не найден.');
+    if (!s) throw new AppError('NOT_FOUND', 'Project not found.');
     return s;
   }
 
@@ -73,7 +73,7 @@ export class BackupService {
 
   get(id: string): BackupInfo {
     const r = this.rt.db.get<Row>('SELECT * FROM change_backups WHERE id = ?', id);
-    if (!r) throw new AppError('NOT_FOUND', 'Резервная копия не найдена.');
+    if (!r) throw new AppError('NOT_FOUND', 'Backup not found.');
     return this.view(r);
   }
 
@@ -105,7 +105,7 @@ export class BackupService {
           buf = await readFile(abs);
         } catch (e) {
           const code = (e as NodeJS.ErrnoException).code;
-          if (code === 'EISDIR') throw new Error(`на месте файла ${rel} находится папка`);
+          if (code === 'EISDIR') throw new Error(`there is a folder where the file ${rel} should be`);
           if (code !== 'ENOENT') throw e;
         }
         if (buf) {
@@ -121,8 +121,8 @@ export class BackupService {
       await chmod(join(dir, 'manifest.json'), 0o444);
       this.rt.db.run('UPDATE change_backups SET files = ? WHERE id = ?', JSON.stringify(files), id);
       const check = await this.verify(id);
-      if (!check.ok) throw new Error(`проверка целостности не пройдена: ${check.problems.join('; ')}`);
-      this.rt.security.record({ actor: args.actor, action: 'backup.create', outcome: 'ok', sourceId: src.id, taskId: args.missionId ?? args.changeSetId ?? null, resources: files.map((f) => f.path), message: `Создана и проверена резервная копия ${files.length} файлов`, details: { backupId: id } });
+      if (!check.ok) throw new Error(`the integrity check failed: ${check.problems.join('; ')}`);
+      this.rt.security.record({ actor: args.actor, action: 'backup.create', outcome: 'ok', sourceId: src.id, taskId: args.missionId ?? args.changeSetId ?? null, resources: files.map((f) => f.path), message: `A backup of ${files.length} files was created and verified`, details: { backupId: id } });
       return this.get(id);
     } catch (e) {
       const appErr = toAppError(e);
@@ -131,11 +131,11 @@ export class BackupService {
       await this.removeDir(dir).catch(() => undefined);
       // a path that escapes the project is a security violation, not a storage problem: report it as such
       if (appErr.code === 'PATH_OUTSIDE_SCOPE' || appErr.code === 'PATH_INVALID') {
-        this.rt.security.record({ actor: args.actor, action: 'path.denied', outcome: 'denied', sourceId: src.id, taskId: args.missionId ?? args.changeSetId ?? null, resources: args.paths.slice(0, 50), message: `Операция остановлена: путь выходит за пределы проекта (${msg}).` });
+        this.rt.security.record({ actor: args.actor, action: 'path.denied', outcome: 'denied', sourceId: src.id, taskId: args.missionId ?? args.changeSetId ?? null, resources: args.paths.slice(0, 50), message: `The operation was stopped: a path leaves the project (${msg}).` });
         throw appErr;
       }
-      this.rt.security.record({ actor: args.actor, action: 'backup.create', outcome: 'error', sourceId: src.id, taskId: args.missionId ?? args.changeSetId ?? null, resources: args.paths.slice(0, 50), message: `Резервная копия не создана: ${msg}. Операция заблокирована.` });
-      throw new AppError('BACKUP_FAILED', `Не удалось создать проверенную резервную копию: ${msg}. Изменения не применялись.`, { details: { backupId: id } });
+      this.rt.security.record({ actor: args.actor, action: 'backup.create', outcome: 'error', sourceId: src.id, taskId: args.missionId ?? args.changeSetId ?? null, resources: args.paths.slice(0, 50), message: `The backup was not created: ${msg}. The operation was blocked.` });
+      throw new AppError('BACKUP_FAILED', `Could not create a verified backup: ${msg}. No changes were applied.`, { details: { backupId: id } });
     }
   }
 
@@ -147,17 +147,17 @@ export class BackupService {
     try {
       manifest = JSON.parse(await readFile(join(b.path, 'manifest.json'), 'utf8')) as { files?: BackupFile[] };
     } catch {
-      problems.push('манифест не читается');
+      problems.push('the manifest cannot be read');
     }
     const files = manifest?.files ?? [];
-    if (files.length !== b.files.length) problems.push('манифест не совпадает с записью в базе');
+    if (files.length !== b.files.length) problems.push('the manifest does not match the database record');
     for (const f of files) {
       if (!f.existed) continue;
       try {
         const buf = await readFile(join(b.path, 'files', ...f.path.split('/')));
-        if (sha256(buf) !== f.sha256) problems.push(`${f.path}: контрольная сумма не совпадает`);
+        if (sha256(buf) !== f.sha256) problems.push(`${f.path}: the checksum does not match`);
       } catch {
-        problems.push(`${f.path}: файл копии отсутствует`);
+        problems.push(`${f.path}: the backup file is missing`);
       }
     }
     if (!problems.length && b.status === 'creating') this.rt.db.run("UPDATE change_backups SET status = 'verified', verified_at = ? WHERE id = ?", nowIso(), id);
@@ -196,12 +196,12 @@ export class BackupService {
    */
   async restore(id: string, opts: { actor: string; confirmOverwrite?: boolean }): Promise<{ restored: string[]; removed: string[]; safetyBackupId: string }> {
     const b = this.get(id);
-    if (b.status !== 'verified' && b.status !== 'restored') throw new AppError('INVALID_STATE_TRANSITION', 'Эту резервную копию нельзя использовать для восстановления.');
+    if (b.status !== 'verified' && b.status !== 'restored') throw new AppError('INVALID_STATE_TRANSITION', 'This backup cannot be used for a restore.');
     const integrity = await this.verify(id);
-    if (!integrity.ok) throw new AppError('INTEGRITY_CHECK_FAILED', `Резервная копия повреждена: ${integrity.problems.join('; ')}. Файлы проекта не изменялись.`);
+    if (!integrity.ok) throw new AppError('INTEGRITY_CHECK_FAILED', `The backup is damaged: ${integrity.problems.join('; ')}. The project files were not changed.`);
     const edited = await this.changedSinceApply(id);
     if (edited.length && !opts.confirmOverwrite) {
-      throw new AppError('CONFIRMATION_REQUIRED', `После применения изменились файлы: ${edited.join(', ')}. Восстановление перезапишет эти правки (текущее состояние будет сохранено в отдельную резервную копию).`, { details: { edited } });
+      throw new AppError('CONFIRMATION_REQUIRED', `Files changed after the changes were applied: ${edited.join(', ')}. The restore will overwrite these edits (the current state will be saved in a separate backup).`, { details: { edited } });
     }
     const src = this.source(b.sourceId);
     const safety = await this.create({ sourceId: b.sourceId, paths: b.files.map((f) => f.path), changeSetId: b.changeSetId, missionId: b.missionId, actor: opts.actor });
@@ -226,7 +226,7 @@ export class BackupService {
       }
     }
     this.rt.db.run("UPDATE change_backups SET status = 'restored', restored_at = ? WHERE id = ?", nowIso(), id);
-    this.rt.security.record({ actor: opts.actor, action: 'backup.restore', outcome: 'ok', sourceId: b.sourceId, taskId: b.missionId ?? b.changeSetId, resources: [...restored, ...removed], message: `Восстановлено ${restored.length} файлов, убрано ${removed.length} созданных файлов (в корзину системы)`, details: { backupId: id, safetyBackupId: safety.id } });
+    this.rt.security.record({ actor: opts.actor, action: 'backup.restore', outcome: 'ok', sourceId: b.sourceId, taskId: b.missionId ?? b.changeSetId, resources: [...restored, ...removed], message: `Restored ${restored.length} files, removed ${removed.length} created files (to the system trash)`, details: { backupId: id, safetyBackupId: safety.id } });
     return { restored, removed, safetyBackupId: safety.id };
   }
 
@@ -241,12 +241,12 @@ export class BackupService {
         removed++;
       }
     }
-    if (removed) this.rt.security.record({ actor, action: 'backup.prune', outcome: 'ok', message: `Удалено старых резервных копий: ${removed} (хранится по ${keep} на проект)` });
+    if (removed) this.rt.security.record({ actor, action: 'backup.prune', outcome: 'ok', message: `Old backups deleted: ${removed} (${keep} are kept per project)` });
     return removed;
   }
 
   private async removeDir(dir: string): Promise<void> {
-    if (!isInside(dir, this.root()) || dir === this.root()) throw new AppError('PATH_OUTSIDE_SCOPE', 'Удаление вне папки резервных копий запрещено.');
+    if (!isInside(dir, this.root()) || dir === this.root()) throw new AppError('PATH_OUTSIDE_SCOPE', 'Deleting outside the backups folder is not allowed.');
     // backup files are read-only: make them writable before removal (only inside the backup folder)
     const walk = async (d: string): Promise<void> => {
       let entries;

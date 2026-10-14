@@ -101,13 +101,13 @@ export class SafeFetcher {
     try {
       current = new URL(rawUrl);
     } catch {
-      throw new AppError('VALIDATION_FAILED', 'Некорректный URL.');
+      throw new AppError('VALIDATION_FAILED', 'Invalid URL.');
     }
     for (let hop = 0; hop <= 5; hop++) {
       if (current.protocol !== 'https:' && !(current.protocol === 'http:' && opts.allowHttp)) {
-        throw new AppError('FETCH_BLOCKED', `Разрешены только HTTPS-адреса (получено ${current.protocol}).`);
+        throw new AppError('FETCH_BLOCKED', `Only HTTPS addresses are allowed (got ${current.protocol}).`);
       }
-      if (current.username || current.password) throw new AppError('FETCH_BLOCKED', 'URL с учётными данными запрещены.');
+      if (current.username || current.password) throw new AppError('FETCH_BLOCKED', 'URLs with credentials are not allowed.');
       this.policy.check(current, 'web-research', opts.systemId);
       const host = current.hostname.replace(/^\[|\]$/g, '');
       if (isIP(host) && !this.addressAllowed(host)) throw new AppError('FETCH_BLOCKED', undefined, { details: { host } });
@@ -124,7 +124,7 @@ export class SafeFetcher {
         const err = e as NodeJS.ErrnoException;
         if (err.code === 'EAOS_BLOCKED' || /blocked address/.test(err.message)) throw new AppError('FETCH_BLOCKED', undefined, { details: { host, reason: err.message } });
         if (err.name === 'AbortError') throw new AppError('CANCELLED');
-        throw new AppError('FETCH_FAILED', `Не удалось загрузить ${current.host}: ${err.message}`);
+        throw new AppError('FETCH_FAILED', `Could not download ${current.host}: ${err.message}`);
       }
       const status = res.statusCode ?? 0;
       if (status >= 300 && status < 400 && res.headers.location) {
@@ -133,7 +133,7 @@ export class SafeFetcher {
         try {
           next = new URL(res.headers.location, current);
         } catch {
-          throw new AppError('FETCH_FAILED', 'Некорректный адрес перенаправления.');
+          throw new AppError('FETCH_FAILED', 'Invalid redirect address.');
         }
         redirects.push(next.toString());
         current = next;
@@ -143,11 +143,11 @@ export class SafeFetcher {
       const mime = contentType.split(';')[0]!.trim();
       if (status >= 400) {
         res.resume();
-        throw new AppError('FETCH_FAILED', `Сервер ответил ${status}.`, { details: { status, url: current.toString() } });
+        throw new AppError('FETCH_FAILED', `The server responded ${status}.`, { details: { status, url: current.toString() } });
       }
       if (mime && !accept.includes(mime)) {
         res.resume();
-        throw new AppError('FETCH_FAILED', `Тип содержимого ${mime} не поддерживается для анализа.`, { details: { contentType: mime } });
+        throw new AppError('FETCH_FAILED', `The content type ${mime} is not supported for analysis.`, { details: { contentType: mime } });
       }
       const chunks: Buffer[] = [];
       let size = 0;
@@ -163,6 +163,6 @@ export class SafeFetcher {
       }
       return { url: rawUrl, finalUrl: current.toString(), status, contentType: mime, body: Buffer.concat(chunks), redirects, truncated };
     }
-    throw new AppError('FETCH_FAILED', 'Слишком много перенаправлений.');
+    throw new AppError('FETCH_FAILED', 'Too many redirects.');
   }
 }

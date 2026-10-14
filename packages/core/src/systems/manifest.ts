@@ -34,19 +34,19 @@ export async function readManifest(root: string): Promise<SystemManifest> {
   try {
     data = JSON.parse(raw) as Partial<SystemManifest>;
   } catch {
-    throw new AppError('SYSTEM_NOT_FOUND_AT_PATH', 'Файл system.json повреждён.', { details: { path: root } });
+    throw new AppError('SYSTEM_NOT_FOUND_AT_PATH', 'The system.json file is damaged.', { details: { path: root } });
   }
   if (data.format !== SYSTEM_FORMAT || typeof data.systemId !== 'string' || !isValidSystemId(data.systemId)) {
-    throw new AppError('SYSTEM_NOT_FOUND_AT_PATH', 'Файл system.json не является паспортом системы Agentic OS.', { details: { path: root } });
+    throw new AppError('SYSTEM_NOT_FOUND_AT_PATH', 'The system.json file is not an Agentic OS system manifest.', { details: { path: root } });
   }
   if (typeof data.formatVersion !== 'number' || data.formatVersion > SYSTEM_FORMAT_VERSION) {
-    throw new AppError('ARCHIVE_INVALID', `Система создана более новой версией приложения (формат ${String(data.formatVersion)}).`, { hint: 'Обновите приложение.' });
+    throw new AppError('ARCHIVE_INVALID', `The system was created by a newer version of the application (format ${String(data.formatVersion)}).`, { hint: 'Update the application.' });
   }
   return {
     format: SYSTEM_FORMAT,
     formatVersion: data.formatVersion,
     systemId: data.systemId,
-    name: typeof data.name === 'string' ? data.name : 'Без названия',
+    name: typeof data.name === 'string' ? data.name : 'Untitled',
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date(0).toISOString(),
   };
 }

@@ -1,15 +1,15 @@
-# Веб-исследователь
+# Web researcher
 
-Ищет и читает источники в интернете, извлекает утверждения с дословными цитатами и проверяет их кодом.
+Finds and reads sources on the internet, extracts claims with verbatim quotes and verifies them in code.
 
-- Тип задачи для маршрутизации моделей: `research`
-- Инструменты: `web_search`, `open_url`, `fetch_documentation`, `search_github`, `inspect_repository`, `compare_sources`, `search_documents`, `read_document`
+- Task type for model routing: `research`
+- Tools: `web_search`, `open_url`, `fetch_documentation`, `search_github`, `inspect_repository`, `compare_sources`, `search_documents`, `read_document`
 
-## Запрашиваемые разрешения
-- `web.search` — Поиск источников
-- `network.fetch` — Загрузка публичных страниц
-- `external.api` — GitHub API для поиска репозиториев
-- `search.use` — Проверка, что уже известно локально
-- `documents.read` — Чтение локальных заметок по теме
+## Requested permissions
+- `web.search`: Find sources
+- `network.fetch`: Download public pages
+- `external.api`: GitHub API to find repositories
+- `search.use`: Check what is already known locally
+- `documents.read`: Read local notes on the topic
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

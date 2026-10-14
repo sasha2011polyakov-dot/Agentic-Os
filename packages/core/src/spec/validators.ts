@@ -52,11 +52,11 @@ export interface Finding {
 
 /** Words that make a requirement unverifiable unless a measurable criterion is attached. */
 const VAGUE = [
-  'быстр', 'удобн', 'интуитивн', 'понятн', 'оптимальн', 'эффективн', 'гибк', 'современн', 'простой', 'простым', 'простая', 'дружелюбн',
-  'и т.д', 'и т. д', 'и т.п', 'и т. п', 'по возможности', 'при необходимости', 'как можно', 'максимально', 'минимально', 'достаточно', 'некоторые', 'некоторых',
-  'надёжн', 'надежн', 'качественн', 'user-friendly', 'user friendly', 'fast', 'easy', 'intuitive', 'etc', 'as needed', 'if possible', 'robust', 'seamless',
+  'fast', 'quick', 'easy', 'easily', 'simple', 'convenient', 'intuitive', 'user-friendly', 'user friendly', 'friendly', 'flexible', 'efficient',
+  'optimal', 'modern', 'reliable', 'robust', 'seamless', 'high quality', 'high-quality', 'scalable', 'maximally', 'minimally', 'sufficient', 'adequate',
+  'etc', 'and so on', 'as needed', 'if needed', 'if necessary', 'when necessary', 'if possible', 'where possible', 'as possible', 'some', 'several', 'various',
 ];
-const MEASURABLE = /\d|%|секунд|миллисекунд|мс(?!\p{L})|минут|час|не более|не менее|не больше|не меньше|≤|≥|<|>|ms\b|sec/iu;
+const MEASURABLE = /\d|%|\b(?:milli)?seconds?\b|\bminutes?\b|\bhours?\b|\bms\b|\bsec\b|\bmin\b|no more than|no less than|not more than|not less than|at most|at least|≤|≥|<|>/iu;
 
 export function vagueTerms(text: string): string[] {
   const t = text.toLowerCase();
@@ -105,29 +105,29 @@ export function validateRequirements(requirements: Requirement[], evidence: Evid
   const ev = new Map(evidence.map((e) => [e.id, e]));
   const ids = new Map<string, number>();
   for (const r of requirements) ids.set(r.id, (ids.get(r.id) ?? 0) + 1);
-  for (const [id, n] of ids) if (n > 1) findings.push({ type: 'duplicate_id', severity: 'critical', description: `Идентификатор ${id} используется ${n} раза.`, refs: [id] });
+  for (const [id, n] of ids) if (n > 1) findings.push({ type: 'duplicate_id', severity: 'critical', description: `The identifier ${id} is used ${n} times.`, refs: [id] });
   for (const r of requirements) {
-    for (const s of r.sources ?? []) if (!ev.has(s)) findings.push({ type: 'broken_ref', severity: 'major', description: `${r.id} ссылается на несуществующее свидетельство ${s}.`, refs: [r.id, s] });
+    for (const s of r.sources ?? []) if (!ev.has(s)) findings.push({ type: 'broken_ref', severity: 'major', description: `${r.id} refers to evidence ${s} that does not exist.`, refs: [r.id, s] });
     const known = (r.sources ?? []).filter((s) => ev.has(s));
-    if (!known.length && r.status !== 'assumption') findings.push({ type: 'unsupported', severity: 'major', description: `${r.id} не опирается ни на одно свидетельство, но не помечено как допущение.`, refs: [r.id] });
+    if (!known.length && r.status !== 'assumption') findings.push({ type: 'unsupported', severity: 'major', description: `${r.id} relies on no evidence but is not marked as an assumption.`, refs: [r.id] });
     if (known.length && known.every((s) => ev.get(s)!.kind === 'assumption' || ev.get(s)!.quote_verified === false)) {
-      findings.push({ type: 'unverified_source', severity: r.priority === 'must' ? 'major' : 'minor', description: `${r.id} опирается только на непроверенные цитаты или допущения (${known.join(', ')}).`, refs: [r.id, ...known] });
+      findings.push({ type: 'unverified_source', severity: r.priority === 'must' ? 'major' : 'minor', description: `${r.id} relies only on unverified quotes or assumptions (${known.join(', ')}).`, refs: [r.id, ...known] });
     }
-    for (const d of r.depends_on ?? []) if (!ids.has(d)) findings.push({ type: 'broken_ref', severity: 'major', description: `${r.id} зависит от несуществующего требования ${d}.`, refs: [r.id, d] });
-    if (!r.acceptance_criteria?.length) findings.push({ type: 'missing_criteria', severity: 'major', description: `${r.id} без критериев приёмки — его нельзя проверить.`, refs: [r.id] });
+    for (const d of r.depends_on ?? []) if (!ids.has(d)) findings.push({ type: 'broken_ref', severity: 'major', description: `${r.id} depends on a requirement ${d} that does not exist.`, refs: [r.id, d] });
+    if (!r.acceptance_criteria?.length) findings.push({ type: 'missing_criteria', severity: 'major', description: `${r.id} has no acceptance criteria, so it cannot be verified.`, refs: [r.id] });
     const vague = vagueTerms(r.statement);
     if (vague.length && !MEASURABLE.test(`${r.statement} ${(r.acceptance_criteria ?? []).join(' ')}`)) {
-      findings.push({ type: 'vague', severity: 'minor', description: `${r.id}: расплывчатая формулировка (${vague.join(', ')}) без измеримого критерия.`, refs: [r.id] });
+      findings.push({ type: 'vague', severity: 'minor', description: `${r.id}: vague wording (${vague.join(', ')}) without a measurable criterion.`, refs: [r.id] });
     }
-    if (r.status === 'assumption') findings.push({ type: 'assumption', severity: 'minor', description: `${r.id} — допущение: подтвердите или удалите.`, refs: [r.id] });
+    if (r.status === 'assumption') findings.push({ type: 'assumption', severity: 'minor', description: `${r.id} is an assumption: confirm or remove it.`, refs: [r.id] });
   }
   for (const cyc of dependencyCycles(new Map(requirements.map((r) => [r.id, r.depends_on ?? []])))) {
-    findings.push({ type: 'cycle', severity: 'critical', description: `Циклическая зависимость требований: ${cyc.join(' → ')}.`, refs: cyc.slice(0, -1) });
+    findings.push({ type: 'cycle', severity: 'critical', description: `Circular requirement dependency: ${cyc.join(' → ')}.`, refs: cyc.slice(0, -1) });
   }
   const sets = requirements.map((r) => words(r.statement));
   for (let i = 0; i < requirements.length; i++) {
     for (let j = i + 1; j < requirements.length; j++) {
-      if (sets[i]!.size >= 3 && jaccard(sets[i]!, sets[j]!) >= 0.85) findings.push({ type: 'duplicate', severity: 'minor', description: `${requirements[i]!.id} и ${requirements[j]!.id} почти дублируют друг друга.`, refs: [requirements[i]!.id, requirements[j]!.id] });
+      if (sets[i]!.size >= 3 && jaccard(sets[i]!, sets[j]!) >= 0.85) findings.push({ type: 'duplicate', severity: 'minor', description: `${requirements[i]!.id} and ${requirements[j]!.id} nearly duplicate each other.`, refs: [requirements[i]!.id, requirements[j]!.id] });
     }
   }
   const n = requirements.length || 1;
@@ -147,21 +147,21 @@ export function validateTasks(tasks: SpecTask[], requirements: Requirement[]): {
   const reqIds = new Set(requirements.map((r) => r.id));
   const ids = new Map<string, number>();
   for (const t of tasks) ids.set(t.id, (ids.get(t.id) ?? 0) + 1);
-  for (const [id, n] of ids) if (n > 1) findings.push({ type: 'duplicate_id', severity: 'critical', description: `Идентификатор задачи ${id} используется ${n} раза.`, refs: [id] });
+  for (const [id, n] of ids) if (n > 1) findings.push({ type: 'duplicate_id', severity: 'critical', description: `The task identifier ${id} is used ${n} times.`, refs: [id] });
   for (const t of tasks) {
-    for (const r of t.requirement_ids ?? []) if (!reqIds.has(r)) findings.push({ type: 'broken_ref', severity: 'major', description: `${t.id} ссылается на несуществующее требование ${r}.`, refs: [t.id, r] });
-    for (const d of t.depends_on ?? []) if (!ids.has(d)) findings.push({ type: 'broken_ref', severity: 'major', description: `${t.id} зависит от несуществующей задачи ${d}.`, refs: [t.id, d] });
-    if (t.parent_id && !ids.has(t.parent_id)) findings.push({ type: 'broken_ref', severity: 'minor', description: `${t.id}: родительская задача ${t.parent_id} не найдена.`, refs: [t.id] });
-    if (!(t.requirement_ids ?? []).some((r) => reqIds.has(r))) findings.push({ type: 'orphan_task', severity: 'minor', description: `${t.id} не связана ни с одним требованием.`, refs: [t.id] });
-    if (!t.acceptance_criteria?.length) findings.push({ type: 'missing_criteria', severity: 'major', description: `${t.id} без критериев готовности.`, refs: [t.id] });
+    for (const r of t.requirement_ids ?? []) if (!reqIds.has(r)) findings.push({ type: 'broken_ref', severity: 'major', description: `${t.id} refers to a requirement ${r} that does not exist.`, refs: [t.id, r] });
+    for (const d of t.depends_on ?? []) if (!ids.has(d)) findings.push({ type: 'broken_ref', severity: 'major', description: `${t.id} depends on a task ${d} that does not exist.`, refs: [t.id, d] });
+    if (t.parent_id && !ids.has(t.parent_id)) findings.push({ type: 'broken_ref', severity: 'minor', description: `${t.id}: the parent task ${t.parent_id} was not found.`, refs: [t.id] });
+    if (!(t.requirement_ids ?? []).some((r) => reqIds.has(r))) findings.push({ type: 'orphan_task', severity: 'minor', description: `${t.id} is not linked to any requirement.`, refs: [t.id] });
+    if (!t.acceptance_criteria?.length) findings.push({ type: 'missing_criteria', severity: 'major', description: `${t.id} has no acceptance criteria.`, refs: [t.id] });
   }
   for (const cyc of dependencyCycles(new Map(tasks.map((t) => [t.id, t.depends_on ?? []])))) {
-    findings.push({ type: 'cycle', severity: 'critical', description: `Циклическая зависимость задач: ${cyc.join(' → ')}.`, refs: cyc.slice(0, -1) });
+    findings.push({ type: 'cycle', severity: 'critical', description: `Circular task dependency: ${cyc.join(' → ')}.`, refs: cyc.slice(0, -1) });
   }
   const coverage = requirements.map((r) => ({ requirement: r.id, tasks: tasks.filter((t) => (t.requirement_ids ?? []).includes(r.id)).map((t) => t.id) }));
   for (const c of coverage) {
     const r = requirements.find((x) => x.id === c.requirement)!;
-    if (!c.tasks.length) findings.push({ type: 'uncovered', severity: r.priority === 'must' ? 'major' : 'minor', description: `Требование ${r.id} (${r.priority}) не покрыто ни одной задачей.`, refs: [r.id] });
+    if (!c.tasks.length) findings.push({ type: 'uncovered', severity: r.priority === 'must' ? 'major' : 'minor', description: `Requirement ${r.id} (${r.priority}) is not covered by any task.`, refs: [r.id] });
   }
   const n = requirements.length || 1;
   const metrics = {

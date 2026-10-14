@@ -1,3 +1,3 @@
-# Итоги встречи
+# Meeting summary
 
-Роль агента: решения, задачи и открытые вопросы из заметки встречи, с цитатами. Запрашивает только чтение документов; разрешение выдаёт пользователь при установке агента в систему.
+An agent role: decisions, action items and open questions from a meeting note, with quotes. It requests only reading documents; the user grants the permission when installing the agent into a system.

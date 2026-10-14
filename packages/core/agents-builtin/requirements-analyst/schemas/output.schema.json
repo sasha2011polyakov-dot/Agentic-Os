@@ -13,7 +13,7 @@
           },
           "statement": {
             "type": "string",
-            "description": "Атомарная проверяемая формулировка: «Система должна …»"
+            "description": "An atomic, verifiable statement: \"The system must …\""
           },
           "type": {
             "enum": [
@@ -32,7 +32,7 @@
               "type": "string",
               "pattern": "^E[0-9]+$"
             },
-            "description": "ID свидетельств"
+            "description": "Evidence IDs"
           },
           "priority": {
             "enum": [
@@ -46,7 +46,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Проверяемые критерии приёмки",
+            "description": "Verifiable acceptance criteria",
             "minItems": 1
           },
           "depends_on": {

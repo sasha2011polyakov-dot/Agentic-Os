@@ -54,18 +54,18 @@ function openBrowser(url: string): void {
   }
 }
 
-const HELP = `Agentic OS — локальная система знаний с AI-агентами
+const HELP = `Agentic OS: a local knowledge system with AI agents
 
-Использование:
+Usage:
   aos serve [--port N] [--data-dir PATH] [--ui-dir PATH] [--open]
 
-Параметры:
-  --port N         порт локального сервера (по умолчанию — свободный)
-  --data-dir PATH  папка данных приложения (по умолчанию — системная, или AOS_DATA_DIR)
-  --ui-dir PATH    папка собранного интерфейса (по умолчанию apps/ui/dist)
-  --open           открыть интерфейс в браузере
+Options:
+  --port N         port of the local server (default: a free one)
+  --data-dir PATH  application data folder (default: the system one, or AOS_DATA_DIR)
+  --ui-dir PATH    folder of the built interface (default: apps/ui/dist)
+  --open           open the interface in the browser
 
-Сервер слушает только 127.0.0.1. Ссылка для входа печатается при запуске.`;
+The server listens on 127.0.0.1 only. The login link is printed at startup.`;
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -85,13 +85,13 @@ async function main(): Promise<void> {
   process.stdout.write(
     [
       '',
-      '  Agentic OS запущен',
-      `  Данные приложения: ${app.core.services.paths.dataDir}`,
-      `  Интерфейс:         ${uiDir ?? 'не собран (npm run build)'}`,
+      '  Agentic OS is running',
+      `  Application data: ${app.core.services.paths.dataDir}`,
+      `  Interface:        ${uiDir ?? 'not built (npm run build)'}`,
       '',
-      `  Откройте в браузере: ${app.http.loginUrl}`,
+      `  Open in the browser: ${app.http.loginUrl}`,
       '',
-      '  Ссылка содержит токен доступа, он действует до остановки сервера — не передавайте её другим. Остановить: Ctrl+C',
+      '  The link contains an access token that is valid until the server stops: do not share it. Stop: Ctrl+C',
       '',
     ].join('\n'),
   );
@@ -100,7 +100,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
-    process.stdout.write('\n  Остановка…\n');
+    process.stdout.write('\n  Stopping…\n');
     await app.stop();
     process.exit(0);
   };
@@ -109,6 +109,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-  process.stderr.write(`Не удалось запустить Agentic OS: ${e instanceof Error ? e.message : String(e)}\n`);
+  process.stderr.write(`Could not start Agentic OS: ${e instanceof Error ? e.message : String(e)}\n`);
   process.exit(1);
 });

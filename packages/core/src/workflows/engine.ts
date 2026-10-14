@@ -226,7 +226,7 @@ export class WorkflowEngine implements RuntimeService {
 
   definition(id: string): { definition: WorkflowDefinition; builtin: boolean } {
     const r = this.rt.db.get<{ definition: string; builtin: number }>('SELECT definition, builtin FROM workflows WHERE id = ?', id);
-    if (!r) throw new AppError('NOT_FOUND', 'Процесс не найден.');
+    if (!r) throw new AppError('NOT_FOUND', 'Workflow not found.');
     return { definition: JSON.parse(r.definition) as WorkflowDefinition, builtin: !!r.builtin };
   }
 
@@ -234,7 +234,7 @@ export class WorkflowEngine implements RuntimeService {
   save(def: unknown, actor = 'user'): { definition: WorkflowDefinition; check: DefinitionCheck } {
     const d = assertDefinition(def, this.known());
     const cur = this.rt.db.get<{ version: number; builtin: number }>('SELECT version, builtin FROM workflows WHERE id = ?', d.id);
-    if (cur?.builtin) throw new AppError('VALIDATION_FAILED', 'Встроенный процесс нельзя изменить — создайте копию.');
+    if (cur?.builtin) throw new AppError('VALIDATION_FAILED', 'A built-in workflow cannot be changed: create a copy.');
     const version = (cur?.version ?? 0) + 1;
     const stored = { ...d, version };
     const now = nowIso();
@@ -255,15 +255,15 @@ export class WorkflowEngine implements RuntimeService {
 
   duplicate(id: string, newIdValue: string, name: string): WorkflowDefinition {
     const { definition } = this.definition(id);
-    if (this.rt.db.get('SELECT id FROM workflows WHERE id = ?', newIdValue)) throw new AppError('VALIDATION_FAILED', `Процесс с идентификатором «${newIdValue}» уже есть.`);
+    if (this.rt.db.get('SELECT id FROM workflows WHERE id = ?', newIdValue)) throw new AppError('VALIDATION_FAILED', `A workflow with the identifier "${newIdValue}" already exists.`);
     return this.save({ ...definition, id: newIdValue, name, version: 1 }).definition;
   }
 
   remove(id: string): void {
     const { builtin } = this.definition(id);
-    if (builtin) throw new AppError('VALIDATION_FAILED', 'Встроенный процесс нельзя удалить.');
+    if (builtin) throw new AppError('VALIDATION_FAILED', 'A built-in workflow cannot be deleted.');
     const active = this.rt.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM workflow_runs WHERE workflow_id = ? AND status IN ('pending','running','waiting_for_approval','paused')", id)!.c;
-    if (active) throw new AppError('SYSTEM_HAS_ACTIVE_RUNS', 'У процесса есть незавершённые запуски.');
+    if (active) throw new AppError('SYSTEM_HAS_ACTIVE_RUNS', 'The workflow has unfinished runs.');
     this.rt.db.run('DELETE FROM workflows WHERE id = ?', id);
     this.rt.audit.record({ actor: 'user', action: 'workflow.delete', target: id });
   }
@@ -325,25 +325,25 @@ export class WorkflowEngine implements RuntimeService {
         const r = appAI(this.rt.app).ai.preview({ rt: this.rt, policy: cfg.modelPolicy, taskType: info.taskType as never, containsConfidential: confidential, needsStructured: true });
         route = { providerId: r.providerId, model: r.model, locality: r.locality, reason: r.reason };
         if (info.tools.some((t) => ['web_search', 'open_url', 'fetch_documentation', 'search_github', 'inspect_repository'].includes(t)) && !scope.allowWeb) {
-          warnings.push(`«${n.title}»: веб-доступ не разрешён для запуска — веб-инструменты будут отклонены.`);
+          warnings.push(`"${n.title}": web access is not allowed for the run; web tools will be denied.`);
         }
       } catch (e) {
         const err = toAppError(e);
         if (err.code !== 'NOT_FOUND') routeError = err.toJSON();
       }
-      if (!row) problems.push(`Агент «${n.agent}» (шаг «${n.title}») не установлен в системе.`);
-      else if (!row.enabled) problems.push(`Агент «${n.agent}» (шаг «${n.title}») выключен.`);
-      if (row && routeError) problems.push(`Шаг «${n.title}»: ${routeError.message}`);
-      if (missing.length) warnings.push(`«${n.title}»: агенту не выданы разрешения ${missing.join(', ')} — соответствующие инструменты будут отклонены.`);
+      if (!row) problems.push(`The agent "${n.agent}" (step "${n.title}") is not installed in the system.`);
+      else if (!row.enabled) problems.push(`The agent "${n.agent}" (step "${n.title}") is disabled.`);
+      if (row && routeError) problems.push(`Step "${n.title}": ${routeError.message}`);
+      if (missing.length) warnings.push(`"${n.title}": the agent was not granted the permissions ${missing.join(', ')}; the matching tools will be denied.`);
       const retries = (n.retries ?? 1) + 1;
       min += iters;
       max += iters * (1 + rounds + repairs) * retries;
       agents.push({ nodeId: n.id, agentId: n.agent, title: n.title, installed: !!row, enabled: !!row?.enabled, missingGrants: missing, route, routeError });
     }
-    if (limits.maxModelCalls !== null && min > limits.maxModelCalls) problems.push(`Лимит вызовов модели (${limits.maxModelCalls}) меньше минимально необходимого (${min}).`);
-    else if (limits.maxModelCalls !== null && max > limits.maxModelCalls) warnings.push(`В худшем случае потребуется до ${max} вызовов модели — больше лимита ${limits.maxModelCalls}; запуск приостановится при его достижении.`);
-    if (confidential) warnings.push('В области запуска есть конфиденциальные источники: будут использоваться только локальные модели.');
-    if (agents.some((a) => a.route?.locality === 'cloud')) warnings.push('Часть шагов будет выполнена облачной моделью: содержимое выбранных документов будет отправлено провайдеру.');
+    if (limits.maxModelCalls !== null && min > limits.maxModelCalls) problems.push(`The model call limit (${limits.maxModelCalls}) is lower than the minimum needed (${min}).`);
+    else if (limits.maxModelCalls !== null && max > limits.maxModelCalls) warnings.push(`In the worst case up to ${max} model calls are needed, more than the limit of ${limits.maxModelCalls}; the run pauses when the limit is reached.`);
+    if (confidential) warnings.push('The run scope has confidential sources: only local models will be used.');
+    if (agents.some((a) => a.route?.locality === 'cloud')) warnings.push('Some steps will run on a cloud model: the content of the selected documents will be sent to the provider.');
     return { ok: problems.length === 0, workflowId, check, agents, approvals: def.nodes.filter((n) => n.type === 'approval').length, estimate: { modelCallsMin: min, modelCallsMax: max, maxIterations }, limits, problems, warnings };
   }
 
@@ -374,13 +374,13 @@ export class WorkflowEngine implements RuntimeService {
   // ---------------------------------------------------------------- runs
 
   async startRun(workflowId: string, input: unknown, opts: StartOptions): Promise<RunView> {
-    if (this.stopped) throw new AppError('SYSTEM_UNAVAILABLE', 'Система закрывается.');
+    if (this.stopped) throw new AppError('SYSTEM_UNAVAILABLE', 'The system is closing.');
     const { definition: def } = this.definition(workflowId);
     assertDefinition(def, this.known());
     const check = validator(def.inputSchema);
-    if (!check(input)) throw new AppError('VALIDATION_FAILED', `Входные данные процесса: ${formatErrors(check.errors).join('; ')}`);
-    for (const sid of opts.scope.sourceIds) if (!this.rt.db.get('SELECT id FROM sources WHERE id = ?', sid)) throw new AppError('NOT_FOUND', `Источник ${sid} не найден.`);
-    for (const did of opts.scope.docIds) if (!this.rt.db.get('SELECT id FROM documents WHERE id = ?', did)) throw new AppError('NOT_FOUND', `Документ ${did} не найден.`);
+    if (!check(input)) throw new AppError('VALIDATION_FAILED', `Workflow input: ${formatErrors(check.errors).join('; ')}`);
+    for (const sid of opts.scope.sourceIds) if (!this.rt.db.get('SELECT id FROM sources WHERE id = ?', sid)) throw new AppError('NOT_FOUND', `Source ${sid} not found.`);
+    for (const did of opts.scope.docIds) if (!this.rt.db.get('SELECT id FROM documents WHERE id = ?', did)) throw new AppError('NOT_FOUND', `Document ${did} not found.`);
     const limits = this.limitsFor(def, opts.limits);
     const scope = { ...opts.scope, containsConfidential: this.scopeConfidential(opts.scope) };
     const id = newId('run');
@@ -401,7 +401,7 @@ export class WorkflowEngine implements RuntimeService {
       now,
     );
     this.rt.audit.record({ actor: opts.actor ?? 'user', action: 'workflow.start', target: def.id, details: { runId: id, scope: { sources: scope.sourceIds.length, docs: scope.docIds.length, web: scope.allowWeb } }, runId: id });
-    this.event(id, null, 'info', 'run.start', `Запуск «${title}»`);
+    this.event(id, null, 'info', 'run.start', `Run "${title}"`);
     this.emitRun(id);
     this.activate(id);
     void this.schedule(id);
@@ -410,7 +410,7 @@ export class WorkflowEngine implements RuntimeService {
 
   private run(id: string): RunRow {
     const r = this.rt.db.get<RunRow>('SELECT * FROM workflow_runs WHERE id = ?', id);
-    if (!r) throw new AppError('NOT_FOUND', 'Запуск не найден.');
+    if (!r) throw new AppError('NOT_FOUND', 'Run not found.');
     return r;
   }
 
@@ -563,8 +563,8 @@ export class WorkflowEngine implements RuntimeService {
     } catch (e) {
       const err = toAppError(e);
       this.rt.log.error('workflow scheduling failed', { runId, code: err.code, message: err.message });
-      this.event(runId, null, 'error', 'run.error', `Внутренняя ошибка движка: ${err.message}`);
-      this.setRunStatus(runId, 'failed', { error: err.toJSON(), reason: 'Внутренняя ошибка движка процессов.' });
+      this.event(runId, null, 'error', 'run.error', `Internal engine error: ${err.message}`);
+      this.setRunStatus(runId, 'failed', { error: err.toJSON(), reason: 'Internal error of the workflow engine.' });
     } finally {
       a.scheduling = false;
     }
@@ -628,14 +628,14 @@ export class WorkflowEngine implements RuntimeService {
       const max = maxIter(loop, baseCtx);
       const ctx = this.context(r, def, steps, { iteration: it, max });
       if (evaluate(loop.until, ctx)) {
-        this.completeStep(marker.id, { iterations: it + 1, iteration: it, converged: true }, `условие завершения выполнено на итерации ${it + 1}`);
-        this.event(runId, marker.id, 'info', 'loop.done', `«${loop.title}»: завершён после ${it + 1} итераций`);
+        this.completeStep(marker.id, { iterations: it + 1, iteration: it, converged: true }, `the exit condition was met at iteration ${it + 1}`);
+        this.event(runId, marker.id, 'info', 'loop.done', `"${loop.title}": finished after ${it + 1} iterations`);
       } else if (it + 1 < max || (loop.extendWhen && evaluate(loop.extendWhen, ctx) && it + 1 < max + 5)) {
-        this.updateStep(marker.id, { output: JSON.stringify({ iteration: it + 1 }), transition_reason: `итерация ${it + 2}` });
-        this.event(runId, marker.id, 'info', 'loop.iteration', `«${loop.title}»: итерация ${it + 2}`);
+        this.updateStep(marker.id, { output: JSON.stringify({ iteration: it + 1 }), transition_reason: `iteration ${it + 2}` });
+        this.event(runId, marker.id, 'info', 'loop.iteration', `"${loop.title}": iteration ${it + 2}`);
       } else {
-        this.completeStep(marker.id, { iterations: it + 1, iteration: it, converged: false }, 'достигнут предел итераций');
-        this.event(runId, marker.id, 'warn', 'loop.limit', `«${loop.title}»: достигнут предел итераций (${max}), результат принят с замечаниями`);
+        this.completeStep(marker.id, { iterations: it + 1, iteration: it, converged: false }, 'the iteration limit was reached');
+        this.event(runId, marker.id, 'warn', 'loop.limit', `"${loop.title}": the iteration limit (${max}) was reached; the result is accepted with comments`);
       }
       changed = true;
       steps = this.steps(runId);
@@ -672,11 +672,11 @@ export class WorkflowEngine implements RuntimeService {
         const stepId = existing?.id ?? newId('step');
         if (!existing) this.rt.db.run("INSERT INTO run_steps(id, run_id, node_id, iteration, status, attempts, updated_at) VALUES (?, ?, ?, ?, 'pending', 0, ?)", stepId, runId, node.id, iteration, nowIso());
         if (node.when && !evaluate(node.when, ctx)) {
-          this.updateStep(stepId, { status: 'skipped', transition_reason: 'условие запуска не выполнено', finished_at: nowIso() });
-          this.event(runId, stepId, 'info', 'step.skipped', `«${node.title}» пропущен: условие не выполнено`);
+          this.updateStep(stepId, { status: 'skipped', transition_reason: 'the run condition was not met', finished_at: nowIso() });
+          this.event(runId, stepId, 'info', 'step.skipped', `"${node.title}" skipped: the condition was not met`);
         } else if (node.type === 'loop') {
           this.updateStep(stepId, { status: 'running', started_at: nowIso(), output: JSON.stringify({ iteration: 0 }) });
-          this.event(runId, stepId, 'info', 'loop.start', `«${node.title}»: итерация 1`);
+          this.event(runId, stepId, 'info', 'loop.start', `"${node.title}": iteration 1`);
         } else if (node.type === 'approval') {
           this.requestApproval(r, node, stepId, ctx);
         } else {
@@ -706,8 +706,8 @@ export class WorkflowEngine implements RuntimeService {
     const failed = steps.filter((s) => s.status === 'failed' && !byNode.get(s.node_id)?.optional);
     if (failed.length) {
       const err = parseJson<AppErrorJson | null>(failed[0]!.error, null);
-      this.setRunStatus(runId, 'failed', { error: err, reason: `Шаг «${byNode.get(failed[0]!.node_id)?.title ?? failed[0]!.node_id}» завершился ошибкой.` });
-      this.event(runId, null, 'error', 'run.failed', `Процесс завершился ошибкой на шаге «${byNode.get(failed[0]!.node_id)?.title}»: ${err?.message ?? ''}`);
+      this.setRunStatus(runId, 'failed', { error: err, reason: `The step "${byNode.get(failed[0]!.node_id)?.title ?? failed[0]!.node_id}" failed.` });
+      this.event(runId, null, 'error', 'run.failed', `The workflow failed at the step "${byNode.get(failed[0]!.node_id)?.title}": ${err?.message ?? ''}`);
       this.active.delete(runId);
       return;
     }
@@ -721,18 +721,18 @@ export class WorkflowEngine implements RuntimeService {
       const ctx = this.context(r, def, steps);
       const result = def.output ? resolveMapping(def.output, ctx) : null;
       this.setRunStatus(runId, 'completed', { result, reason: null });
-      this.event(runId, null, 'info', 'run.completed', 'Процесс завершён');
+      this.event(runId, null, 'info', 'run.completed', 'The workflow is complete');
       this.active.delete(runId);
       return;
     }
     if (waiting.length) {
       if (r.status !== 'waiting_for_approval') {
-        this.setRunStatus(runId, 'waiting_for_approval', { reason: `Ожидает решения: ${waiting.map((w) => byNode.get(w.node_id)?.title ?? w.node_id).join(', ')}` });
+        this.setRunStatus(runId, 'waiting_for_approval', { reason: `Waiting for a decision: ${waiting.map((w) => byNode.get(w.node_id)?.title ?? w.node_id).join(', ')}` });
       }
       return;
     }
     // nothing running, nothing waiting, not done: a dependency can never be satisfied
-    this.setRunStatus(runId, 'failed', { error: new AppError('WORKFLOW_INVALID', 'Процесс не может продолжиться: остались шаги с невыполнимыми зависимостями.').toJSON(), reason: 'Тупик в графе процесса.' });
+    this.setRunStatus(runId, 'failed', { error: new AppError('WORKFLOW_INVALID', 'The workflow cannot continue: some steps have dependencies that cannot be met.').toJSON(), reason: 'Deadlock in the workflow graph.' });
     this.active.delete(runId);
   }
 
@@ -745,7 +745,7 @@ export class WorkflowEngine implements RuntimeService {
     const questions = node.questions ? resolveMapping(node.questions, ctx) : [];
     const approval = { prompt, questions: Array.isArray(questions) ? questions : [], allowRevise: !!node.allowRevise, onReject: node.onReject ?? 'cancel', requestedAt: nowIso() };
     this.updateStep(stepId, { status: 'waiting_for_approval', approval: JSON.stringify(approval), started_at: nowIso() });
-    this.event(r.id, stepId, 'info', 'approval.requested', `Требуется решение пользователя: «${node.title}»`);
+    this.event(r.id, stepId, 'info', 'approval.requested', `A user decision is needed: "${node.title}"`);
   }
 
   private async execute(r: RunRow, node: WorkflowNode, stepId: string, ctx: Record<string, unknown>, attempt: number): Promise<void> {
@@ -769,7 +769,7 @@ export class WorkflowEngine implements RuntimeService {
           route = null;
         }
         this.updateStep(stepId, { agent_id: node.agent, agent_version: version, model_config: JSON.stringify({ policy: config.modelPolicy, generation: config.generation, route }) });
-        this.event(r.id, stepId, 'info', 'step.start', `«${node.title}»: агент ${pkg.manifest.name}${attempt > 1 ? ` (попытка ${attempt})` : ''}`);
+        this.event(r.id, stepId, 'info', 'step.start', `"${node.title}": agent ${pkg.manifest.name}${attempt > 1 ? ` (attempt ${attempt})` : ''}`);
         const note = node.note ? resolveMapping(node.note, ctx) : undefined;
         const context = node.context ? (resolveMapping(node.context, ctx) as ContextBlock[] | undefined) : undefined;
         const res = await this.agentRuntime.run(node.agent, pkg, config, input, {
@@ -788,10 +788,10 @@ export class WorkflowEngine implements RuntimeService {
         this.updateStep(stepId, { model_config: JSON.stringify({ policy: config.modelPolicy, generation: config.generation, route: res.route, nativeStructured: res.nativeStructured, rounds: res.rounds, repairs: res.repairs, toolCalls: res.toolCalls.map((t) => ({ tool: t.tool, ok: t.ok, error: t.error?.code ?? null, ms: t.durationMs })) }) });
       } else if (node.type === 'function') {
         const fn = workflowFunction(node.fn);
-        if (!fn) throw new AppError('WORKFLOW_INVALID', `Функция «${node.fn}» не найдена.`);
+        if (!fn) throw new AppError('WORKFLOW_INVALID', `The function "${node.fn}" was not found.`);
         const args = resolveMapping(node.input, ctx) as Record<string, unknown>;
         this.updateStep(stepId, { input: JSON.stringify(args) });
-        this.event(r.id, stepId, 'info', 'step.start', `«${node.title}»: ${fn.label}`);
+        this.event(r.id, stepId, 'info', 'step.start', `"${node.title}": ${fn.label}`);
         const fctx: FunctionContext = {
           rt: this.rt,
           runId: r.id,
@@ -807,24 +807,24 @@ export class WorkflowEngine implements RuntimeService {
       }
       if (signal.aborted) throw timeout.signal.aborted ? new AppError('TIMEOUT') : new AppError('CANCELLED');
       this.completeStep(stepId, output);
-      this.event(r.id, stepId, 'info', 'step.done', `«${node.title}»: готово`);
+      this.event(r.id, stepId, 'info', 'step.done', `"${node.title}": done`);
     } catch (e) {
       let err = toAppError(e);
-      if (timeout.signal.aborted && !a.controller.signal.aborted) err = new AppError('TIMEOUT', `Шаг «${node.title}» превысил тайм-аут ${Math.round(timeoutMs / 1000)} с.`);
+      if (timeout.signal.aborted && !a.controller.signal.aborted) err = new AppError('TIMEOUT', `The step "${node.title}" exceeded the timeout of ${Math.round(timeoutMs / 1000)} s.`);
       if (a.controller.signal.aborted) {
         if (a.abortReason === 'stop') {
           // the app / system is closing: the step will run again after the user resumes
-          this.updateStep(stepId, { status: 'pending', transition_reason: 'прервано закрытием системы', attempts: Math.max(0, attempt - 1) });
+          this.updateStep(stepId, { status: 'pending', transition_reason: 'interrupted because the system was closed', attempts: Math.max(0, attempt - 1) });
         } else {
-          this.updateStep(stepId, { status: 'cancelled', transition_reason: a.abortReason === 'cancel' ? 'отменено пользователем' : 'процесс остановлен', finished_at: nowIso() });
+          this.updateStep(stepId, { status: 'cancelled', transition_reason: a.abortReason === 'cancel' ? 'cancelled by the user' : 'the workflow was stopped', finished_at: nowIso() });
         }
         return;
       }
       const retries = node.type === 'agent' ? (node.retries ?? 1) : 0;
       if (RETRYABLE.includes(err.code) && attempt <= retries) {
-        this.event(r.id, stepId, 'warn', 'step.retry', `«${node.title}»: ${err.message} — повтор (${attempt}/${retries})`);
+        this.event(r.id, stepId, 'warn', 'step.retry', `"${node.title}": ${err.message}; retry (${attempt}/${retries})`);
         // stays "running" while waiting, so no other scheduling pass can start it twice
-        this.updateStep(stepId, { transition_reason: `повтор после ошибки ${err.code}`, error: JSON.stringify(err.toJSON()) });
+        this.updateStep(stepId, { transition_reason: `retry after error ${err.code}`, error: JSON.stringify(err.toJSON()) });
         await abortableSleep(this.retryDelayMs * attempt, a.controller.signal).catch(() => undefined);
         if (a.controller.signal.aborted) {
           this.updateStep(stepId, a.abortReason === 'stop' ? { status: 'pending', attempts: Math.max(0, attempt - 1) } : { status: 'cancelled', finished_at: nowIso() });
@@ -834,10 +834,10 @@ export class WorkflowEngine implements RuntimeService {
         return;
       }
       this.updateStep(stepId, { status: 'failed', error: JSON.stringify(err.toJSON()), transition_reason: err.code, finished_at: nowIso() });
-      this.event(r.id, stepId, 'error', 'step.failed', `«${node.title}»: ${err.message}`, { code: err.code, hint: err.hint });
+      this.event(r.id, stepId, 'error', 'step.failed', `"${node.title}": ${err.message}`, { code: err.code, hint: err.hint });
       this.rt.audit.recordError(err, `workflow ${r.id} / ${node.id}`);
       if (USER_FIXABLE.includes(err.code)) {
-        this.setRunStatus(r.id, 'paused', { reason: `${ERROR_CATALOG[err.code].message} ${err.hint ?? ''} Исправьте и нажмите «Продолжить».`.trim(), error: err.toJSON() });
+        this.setRunStatus(r.id, 'paused', { reason: `${ERROR_CATALOG[err.code].message} ${err.hint ?? ''} Fix it and press "Resume".`.trim(), error: err.toJSON() });
       } else if (!node.optional) {
         a.abortReason = 'fail';
         a.controller.abort();
@@ -851,25 +851,25 @@ export class WorkflowEngine implements RuntimeService {
 
   async approve(runId: string, stepId: string, d: ApprovalDecision, actor = 'user'): Promise<RunView> {
     const r = this.run(runId);
-    if (r.status === 'cancelled' || r.status === 'completed' || r.status === 'failed') throw new AppError('INVALID_STATE_TRANSITION', 'Запуск уже завершён.');
+    if (r.status === 'cancelled' || r.status === 'completed' || r.status === 'failed') throw new AppError('INVALID_STATE_TRANSITION', 'The run has already finished.');
     const s = this.rt.db.get<StepRow>('SELECT * FROM run_steps WHERE id = ? AND run_id = ?', stepId, runId);
-    if (!s) throw new AppError('NOT_FOUND', 'Шаг не найден.');
-    if (s.status !== 'waiting_for_approval') throw new AppError('INVALID_STATE_TRANSITION', 'Шаг не ожидает решения.');
+    if (!s) throw new AppError('NOT_FOUND', 'Step not found.');
+    if (s.status !== 'waiting_for_approval') throw new AppError('INVALID_STATE_TRANSITION', 'The step is not waiting for a decision.');
     const approval = parseJson<{ questions: { question?: string; text?: string; blocking?: boolean }[]; allowRevise: boolean; onReject: 'cancel' | 'continue' }>(s.approval, { questions: [], allowRevise: false, onReject: 'cancel' });
-    if (!['approve', 'reject', 'revise'].includes(d.decision)) throw new AppError('VALIDATION_FAILED', 'Решение: approve, reject или revise.');
-    if (d.decision === 'revise' && !approval.allowRevise) throw new AppError('VALIDATION_FAILED', 'Для этого шага доработка не предусмотрена.');
-    if (d.decision === 'revise' && !d.comment?.trim()) throw new AppError('VALIDATION_FAILED', 'Опишите, что нужно доработать.');
+    if (!['approve', 'reject', 'revise'].includes(d.decision)) throw new AppError('VALIDATION_FAILED', 'Decision: approve, reject or revise.');
+    if (d.decision === 'revise' && !approval.allowRevise) throw new AppError('VALIDATION_FAILED', 'This step does not allow revisions.');
+    if (d.decision === 'revise' && !d.comment?.trim()) throw new AppError('VALIDATION_FAILED', 'Describe what needs to be revised.');
     const answers = (d.answers ?? []).filter((x) => x && typeof x.question === 'string' && typeof x.answer === 'string').map((x) => ({ question: x.question.slice(0, 1000), answer: x.answer.slice(0, 5000) }));
     if (d.decision === 'approve') {
       const unanswered = approval.questions.filter((q) => q.blocking !== false).map((q) => q.question ?? q.text ?? '').filter((q) => q && !answers.some((a) => a.question === q && a.answer.trim()));
-      if (unanswered.length) throw new AppError('VALIDATION_FAILED', `Ответьте на обязательные вопросы: ${unanswered.slice(0, 3).join('; ')}`, { details: { unanswered } });
+      if (unanswered.length) throw new AppError('VALIDATION_FAILED', `Answer the required questions: ${unanswered.slice(0, 3).join('; ')}`, { details: { unanswered } });
     }
     const output = { decision: d.decision, comment: d.comment?.slice(0, 10000) ?? '', answers, choices: (d.choices ?? []).map((c) => ({ id: String(c.id), value: String(c.value).slice(0, 2000) })), decidedAt: nowIso(), decidedBy: actor };
-    this.completeStep(stepId, output, `решение: ${d.decision}`);
+    this.completeStep(stepId, output, `decision: ${d.decision}`);
     this.rt.audit.record({ actor, action: 'workflow.approval', target: s.node_id, details: { decision: d.decision, comment: d.comment ?? null }, runId });
-    this.event(runId, stepId, 'info', 'approval.decided', `Решение пользователя: ${d.decision === 'approve' ? 'утверждено' : d.decision === 'revise' ? 'на доработку' : 'отклонено'}${d.comment ? ` — ${d.comment.slice(0, 200)}` : ''}`);
+    this.event(runId, stepId, 'info', 'approval.decided', `User decision: ${d.decision === 'approve' ? 'approved' : d.decision === 'revise' ? 'sent for revision' : 'rejected'}${d.comment ? `: ${d.comment.slice(0, 200)}` : ''}`);
     if (d.decision === 'reject' && approval.onReject === 'cancel') {
-      await this.cancel(runId, actor, 'Отклонено пользователем. Промежуточные результаты сохранены в запуске.');
+      await this.cancel(runId, actor, 'Rejected by the user. Intermediate results are saved in the run.');
       return this.get(runId);
     }
     if (r.status === 'waiting_for_approval') this.setRunStatus(runId, 'running');
@@ -882,22 +882,22 @@ export class WorkflowEngine implements RuntimeService {
 
   async pause(runId: string, actor = 'user'): Promise<RunView> {
     const r = this.run(runId);
-    if (!['running', 'waiting_for_approval', 'pending'].includes(r.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Приостановить можно только выполняющийся процесс.');
-    this.setRunStatus(runId, 'paused', { reason: 'Приостановлено пользователем. Выполняющиеся шаги завершатся, новые не начнутся.' });
+    if (!['running', 'waiting_for_approval', 'pending'].includes(r.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Only a running workflow can be paused.');
+    this.setRunStatus(runId, 'paused', { reason: 'Paused by the user. Running steps will finish; new ones will not start.' });
     this.rt.audit.record({ actor, action: 'workflow.pause', target: runId, runId });
-    this.event(runId, null, 'info', 'run.paused', 'Процесс приостановлен');
+    this.event(runId, null, 'info', 'run.paused', 'The workflow is paused');
     return this.get(runId);
   }
 
   async resume(runId: string, actor = 'user'): Promise<RunView> {
     const r = this.run(runId);
-    if (r.status !== 'paused' && r.status !== 'failed') throw new AppError('INVALID_STATE_TRANSITION', 'Продолжить можно приостановленный или завершившийся ошибкой процесс.');
+    if (r.status !== 'paused' && r.status !== 'failed') throw new AppError('INVALID_STATE_TRANSITION', 'Only a paused or failed workflow can be resumed.');
     // failed steps (e.g. model was unavailable) are retried; completed results are kept
-    this.rt.db.run("UPDATE run_steps SET status = 'pending', error = NULL, transition_reason = 'повтор после продолжения', finished_at = NULL WHERE run_id = ? AND status IN ('failed','cancelled')", runId);
+    this.rt.db.run("UPDATE run_steps SET status = 'pending', error = NULL, transition_reason = 'retry after resume', finished_at = NULL WHERE run_id = ? AND status IN ('failed','cancelled')", runId);
     this.rt.db.run('UPDATE workflow_runs SET error = NULL, finished_at = NULL WHERE id = ?', runId);
     this.setRunStatus(runId, 'running', { reason: null });
     this.rt.audit.record({ actor, action: 'workflow.resume', target: runId, runId });
-    this.event(runId, null, 'info', 'run.resumed', 'Процесс продолжен');
+    this.event(runId, null, 'info', 'run.resumed', 'The workflow is resumed');
     const a = this.activate(runId);
     if (a.controller.signal.aborted) {
       this.active.delete(runId);
@@ -907,9 +907,9 @@ export class WorkflowEngine implements RuntimeService {
     return this.get(runId);
   }
 
-  async cancel(runId: string, actor = 'user', reason = 'Отменено пользователем. Промежуточные результаты сохранены.'): Promise<RunView> {
+  async cancel(runId: string, actor = 'user', reason = 'Cancelled by the user. Intermediate results are saved.'): Promise<RunView> {
     const r = this.run(runId);
-    if (r.status === 'completed' || r.status === 'failed' || r.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'Запуск уже завершён.');
+    if (r.status === 'completed' || r.status === 'failed' || r.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'The run has already finished.');
     this.setRunStatus(runId, 'cancelled', { reason });
     const a = this.active.get(runId);
     if (a) {
@@ -918,7 +918,7 @@ export class WorkflowEngine implements RuntimeService {
       await Promise.allSettled([...a.running.values()]);
       this.active.delete(runId);
     }
-    this.rt.db.run("UPDATE run_steps SET status = 'cancelled', transition_reason = 'процесс отменён', finished_at = ? WHERE run_id = ? AND status IN ('pending','running','waiting_for_approval')", nowIso(), runId);
+    this.rt.db.run("UPDATE run_steps SET status = 'cancelled', transition_reason = 'the workflow was cancelled', finished_at = ? WHERE run_id = ? AND status IN ('pending','running','waiting_for_approval')", nowIso(), runId);
     this.rt.audit.record({ actor, action: 'workflow.cancel', target: runId, runId });
     this.event(runId, null, 'warn', 'run.cancelled', reason);
     return this.get(runId);
@@ -927,7 +927,7 @@ export class WorkflowEngine implements RuntimeService {
   /** Raises the limits of a run paused by its budget, so it can continue. */
   updateLimits(runId: string, patch: Partial<WorkflowLimits>, actor = 'user'): RunView {
     const r = this.run(runId);
-    if (r.status === 'completed' || r.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'Запуск уже завершён.');
+    if (r.status === 'completed' || r.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'The run has already finished.');
     const def = JSON.parse(r.definition) as WorkflowDefinition;
     const limits = this.limitsFor(def, { ...parseJson<WorkflowLimits>(r.limits, DEFAULT_LIMITS), ...patch });
     this.rt.db.run('UPDATE workflow_runs SET limits = ?, updated_at = ? WHERE id = ?', JSON.stringify(limits), nowIso(), runId);
@@ -961,10 +961,10 @@ export class WorkflowEngine implements RuntimeService {
       const loops = parseJson<WorkflowDefinition>(r.definition, { nodes: [] } as unknown as WorkflowDefinition).nodes.filter((n) => n.type === 'loop').map((n) => n.id);
       // agent/function steps return to pending; loop markers stay "running" (they only track the iteration)
       for (const s of this.rt.db.all<{ id: string; node_id: string; attempts: number }>("SELECT id, node_id, attempts FROM run_steps WHERE run_id = ? AND status = 'running'", r.id)) {
-        if (!loops.includes(s.node_id)) this.updateStep(s.id, { status: 'pending', transition_reason: 'прервано перезапуском', attempts: Math.max(0, s.attempts - 1) });
+        if (!loops.includes(s.node_id)) this.updateStep(s.id, { status: 'pending', transition_reason: 'interrupted by a restart', attempts: Math.max(0, s.attempts - 1) });
       }
-      this.setRunStatus(r.id, 'paused', { reason: 'Восстановлено после перезапуска приложения. Проверьте состояние и нажмите «Продолжить».' });
-      this.event(r.id, null, 'warn', 'run.recovered', 'Запуск был прерван и восстановлен после перезапуска');
+      this.setRunStatus(r.id, 'paused', { reason: 'Recovered after an application restart. Check the state and press "Resume".' });
+      this.event(r.id, null, 'warn', 'run.recovered', 'The run was interrupted and recovered after a restart');
     }
   }
 
@@ -977,7 +977,7 @@ export class WorkflowEngine implements RuntimeService {
       waits.push(Promise.allSettled([...a.running.values()]));
       try {
         const r = this.run(runId);
-        if (r.status === 'running' || r.status === 'pending') this.setRunStatus(runId, 'paused', { reason: 'Прервано закрытием системы. Нажмите «Продолжить», чтобы возобновить.' });
+        if (r.status === 'running' || r.status === 'pending') this.setRunStatus(runId, 'paused', { reason: 'Interrupted because the system was closed. Press "Resume" to continue.' });
       } catch {
         // closing
       }

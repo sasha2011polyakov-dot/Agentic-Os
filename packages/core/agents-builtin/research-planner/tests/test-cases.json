@@ -1,9 +1,9 @@
 {
   "cases": [
     {
-      "name": "вопрос",
+      "name": "question",
       "input": {
-        "question": "Какие локальные движки LLM поддерживают JSON Schema?"
+        "question": "Which local LLM engines support JSON Schema?"
       },
       "expect": {
         "minItems": {

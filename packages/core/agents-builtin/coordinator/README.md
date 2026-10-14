@@ -1,11 +1,11 @@
-# Координатор
+# Coordinator
 
-Превращает запрос пользователя в план процесса создания ТЗ и проверяет, достаточно ли данных.
+Turns the user request into a plan for the specification workflow and checks whether there is enough data.
 
-- Тип задачи для маршрутизации моделей: `planning`
-- Инструменты: нет (работает только с переданными данными)
+- Task type for model routing: `planning`
+- Tools: none (works only with the data it receives)
 
-## Запрашиваемые разрешения
-- не требуются
+## Requested permissions
+- none
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

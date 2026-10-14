@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "verifier",
-  "name": "Проверяющий результат",
-  "version": "1.0.0",
-  "description": "Сопоставляет фактический результат с критериями готовности и результатами проверок.",
+  "name": "Result verifier",
+  "version": "1.0.1",
+  "description": "Compares the actual result with the acceptance criteria and the check results.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",
@@ -16,19 +16,19 @@
   "permissions": [
     {
       "permission": "documents.read",
-      "reason": "Чтение артефактов"
+      "reason": "Read artifacts"
     },
     {
       "permission": "projects.read",
-      "reason": "Чтение изменённых файлов"
+      "reason": "Read changed files"
     },
     {
       "permission": "search.use",
-      "reason": "Поиск"
+      "reason": "Search"
     },
     {
       "permission": "commands.run",
-      "reason": "Повторный запуск проверок, заданных пользователем"
+      "reason": "Re-run the checks set by the user"
     }
   ],
   "dependencies": [],

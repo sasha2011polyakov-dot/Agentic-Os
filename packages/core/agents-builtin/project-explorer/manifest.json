@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "project-explorer",
-  "name": "Исследователь проекта",
-  "version": "1.0.0",
-  "description": "Изучает подключённые проекты и базу знаний: архитектура, существующие решения, релевантные файлы.",
+  "name": "Project explorer",
+  "version": "1.0.1",
+  "description": "Explores connected projects and the knowledge base: architecture, existing solutions, relevant files.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",
@@ -16,23 +16,23 @@
   "permissions": [
     {
       "permission": "projects.read",
-      "reason": "Чтение проекта"
+      "reason": "Read the project"
     },
     {
       "permission": "search.use",
-      "reason": "Поиск"
+      "reason": "Search"
     },
     {
       "permission": "documents.read",
-      "reason": "Чтение документов"
+      "reason": "Read documents"
     },
     {
       "permission": "graph.read",
-      "reason": "Связи документов"
+      "reason": "Document links"
     },
     {
       "permission": "systems.read",
-      "reason": "Чтение других систем, явно выбранных для поручения (с указанием принадлежности результатов)"
+      "reason": "Read other systems explicitly selected for the mission (results show which system they come from)"
     }
   ],
   "dependencies": [],

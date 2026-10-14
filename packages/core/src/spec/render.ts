@@ -44,9 +44,9 @@ export interface RenderLinks {
 }
 
 const SECTION_ORDER = ['goal', 'context', 'problem', 'scope', 'glossary', 'current_state', 'scenarios', 'io', 'architecture_constraints', 'non_functional_notes', 'dependencies', 'testing', 'risks'];
-const TYPE_LABEL: Record<string, string> = { functional: 'функциональное', non_functional: 'нефункциональное', constraint: 'ограничение', business_rule: 'бизнес-правило' };
-const STATUS_LABEL: Record<string, string> = { confirmed: 'подтверждено', needs_clarification: 'требует уточнения', assumption: 'допущение' };
-const PRIORITY_LABEL: Record<string, string> = { must: 'обязательно', should: 'желательно', could: 'возможно' };
+const TYPE_LABEL: Record<string, string> = { functional: 'functional', non_functional: 'non-functional', constraint: 'constraint', business_rule: 'business rule' };
+const STATUS_LABEL: Record<string, string> = { confirmed: 'confirmed', needs_clarification: 'needs clarification', assumption: 'assumption' };
+const PRIORITY_LABEL: Record<string, string> = { must: 'must', should: 'should', could: 'could' };
 
 function cell(s: string): string {
   return s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
@@ -70,7 +70,7 @@ export function renderSpec(d: SpecData, links: RenderLinks = {}): string {
   out.push('---', 'type: spec', `status: ${d.status}`, `title: ${yamlString(d.title)}`, `created: ${new Date().toISOString().slice(0, 10)}`, `workflow_run: ${d.runId}`, `requirements: ${d.requirements.length}`, `tasks: ${d.tasks.length}`, '---', '');
   out.push(`# ${d.title}`, '');
   if (d.writer.summary) out.push(`> ${d.writer.summary.replace(/\n/g, '\n> ')}`, '');
-  if (d.status === 'draft') out.push('> [!note] Черновик: документ ещё не утверждён пользователем.', '');
+  if (d.status === 'draft') out.push('> [!note] Draft: the user has not approved this document yet.', '');
 
   const order = (k: string) => {
     const i = SECTION_ORDER.indexOf(k);
@@ -79,81 +79,81 @@ export function renderSpec(d: SpecData, links: RenderLinks = {}): string {
   const sections = [...d.writer.sections].sort((a, b) => order(a.key) - order(b.key));
   for (const s of sections) out.push(`## ${s.heading || s.key}`, '', s.content.trim(), '');
 
-  out.push('## Требования', '');
-  if (!d.requirements.length) out.push('_Требования не сформулированы._', '');
+  out.push('## Requirements', '');
+  if (!d.requirements.length) out.push('_No requirements were formulated._', '');
   else {
-    out.push('| ID | Требование | Тип | Приоритет | Статус | Источники |', '|---|---|---|---|---|---|');
+    out.push('| ID | Requirement | Type | Priority | Status | Sources |', '|---|---|---|---|---|---|');
     for (const r of d.requirements) out.push(`| ${reqRef(r.id)} | ${cell(short(r.statement, 120))} | ${TYPE_LABEL[r.type] ?? r.type} | ${PRIORITY_LABEL[r.priority] ?? r.priority} | ${STATUS_LABEL[r.status] ?? r.status} | ${(r.sources ?? []).join(', ') || '—'} |`);
     out.push('');
     for (const r of d.requirements) {
       out.push(`### ${r.id}. ${short(r.statement, 90)}`, '', r.statement, '');
-      if (r.rationale) out.push(`**Обоснование.** ${r.rationale}`, '');
-      out.push('**Критерии приёмки:**', ...(r.acceptance_criteria?.length ? r.acceptance_criteria.map((c) => `- [ ] ${c}`) : ['- _не заданы_']), '');
-      if (r.depends_on?.length) out.push(`**Зависит от:** ${r.depends_on.map(reqRef).join(', ')}`, '');
-      if (r.clarifications?.length) out.push('**Требует уточнения:**', ...r.clarifications.map((c) => `- ${c}`), '');
+      if (r.rationale) out.push(`**Rationale.** ${r.rationale}`, '');
+      out.push('**Acceptance criteria:**', ...(r.acceptance_criteria?.length ? r.acceptance_criteria.map((c) => `- [ ] ${c}`) : ['- _not set_']), '');
+      if (r.depends_on?.length) out.push(`**Depends on:** ${r.depends_on.map(reqRef).join(', ')}`, '');
+      if (r.clarifications?.length) out.push('**Needs clarification:**', ...r.clarifications.map((c) => `- ${c}`), '');
     }
   }
 
-  out.push('## Декомпозиция на задачи', '');
-  if (!d.tasks.length) out.push('_Задачи не сформированы._', '');
+  out.push('## Task decomposition', '');
+  if (!d.tasks.length) out.push('_No tasks were formed._', '');
   for (const t of d.tasks) {
     out.push(`### ${taskRef(t.id)}. ${t.title}`, '', t.description, '');
-    out.push(`- **Приоритет:** ${t.priority}`);
-    out.push(`- **Требования:** ${(t.requirement_ids ?? []).map(reqRef).join(', ') || '—'}`);
-    if (t.depends_on?.length) out.push(`- **Зависит от:** ${t.depends_on.map(taskRef).join(', ')}`);
-    if (t.affected_modules?.length) out.push(`- **Затрагивает:** ${t.affected_modules.join(', ')}`);
-    if (t.goal) out.push(`- **Цель:** ${t.goal}`);
-    out.push('- **Критерии готовности:**', ...(t.acceptance_criteria?.length ? t.acceptance_criteria.map((c) => `  - [ ] ${c}`) : ['  - _не заданы_']));
-    if (t.unknowns?.length) out.push('- **Неизвестно:**', ...t.unknowns.map((u) => `  - ${u}`));
+    out.push(`- **Priority:** ${t.priority}`);
+    out.push(`- **Requirements:** ${(t.requirement_ids ?? []).map(reqRef).join(', ') || '—'}`);
+    if (t.depends_on?.length) out.push(`- **Depends on:** ${t.depends_on.map(taskRef).join(', ')}`);
+    if (t.affected_modules?.length) out.push(`- **Affects:** ${t.affected_modules.join(', ')}`);
+    if (t.goal) out.push(`- **Goal:** ${t.goal}`);
+    out.push('- **Acceptance criteria:**', ...(t.acceptance_criteria?.length ? t.acceptance_criteria.map((c) => `  - [ ] ${c}`) : ['  - _not set_']));
+    if (t.unknowns?.length) out.push('- **Unknowns:**', ...t.unknowns.map((u) => `  - ${u}`));
     out.push('');
   }
 
-  out.push('## Матрица трассировки', '', '| Требование | Задачи | Свидетельства |', '|---|---|---|');
+  out.push('## Traceability matrix', '', '| Requirement | Tasks | Evidence |', '|---|---|---|');
   for (const r of d.requirements) {
     const tasks = d.tasks.filter((t) => (t.requirement_ids ?? []).includes(r.id)).map((t) => taskRef(t.id));
-    out.push(`| ${reqRef(r.id)} | ${tasks.join(', ') || '**нет**'} | ${(r.sources ?? []).join(', ') || '—'} |`);
+    out.push(`| ${reqRef(r.id)} | ${tasks.join(', ') || '**none**'} | ${(r.sources ?? []).join(', ') || '—'} |`);
   }
   out.push('');
 
-  out.push('## Свидетельства', '');
-  if (!d.evidence.length) out.push('_Свидетельства не собраны._', '');
+  out.push('## Evidence', '');
+  if (!d.evidence.length) out.push('_No evidence was collected._', '');
   else {
-    out.push('| ID | Утверждение | Источник | Цитата |', '|---|---|---|---|');
+    out.push('| ID | Claim | Source | Quote |', '|---|---|---|---|');
     for (const e of d.evidence) {
       const src = e.source ? `${e.source.title ?? e.source.ref}${e.source.type === 'document' ? ` (${e.source.ref})` : ''}` : '—';
-      const q = e.kind === 'assumption' ? 'допущение' : e.quote_verified ? `✔ «${cell(short(e.quote ?? '', 80))}»` : `✖ не найдена в источнике`;
+      const q = e.kind === 'assumption' ? 'assumption' : e.quote_verified ? `✔ "${cell(short(e.quote ?? '', 80))}"` : `✖ not found in the source`;
       out.push(`| ${e.id} | ${cell(short(e.fact, 120))} | ${cell(src)} | ${q} |`);
     }
     out.push('');
   }
 
   if (d.issues.length) {
-    out.push('## Противоречия и решения', '');
+    out.push('## Contradictions and decisions', '');
     for (const i of d.issues) {
       const res = d.resolutions.find((r) => r.issue === i.id);
-      out.push(`- **${i.id}** (${i.severity}, ${i.type}): ${i.description}${i.refs?.length ? ` — ${i.refs.join(', ')}` : ''}${res ? `\n  - Решение пользователя: ${res.decision}` : i.recommendation ? `\n  - Рекомендация: ${i.recommendation}` : ''}`);
+      out.push(`- **${i.id}** (${i.severity}, ${i.type}): ${i.description}${i.refs?.length ? ` (${i.refs.join(', ')})` : ''}${res ? `\n  - User decision: ${res.decision}` : i.recommendation ? `\n  - Recommendation: ${i.recommendation}` : ''}`);
     }
     out.push('');
   }
-  if (d.writer.assumptions?.length) out.push('## Допущения', '', ...d.writer.assumptions.map((a) => `- ${a}`), '');
-  if (d.writer.open_questions?.length) out.push('## Открытые вопросы', '', ...d.writer.open_questions.map((q) => `- ${q}`), '');
+  if (d.writer.assumptions?.length) out.push('## Assumptions', '', ...d.writer.assumptions.map((a) => `- ${a}`), '');
+  if (d.writer.open_questions?.length) out.push('## Open questions', '', ...d.writer.open_questions.map((q) => `- ${q}`), '');
 
-  out.push('## Автоматическая проверка', '');
+  out.push('## Automatic checks', '');
   const m = d.metrics;
   out.push(
-    `- Требований: ${m.requirements ?? d.requirements.length} (обязательных: ${m.must ?? '—'}), задач: ${m.tasks ?? d.tasks.length}`,
-    `- С критериями приёмки: ${m.withCriteriaPct ?? '—'}%; опираются на проверенную цитату: ${m.withVerifiedSourcePct ?? '—'}%`,
-    `- Покрытие требований задачами: ${m.coveragePct ?? '—'}% (обязательных: ${m.mustCoveragePct ?? '—'}%)`,
-    `- Свидетельств: ${d.evidence.length}, цитаты подтверждены: ${d.evidence.filter((e) => e.quote_verified).length}`,
+    `- Requirements: ${m.requirements ?? d.requirements.length} (must: ${m.must ?? '—'}), tasks: ${m.tasks ?? d.tasks.length}`,
+    `- With acceptance criteria: ${m.withCriteriaPct ?? '—'}%; backed by a verified quote: ${m.withVerifiedSourcePct ?? '—'}%`,
+    `- Coverage of requirements by tasks: ${m.coveragePct ?? '—'}% (must: ${m.mustCoveragePct ?? '—'}%)`,
+    `- Evidence: ${d.evidence.length}, quotes confirmed: ${d.evidence.filter((e) => e.quote_verified).length}`,
   );
-  if (d.review) out.push(`- Ревью: ${d.review.verdict === 'pass' ? 'пройдено' : 'есть замечания'} — ${d.review.summary}`);
+  if (d.review) out.push(`- Review: ${d.review.verdict === 'pass' ? 'passed' : 'has comments'}: ${d.review.summary}`);
   out.push('');
   if (d.findings.length) {
-    out.push('| Важность | Проблема |', '|---|---|');
+    out.push('| Severity | Problem |', '|---|---|');
     for (const f of d.findings) out.push(`| ${f.severity} | ${cell(f.description)} |`);
     out.push('');
-  } else out.push('Замечаний валидаторов нет.', '');
-  if (d.writer.omitted_sections?.length) out.push('## Не включённые разделы', '', ...d.writer.omitted_sections.map((o) => `- ${o.key}: ${o.reason}`), '');
+  } else out.push('The validators found no problems.', '');
+  if (d.writer.omitted_sections?.length) out.push('## Sections not included', '', ...d.writer.omitted_sections.map((o) => `- ${o.key}: ${o.reason}`), '');
   return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
 }
 
@@ -178,19 +178,19 @@ export function requirementDocMarkdown(r: Requirement, ctx: { specTitle: string;
   if (sources.length) fm.push(`derived_from: [${[...new Set(sources)].join(', ')}]`);
   fm.push(`workflow_run: ${ctx.runId}`, '---', '');
   const body = [`# ${r.id}. ${short(r.statement, 90)}`, '', r.statement, ''];
-  if (r.rationale) body.push(`**Обоснование.** ${r.rationale}`, '');
-  body.push('## Критерии приёмки', '', ...(r.acceptance_criteria?.length ? r.acceptance_criteria.map((c) => `- [ ] ${c}`) : ['- _не заданы_']), '');
+  if (r.rationale) body.push(`**Rationale.** ${r.rationale}`, '');
+  body.push('## Acceptance criteria', '', ...(r.acceptance_criteria?.length ? r.acceptance_criteria.map((c) => `- [ ] ${c}`) : ['- _not set_']), '');
   if (r.sources?.length) {
-    body.push('## Свидетельства', '');
+    body.push('## Evidence', '');
     for (const s of r.sources) {
       const e = ctx.evidence.get(s);
       if (!e) continue;
-      body.push(`- ${s}: ${e.fact}${e.quote ? ` — «${e.quote}»${e.quote_verified ? '' : ' (цитата не найдена в источнике)'}` : ''}${e.source ? ` (${e.source.title ?? e.source.ref})` : ''}`);
+      body.push(`- ${s}: ${e.fact}${e.quote ? `: "${e.quote}"${e.quote_verified ? '' : ' (the quote was not found in the source)'}` : ''}${e.source ? ` (${e.source.title ?? e.source.ref})` : ''}`);
     }
     body.push('');
   }
-  if (ctx.tasks.length) body.push('## Задачи', '', ...ctx.tasks.map((t) => `- ${t.key} ${t.title}`), '');
-  body.push(`Часть технического задания [[${ctx.specTitle}]].`, '');
+  if (ctx.tasks.length) body.push('## Tasks', '', ...ctx.tasks.map((t) => `- ${t.key} ${t.title}`), '');
+  body.push(`Part of the specification [[${ctx.specTitle}]].`, '');
   return `${fm.join('\n')}${body.join('\n')}`;
 }
 

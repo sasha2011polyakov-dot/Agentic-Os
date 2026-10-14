@@ -1,11 +1,11 @@
-# Ревьюер исследования
+# Research reviewer
 
-Проверяет, что выводы отчёта подтверждены проверенными цитатами и источниками.
+Checks that the conclusions of a report are backed by verified quotes and sources.
 
-- Тип задачи для маршрутизации моделей: `review`
-- Инструменты: нет (работает только с переданными данными)
+- Task type for model routing: `review`
+- Tools: none (works only with the data it receives)
 
-## Запрашиваемые разрешения
-- не требуются
+## Requested permissions
+- none
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

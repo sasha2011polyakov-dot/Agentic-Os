@@ -1,7 +1,7 @@
 {
   "cases": [
     {
-      "name": "без требований",
+      "name": "no requirements",
       "input": {
         "requirements": [],
         "evidence": [],

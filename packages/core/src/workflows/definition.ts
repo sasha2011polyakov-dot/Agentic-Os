@@ -145,35 +145,35 @@ export function checkDefinition(def: unknown, known: { agents: Set<string>; func
   const d = def as WorkflowDefinition;
   const ids = new Set<string>();
   for (const n of d.nodes) {
-    if (ids.has(n.id)) errors.push({ nodeId: n.id, message: `Повторяющийся идентификатор узла «${n.id}».` });
+    if (ids.has(n.id)) errors.push({ nodeId: n.id, message: `Duplicate node identifier "${n.id}".` });
     ids.add(n.id);
   }
   const loopOf = new Map<string, string>();
   for (const n of d.nodes) {
     if (n.type !== 'loop') continue;
-    if (!n.body?.length) errors.push({ nodeId: n.id, message: 'Цикл без узлов.' });
-    if (!n.until) errors.push({ nodeId: n.id, message: 'У цикла нет условия завершения.' });
-    if (n.maxIterations === undefined) errors.push({ nodeId: n.id, message: 'У цикла нет ограничения числа итераций.' });
+    if (!n.body?.length) errors.push({ nodeId: n.id, message: 'A loop without nodes.' });
+    if (!n.until) errors.push({ nodeId: n.id, message: 'The loop has no exit condition.' });
+    if (n.maxIterations === undefined) errors.push({ nodeId: n.id, message: 'The loop has no iteration limit.' });
     for (const b of n.body ?? []) {
-      if (!ids.has(b)) errors.push({ nodeId: n.id, message: `Цикл ссылается на неизвестный узел «${b}».` });
-      if (loopOf.has(b)) errors.push({ nodeId: b, message: 'Узел не может входить в два цикла.' });
+      if (!ids.has(b)) errors.push({ nodeId: n.id, message: `The loop refers to an unknown node "${b}".` });
+      if (loopOf.has(b)) errors.push({ nodeId: b, message: 'A node cannot belong to two loops.' });
       loopOf.set(b, n.id);
     }
   }
   for (const n of d.nodes) {
-    if (n.type === 'loop' && loopOf.has(n.id)) errors.push({ nodeId: n.id, message: 'Вложенные циклы не поддерживаются.' });
+    if (n.type === 'loop' && loopOf.has(n.id)) errors.push({ nodeId: n.id, message: 'Nested loops are not supported.' });
     if (n.type === 'agent') {
-      if (!n.agent) errors.push({ nodeId: n.id, message: 'Не выбран агент.' });
-      else if (!known.agents.has(n.agent)) warnings.push({ nodeId: n.id, message: `Агент «${n.agent}» не найден в каталоге.` });
+      if (!n.agent) errors.push({ nodeId: n.id, message: 'No agent is selected.' });
+      else if (!known.agents.has(n.agent)) warnings.push({ nodeId: n.id, message: `The agent "${n.agent}" was not found in the catalog.` });
     }
-    if (n.type === 'function' && !known.functions.has(n.fn)) errors.push({ nodeId: n.id, message: `Неизвестная функция «${n.fn}».` });
+    if (n.type === 'function' && !known.functions.has(n.fn)) errors.push({ nodeId: n.id, message: `Unknown function "${n.fn}".` });
     for (const dep of n.dependsOn ?? []) {
-      if (!ids.has(dep)) errors.push({ nodeId: n.id, message: `Зависимость от неизвестного узла «${dep}».` });
-      else if (loopOf.get(dep) && loopOf.get(dep) !== loopOf.get(n.id)) errors.push({ nodeId: n.id, message: `Узел вне цикла не может зависеть от узла «${dep}» внутри цикла — укажите зависимость от самого цикла.` });
+      if (!ids.has(dep)) errors.push({ nodeId: n.id, message: `Dependency on an unknown node "${dep}".` });
+      else if (loopOf.get(dep) && loopOf.get(dep) !== loopOf.get(n.id)) errors.push({ nodeId: n.id, message: `A node outside a loop cannot depend on the node "${dep}" inside the loop: depend on the loop itself.` });
     }
     for (const p of referencedPaths([(n as AgentNode).input, n.when, (n as ApprovalNode).prompt, (n as LoopNode).until])) {
       const m = /^nodes\.([a-z0-9_]+)/.exec(p);
-      if (m && !ids.has(m[1]!)) errors.push({ nodeId: n.id, message: `Ссылка на неизвестный узел «${m[1]}» в выражении ${p}.` });
+      if (m && !ids.has(m[1]!)) errors.push({ nodeId: n.id, message: `Reference to an unknown node "${m[1]}" in the expression ${p}.` });
     }
   }
   // dependency cycles (loops are expressed with loop nodes, never with back-edges)
@@ -182,7 +182,7 @@ export function checkDefinition(def: unknown, known: { agents: Set<string>; func
   const visit = (id: string, path: string[]): void => {
     if (state.get(id) === 2) return;
     if (state.get(id) === 1) {
-      errors.push({ nodeId: id, message: `Циклическая зависимость: ${[...path, id].join(' → ')}. Для повторов используйте узел «Цикл».` });
+      errors.push({ nodeId: id, message: `Circular dependency: ${[...path, id].join(' → ')}. Use a "Loop" node for repetitions.` });
       return;
     }
     state.set(id, 1);
@@ -190,7 +190,7 @@ export function checkDefinition(def: unknown, known: { agents: Set<string>; func
     state.set(id, 2);
   };
   for (const n of d.nodes) visit(n.id, []);
-  if (!d.nodes.some((n) => n.type === 'agent' || n.type === 'function')) warnings.push({ nodeId: null, message: 'В процессе нет ни одного действия.' });
+  if (!d.nodes.some((n) => n.type === 'agent' || n.type === 'function')) warnings.push({ nodeId: null, message: 'The workflow has no actions.' });
   return { ok: errors.length === 0, errors, warnings };
 }
 

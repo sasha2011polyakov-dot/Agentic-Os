@@ -1,15 +1,15 @@
 {
   "cases": [
     {
-      "name": "простая задача",
+      "name": "simple task",
       "input": {
-        "objective": "Отчёт",
+        "objective": "Report",
         "requirements": [],
         "acceptance_criteria": [],
         "available_roles": [
           {
             "role": "verifier",
-            "description": "проверка"
+            "description": "check"
           }
         ],
         "available_tools": [],

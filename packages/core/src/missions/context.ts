@@ -141,20 +141,20 @@ export async function groundEvidence(rt: SystemRuntime, systems: SystemManager, 
   const out: GroundedEvidence[] = [];
   for (const e of evidence) {
     if (e.kind === 'assumption' || !e.quote || !e.source) {
-      out.push({ ...e, kind: 'assumption', verified: false, verification: e.kind === 'assumption' ? 'допущение' : 'нет цитаты или источника', systemId: null });
+      out.push({ ...e, kind: 'assumption', verified: false, verification: e.kind === 'assumption' ? 'assumption' : 'no quote or source', systemId: null });
       continue;
     }
     const src = await load(e.source.type, e.source.ref);
     if (!src) {
-      out.push({ ...e, verified: false, verification: 'источник не найден', systemId: null });
+      out.push({ ...e, verified: false, verification: 'source not found', systemId: null });
       continue;
     }
     if (src.systemId === rt.systemId && readable && !readable.has(src.sourceId)) {
-      out.push({ ...e, verified: false, verification: 'источник вне области поручения', systemId: src.systemId });
+      out.push({ ...e, verified: false, verification: 'source outside the mission scope', systemId: src.systemId });
       continue;
     }
     const q = verifyQuote(e.quote, src.text);
-    out.push({ ...e, kind: q.found ? e.kind : 'assumption', verified: q.found, verification: q.found ? `цитата найдена (${q.method})` : 'цитата не найдена в источнике — утверждение считается допущением', systemId: src.systemId });
+    out.push({ ...e, kind: q.found ? e.kind : 'assumption', verified: q.found, verification: q.found ? `quote found (${q.method})` : 'quote not found in the source: the claim is treated as an assumption', systemId: src.systemId });
   }
   return out;
 }
@@ -198,7 +198,7 @@ export async function crossSystemSearch(systems: SystemManager, systemIds: strin
         if (seen.size >= limit) break;
       }
     } catch (e) {
-      problems.push(`Система «${name}» недоступна: ${(e as Error).message}`);
+      problems.push(`The system "${name}" is unavailable: ${(e as Error).message}`);
     }
   }
   return { hits, problems };

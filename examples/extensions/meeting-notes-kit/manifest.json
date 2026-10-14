@@ -9,7 +9,7 @@
   "platform": ">=0.1.0 <1.0.0",
   "contributes": {
     "agents": ["agents/meeting-summarizer"],
-    "templates": [{ "id": "meeting", "name": "Встреча", "file": "templates/meeting.md", "folder": "Meetings" }]
+    "templates": [{ "id": "meeting", "name": "Meeting", "file": "templates/meeting.md", "folder": "Meetings" }]
   },
   "permissions": []
 }

@@ -8,19 +8,19 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "ID свидетельства вида E1, E2…",
+            "description": "Evidence ID such as E1, E2…",
             "pattern": "^E[0-9]+$"
           },
           "fact": {
             "type": "string",
-            "description": "Факт или утверждение одним предложением"
+            "description": "A fact or claim in one sentence"
           },
           "kind": {
             "enum": [
               "fact",
               "assumption"
             ],
-            "description": "fact — подтверждено источником; assumption — предположение"
+            "description": "fact: confirmed by a source; assumption: an assumption"
           },
           "source": {
             "type": "object",
@@ -33,7 +33,7 @@
               },
               "ref": {
                 "type": "string",
-                "description": "docId или «sourceId:путь»"
+                "description": "A docId or \"sourceId:path\""
               },
               "title": {
                 "type": "string"
@@ -47,7 +47,7 @@
           },
           "quote": {
             "type": "string",
-            "description": "Дословная цитата из источника (обязательно для fact)"
+            "description": "A verbatim quote from the source (required for fact)"
           },
           "relevance": {
             "enum": [

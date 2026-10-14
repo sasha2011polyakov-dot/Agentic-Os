@@ -13,17 +13,17 @@ const FORBIDDEN_VALUE = /url\s*\(|expression\s*\(|javascript:|image-set|attr\s*\
 export function validateThemeTokens(tokens: Record<string, unknown>): { errors: string[]; tokens: Record<string, string> } {
   const errors: string[] = [];
   const out: Record<string, string> = {};
-  if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) return { errors: ['токены — объект «имя → значение».'], tokens: out };
+  if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) return { errors: ['tokens must be an object "name → value".'], tokens: out };
   const keys = Object.keys(tokens);
-  if (keys.length > 200) errors.push('не больше 200 токенов.');
+  if (keys.length > 200) errors.push('no more than 200 tokens.');
   for (const k of keys) {
     const v = String(tokens[k] ?? '');
     if (!TOKEN_KEY.test(k)) {
-      errors.push(`токен «${k}» не поддерживается (допустимы --aos-color-*, --aos-font-*, --aos-radius-*, --aos-space-*, --aos-shadow-*, --aos-motion-*, --aos-size-*, --aos-border-*).`);
+      errors.push(`the token "${k}" is not supported (allowed: --aos-color-*, --aos-font-*, --aos-radius-*, --aos-space-*, --aos-shadow-*, --aos-motion-*, --aos-size-*, --aos-border-*).`);
       continue;
     }
     if (v.length > 200 || !SAFE_VALUE.test(v) || FORBIDDEN_VALUE.test(v)) {
-      errors.push(`токен «${k}»: недопустимое значение (внешние ресурсы, выражения и спецсимволы запрещены).`);
+      errors.push(`token "${k}": invalid value (external resources, expressions and special characters are not allowed).`);
       continue;
     }
     out[k] = v.trim();
@@ -61,17 +61,17 @@ function lengthTooSmall(v: string): boolean {
 /** Checks one declaration. Returns the reason it is removed, or null when it is safe. */
 function declProblem(prop: string, value: string, inKeyframes: boolean): CssRemoval | null {
   const p = prop.toLowerCase();
-  if (p.startsWith('--')) return /^--aos-[a-z0-9-]{1,60}$/.test(p) && SAFE_VALUE.test(value) && !FORBIDDEN_VALUE.test(value) ? null : { severity: 'medium', text: `переменная ${p} отклонена` };
+  if (p.startsWith('--')) return /^--aos-[a-z0-9-]{1,60}$/.test(p) && SAFE_VALUE.test(value) && !FORBIDDEN_VALUE.test(value) ? null : { severity: 'medium', text: `the variable ${p} was rejected` };
   if (!(inKeyframes ? KEYFRAME_PROPS : ALLOWED_PROPS).has(p)) {
     const hiding = ['display', 'visibility', 'position', 'z-index', 'content', 'transform', 'clip', 'clip-path', 'mask', 'filter', 'width', 'height', 'max-width', 'max-height', 'overflow', 'pointer-events', 'inset', 'top', 'left', 'right', 'bottom'];
-    return { severity: hiding.includes(p) ? 'high' : 'low', text: hiding.includes(p) ? `свойство «${p}» может скрыть или подменить элементы интерфейса — удалено` : `свойство «${p}» не поддерживается темами — удалено` };
+    return { severity: hiding.includes(p) ? 'high' : 'low', text: hiding.includes(p) ? `the property "${p}" can hide or replace interface elements: removed` : `the property "${p}" is not supported in themes: removed` };
   }
-  if (/!\s*important/i.test(value)) return { severity: 'medium', text: `«!important» в ${p} запрещён — защищённые элементы интерфейса всегда сохраняют свой вид` };
-  if (FORBIDDEN_VALUE.test(value) || !SAFE_VALUE.test(value)) return { severity: 'high', text: `значение ${p} ссылается на внешние ресурсы или содержит выражения — удалено` };
-  if (p === 'opacity' && Number(value) < 0.6) return { severity: 'high', text: 'прозрачность ниже 0.6 может скрывать элементы — удалено' };
-  if (p === 'color' && /transparent|rgba\([^)]*,\s*0?\.[0-4]\d*\s*\)|hsla\([^)]*,\s*0?\.[0-4]\d*\s*\)/i.test(value)) return { severity: 'high', text: 'прозрачный цвет текста может скрывать предупреждения — удалено' };
-  if (p === 'font-size' && lengthTooSmall(value)) return { severity: 'high', text: 'слишком мелкий шрифт может скрывать текст — удалено' };
-  if (p === 'cursor' && !CURSORS.has(value.trim())) return { severity: 'low', text: 'неподдерживаемый курсор — удалено' };
+  if (/!\s*important/i.test(value)) return { severity: 'medium', text: `"!important" in ${p} is not allowed: protected interface elements always keep their look` };
+  if (FORBIDDEN_VALUE.test(value) || !SAFE_VALUE.test(value)) return { severity: 'high', text: `the value of ${p} refers to external resources or contains expressions: removed` };
+  if (p === 'opacity' && Number(value) < 0.6) return { severity: 'high', text: 'opacity below 0.6 can hide elements: removed' };
+  if (p === 'color' && /transparent|rgba\([^)]*,\s*0?\.[0-4]\d*\s*\)|hsla\([^)]*,\s*0?\.[0-4]\d*\s*\)/i.test(value)) return { severity: 'high', text: 'a transparent text color can hide warnings: removed' };
+  if (p === 'font-size' && lengthTooSmall(value)) return { severity: 'high', text: 'a font that is too small can hide text: removed' };
+  if (p === 'cursor' && !CURSORS.has(value.trim())) return { severity: 'low', text: 'unsupported cursor: removed' };
   return null;
 }
 
@@ -111,7 +111,7 @@ function declarations(body: string, inKeyframes: boolean, removed: CssRemoval[])
   for (const raw of body.split(';')) {
     const idx = raw.indexOf(':');
     if (idx === -1) {
-      if (raw.trim()) removed.push({ severity: 'low', text: `нераспознанное объявление «${raw.trim().slice(0, 40)}» — удалено` });
+      if (raw.trim()) removed.push({ severity: 'low', text: `unrecognized declaration "${raw.trim().slice(0, 40)}": removed` });
       continue;
     }
     const prop = raw.slice(0, idx).trim();
@@ -126,16 +126,16 @@ function declarations(body: string, inKeyframes: boolean, removed: CssRemoval[])
 /** Returns sanitized CSS and the list of what was removed and why (shown to the user before installation). */
 export function sanitizeThemeCss(input: string, themeId: string): { css: string; removed: CssRemoval[] } {
   const removed: CssRemoval[] = [];
-  if (input.length > 200_000) return { css: '', removed: [{ severity: 'medium', text: 'CSS больше 200 КБ — не применяется' }] };
+  if (input.length > 200_000) return { css: '', removed: [{ severity: 'medium', text: 'CSS larger than 200 KB is not applied' }] };
   const css = input.replace(/\/\*[\s\S]*?\*\//g, '');
   const out: string[] = [];
   for (const raw of blocks(css)) {
-    // statements before a rule (`@import url(…);`, `@charset …;`) end with «;»: they are dropped, the rule itself is kept
+    // statements before a rule (`@import url(…);`, `@charset …;`) end with ";": they are dropped, the rule itself is kept
     const parts = raw.prelude.split(';');
-    for (const st of parts.slice(0, -1).map((x) => x.trim()).filter(Boolean)) removed.push({ severity: /^@(import|namespace)/i.test(st) || /url\s*\(/i.test(st) ? 'high' : 'medium', text: `инструкция «${st.slice(0, 40)}» загружает ресурсы или не поддерживается — удалена` });
+    for (const st of parts.slice(0, -1).map((x) => x.trim()).filter(Boolean)) removed.push({ severity: /^@(import|namespace)/i.test(st) || /url\s*\(/i.test(st) ? 'high' : 'medium', text: `the statement "${st.slice(0, 40)}" loads resources or is not supported: removed` });
     const b = { prelude: parts[parts.length - 1]!.trim(), body: raw.body };
     if (/^@(import|font-face|namespace|charset|supports|layer|property|page|document)/i.test(b.prelude)) {
-      removed.push({ severity: 'high', text: `правило «${b.prelude.slice(0, 40)}» загружает ресурсы или не поддерживается — удалено` });
+      removed.push({ severity: 'high', text: `the rule "${b.prelude.slice(0, 40)}" loads resources or is not supported: removed` });
       continue;
     }
     if (/^@keyframes\s+[a-zA-Z0-9_-]+$/i.test(b.prelude)) {
@@ -151,14 +151,14 @@ export function sanitizeThemeCss(input: string, themeId: string): { css: string;
     }
     if (/^@media\s/i.test(b.prelude)) {
       if (!/^@media\s+[a-z0-9\s():,.\-]+$/i.test(b.prelude) || /url|expression/i.test(b.prelude)) {
-        removed.push({ severity: 'medium', text: 'недопустимое условие @media — удалено' });
+        removed.push({ severity: 'medium', text: 'invalid @media condition: removed' });
         continue;
       }
       const inner: string[] = [];
       for (const r of blocks(b.body)) {
         const sels = r.prelude.split(',').map((x) => scopeSelector(x, themeId));
         if (sels.some((x) => !x)) {
-          removed.push({ severity: 'medium', text: `селектор «${r.prelude.slice(0, 40)}» не поддерживается — правило удалено` });
+          removed.push({ severity: 'medium', text: `the selector "${r.prelude.slice(0, 40)}" is not supported: the rule was removed` });
           continue;
         }
         const d = declarations(r.body, false, removed);
@@ -168,16 +168,16 @@ export function sanitizeThemeCss(input: string, themeId: string): { css: string;
       continue;
     }
     if (b.prelude.startsWith('@')) {
-      removed.push({ severity: 'medium', text: `правило «${b.prelude.slice(0, 40)}» не поддерживается — удалено` });
+      removed.push({ severity: 'medium', text: `the rule "${b.prelude.slice(0, 40)}" is not supported: removed` });
       continue;
     }
     if (b.prelude.includes('[')) {
-      removed.push({ severity: 'high', text: `селектор атрибутов «${b.prelude.slice(0, 40)}» запрещён (может использоваться для чтения данных страницы) — удалено` });
+      removed.push({ severity: 'high', text: `the attribute selector "${b.prelude.slice(0, 40)}" is not allowed (it can be used to read page data): removed` });
       continue;
     }
     const sels = b.prelude.split(',').map((x) => scopeSelector(x, themeId));
     if (sels.some((x) => !x)) {
-      removed.push({ severity: 'medium', text: `селектор «${b.prelude.slice(0, 40)}» не поддерживается — правило удалено` });
+      removed.push({ severity: 'medium', text: `the selector "${b.prelude.slice(0, 40)}" is not supported: the rule was removed` });
       continue;
     }
     const d = declarations(b.body, false, removed);

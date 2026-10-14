@@ -1,9 +1,9 @@
 {
   "cases": [
     {
-      "name": "без проектов",
+      "name": "no projects",
       "input": {
-        "objective": "Понять структуру",
+        "objective": "Understand the structure",
         "requirements": [],
         "projects": []
       },

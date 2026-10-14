@@ -45,7 +45,7 @@ class SqliteDb implements Db {
     }
     this.db.exec('PRAGMA foreign_keys = ON');
     this.db.exec('PRAGMA busy_timeout = 5000');
-    // SQLite's built-in ulower() folds ASCII only ("Старое" stays "Старое"); every SQL comparison in this
+    // SQLite's built-in lower() folds ASCII only ("Größe" stays "Größe"); every SQL comparison in this
     // code base uses ulower() for Unicode-aware case folding instead.
     this.db.function('ulower', { deterministic: true }, (v: unknown) => (v === null || v === undefined ? null : String(v).toLowerCase()));
   }

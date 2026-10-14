@@ -102,7 +102,7 @@ export function registerSystemRoutes(r: Router): void {
   r.post('/api/systems/:systemId/delete-data', async (ctx) => {
     const b = body(ctx);
     const mode = b.mode === 'everything' ? 'everything' : b.mode === 'service-data' ? 'service-data' : null;
-    if (!mode) throw new AppError('VALIDATION_FAILED', 'Укажите режим удаления: service-data или everything.');
+    if (!mode) throw new AppError('VALIDATION_FAILED', 'Choose the deletion mode: service-data or everything.');
     return ctx.core.systems.deleteData(ctx.params.systemId!, { mode, confirmName: str(b.confirmName, 'confirmName'), activeRuns: policy(b.activeRuns) });
   });
 

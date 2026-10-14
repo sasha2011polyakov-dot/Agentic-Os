@@ -6,7 +6,7 @@ import { body, bool, int, optStr, str, sys } from './util.ts';
 
 function strArray(v: unknown, name: string): string[] {
   if (v === undefined || v === null) return [];
-  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', `Поле «${name}» — список строк.`);
+  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', `The field "${name}" must be a list of strings.`);
   return v as string[];
 }
 
@@ -26,12 +26,12 @@ export function parseScope(v: unknown): RunScope {
 
 function limits(v: unknown): Record<string, number | null> | undefined {
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== 'object' || Array.isArray(v)) throw new AppError('VALIDATION_FAILED', 'Лимиты — объект.');
+  if (typeof v !== 'object' || Array.isArray(v)) throw new AppError('VALIDATION_FAILED', 'Limits must be an object.');
   const out: Record<string, number | null> = {};
   for (const k of ['maxModelCalls', 'maxTokens', 'maxCostUsd', 'maxReviewIterations', 'stepTimeoutMs', 'maxParallel']) {
     const x = (v as Record<string, unknown>)[k];
     if (x === undefined) continue;
-    if (x !== null && (typeof x !== 'number' || !Number.isFinite(x) || x < 0)) throw new AppError('VALIDATION_FAILED', `Лимит ${k}: неотрицательное число или null.`);
+    if (x !== null && (typeof x !== 'number' || !Number.isFinite(x) || x < 0)) throw new AppError('VALIDATION_FAILED', `Limit ${k}: a non-negative number or null.`);
     out[k] = x as number | null;
   }
   return out;
@@ -48,7 +48,7 @@ export function registerWorkflowRoutes(r: Router): void {
   r.get(`${w}/:wid`, async (ctx) => (await wf(ctx)).definition(ctx.params.wid!));
   r.put(`${w}/:wid`, async (ctx) => {
     const def = body(ctx).definition as { id?: string } | undefined;
-    if (!def || def.id !== ctx.params.wid) throw new AppError('VALIDATION_FAILED', 'Идентификатор в определении должен совпадать с адресом.');
+    if (!def || def.id !== ctx.params.wid) throw new AppError('VALIDATION_FAILED', 'The identifier in the definition must match the address.');
     return (await wf(ctx)).save(def);
   });
   r.post(`${w}/:wid/duplicate`, async (ctx) => {
@@ -118,7 +118,7 @@ export function registerTaskRoutes(r: Router): void {
   r.get(`${t}/board`, async (ctx) => (await ts(ctx)).board(filters(ctx) as { projectId?: string; q?: string }));
   r.get(`${t}/export`, async (ctx) => {
     const format = (ctx.query.get('format') ?? 'md') as 'md' | 'json' | 'csv';
-    if (!['md', 'json', 'csv'].includes(format)) throw new AppError('VALIDATION_FAILED', 'Формат экспорта: md, json или csv.');
+    if (!['md', 'json', 'csv'].includes(format)) throw new AppError('VALIDATION_FAILED', 'Export format: md, json or csv.');
     const res = (await ts(ctx)).export(format, filters(ctx));
     return raw(res.body, { 'content-type': res.contentType, 'content-disposition': `attachment; filename="${res.fileName}"` });
   });

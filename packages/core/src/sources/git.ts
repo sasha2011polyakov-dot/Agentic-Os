@@ -117,8 +117,8 @@ const GIT_FORBIDDEN_FLAGS = /^(-c|-C|--git-dir|--work-tree|--exec-path|--namespa
  */
 export function assertSafeGitArgs(args: string[]): void {
   const sub = args[0] ?? '';
-  if (!GIT_ALLOWED.has(sub)) throw new AppError('COMMAND_BLOCKED', `Команда git ${sub} не выполняется приложением: разрешены только просмотр состояния и истории.`);
-  for (const a of args.slice(1)) if (GIT_FORBIDDEN_FLAGS.test(a)) throw new AppError('COMMAND_BLOCKED', `Параметр git ${a} запрещён.`);
+  if (!GIT_ALLOWED.has(sub)) throw new AppError('COMMAND_BLOCKED', `The application does not run git ${sub}: only viewing the status and history is allowed.`);
+  for (const a of args.slice(1)) if (GIT_FORBIDDEN_FLAGS.test(a)) throw new AppError('COMMAND_BLOCKED', `The git option ${a} is not allowed.`);
 }
 
 async function gitReadOnly(cwd: string, args: string[], timeoutMs = 8000): Promise<string> {
@@ -159,24 +159,24 @@ export async function readGitDetails(root: string): Promise<Pick<GitInfo, 'statu
     return { status, recentCommits, detailsError: null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { status: null, recentCommits: null, detailsError: /ENOENT/.test(msg) ? 'Git не установлен: доступны только базовые сведения из папки .git.' : `Не удалось получить сведения Git: ${msg.split('\n')[0]}` };
+    return { status: null, recentCommits: null, detailsError: /ENOENT/.test(msg) ? 'Git is not installed: only basic information from the .git folder is available.' : `Could not get Git information: ${msg.split('\n')[0]}` };
   }
 }
 
 /** Plain-language description of a repository state for users who do not know Git (29.6, 29.16). */
 export function describeRepository(info: GitInfo): { summary: string; points: string[]; warnings: string[] } {
-  if (!info.isRepo) return { summary: 'Обычная папка (не Git-репозиторий).', points: ['История изменений Git отсутствует: перед применением изменений приложение само создаёт резервную копию затронутых файлов.'], warnings: [] };
+  if (!info.isRepo) return { summary: 'A plain folder (not a Git repository).', points: ['There is no Git history: before applying changes the application itself backs up the affected files.'], warnings: [] };
   const points: string[] = [];
   const warnings: string[] = [];
-  points.push(info.detached ? 'Репозиторий находится в состоянии «отсоединённой головы» (выбран конкретный коммит, а не ветка).' : `Текущая ветка: ${info.branch ?? 'не определена'}.`);
+  points.push(info.detached ? 'The repository is in a "detached HEAD" state (a specific commit is checked out, not a branch).' : `Current branch: ${info.branch ?? 'unknown'}.`);
   if (info.status) {
     if (info.status.changed) {
-      points.push(`Есть несохранённые в Git изменения: ${info.status.changed} файл(ов).`);
-      warnings.push('В проекте есть ваши незакоммиченные изменения. Приложение их не сбрасывает и не перезаписывает без проверки: при применении изменений конфликтующие файлы будут показаны отдельно.');
-    } else points.push('Незакоммиченных изменений нет.');
-    if (info.status.untracked) points.push(`Неотслеживаемых файлов (не добавленных в Git): ${info.status.untracked}. Приложение их не удаляет.`);
+      points.push(`There are changes not committed to Git: ${info.status.changed} file(s).`);
+      warnings.push('The project has your uncommitted changes. The application does not discard or overwrite them without a check: conflicting files are shown separately when changes are applied.');
+    } else points.push('No uncommitted changes.');
+    if (info.status.untracked) points.push(`Untracked files (not added to Git): ${info.status.untracked}. The application does not delete them.`);
   } else if (info.detailsError) points.push(info.detailsError);
-  if (info.remotes.length) points.push(`Удалённые источники: ${info.remotes.map((r) => `${r.name} → ${r.url}`).join('; ')} (учётные данные скрыты).`);
-  points.push('Приложение не выполняет команды Git, изменяющие репозиторий (commit, push, reset, clean, checkout): только чтение состояния и истории.');
-  return { summary: `Git-репозиторий${info.branch ? `, ветка ${info.branch}` : ''}.`, points, warnings };
+  if (info.remotes.length) points.push(`Remotes: ${info.remotes.map((r) => `${r.name} → ${r.url}`).join('; ')} (credentials hidden).`);
+  points.push('The application does not run Git commands that change the repository (commit, push, reset, clean, checkout): it only reads the status and history.');
+  return { summary: `Git repository${info.branch ? `, branch ${info.branch}` : ''}.`, points, warnings };
 }

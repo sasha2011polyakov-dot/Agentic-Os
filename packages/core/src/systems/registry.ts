@@ -85,7 +85,7 @@ export class SystemRegistry {
 
   require(systemId: string): SystemRecord {
     const r = this.get(systemId);
-    if (!r) throw new AppError('NOT_FOUND', 'Система не найдена в реестре.', { details: { systemId } });
+    if (!r) throw new AppError('NOT_FOUND', 'The system was not found in the registry.', { details: { systemId } });
     return r;
   }
 
@@ -140,7 +140,7 @@ export class SystemRegistry {
     params.push(nowIso());
     params.push(systemId);
     const r = this.db.run(`UPDATE systems SET ${cols.join(', ')} WHERE system_id = ?`, ...params);
-    if (r.changes === 0) throw new AppError('NOT_FOUND', 'Система не найдена в реестре.');
+    if (r.changes === 0) throw new AppError('NOT_FOUND', 'The system was not found in the registry.');
     return this.require(systemId);
   }
 
@@ -185,7 +185,7 @@ export class SystemRegistry {
 
   /** Operations left 'running' by a crash are surfaced as 'partial' on startup instead of silently forgotten. */
   markInterruptedOperations(): number {
-    return this.db.run("UPDATE operations SET status = 'partial', error = COALESCE(error, 'Прервано: приложение было закрыто во время операции.'), finished_at = ? WHERE status = 'running'", nowIso()).changes;
+    return this.db.run("UPDATE operations SET status = 'partial', error = COALESCE(error, 'Interrupted: the application was closed during the operation.'), finished_at = ? WHERE status = 'running'", nowIso()).changes;
   }
 
   integrity(): string[] {

@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "decomposer",
-  "name": "Декомпозитор",
-  "version": "1.0.0",
-  "description": "Превращает требования в иерархию реализуемых задач с зависимостями и критериями завершения.",
+  "name": "Decomposer",
+  "version": "1.0.1",
+  "description": "Turns requirements into a hierarchy of implementable tasks with dependencies and completion criteria.",
   "author": "Agentic OS",
   "category": "spec",
   "entry": "instructions.md",

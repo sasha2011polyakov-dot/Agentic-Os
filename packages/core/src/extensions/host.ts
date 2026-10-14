@@ -19,7 +19,7 @@ function runtimeDirCandidates(): string[] {
 
 export function pluginRuntimeDir(): string {
   for (const c of runtimeDirCandidates()) if (existsSync(join(c, 'runner.mjs')) && existsSync(join(c, 'guard.mjs'))) return c;
-  throw new AppError('INTERNAL', 'Не найдена среда выполнения плагинов (plugin-runtime).');
+  throw new AppError('INTERNAL', 'The plugin runtime (plugin-runtime) was not found.');
 }
 
 export interface PluginIsolation {
@@ -80,10 +80,10 @@ export async function runPluginProcess(opts: { extDir: string; entry: string; in
     const nodeRoot = dirname(dirname(process.execPath));
     args = ['--ro-bind', '/usr', '/usr', '--ro-bind-try', '/lib', '/lib', '--ro-bind-try', '/lib64', '/lib64', '--ro-bind-try', '/etc/ssl', '/etc/ssl', '--ro-bind-try', nodeRoot, nodeRoot, '--ro-bind', opts.extDir, opts.extDir, '--ro-bind', runtime, runtime, '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--unshare-all', '--die-with-parent', '--new-session', '--chdir', opts.extDir, '--', process.execPath, ...nodeArgs];
     cmd = caps.bwrap;
-    isolation = { level: 'isolated', network: 'заблокирована на уровне ОС (bubblewrap) и среды выполнения', files: 'чтение — только файлы расширения; запись запрещена', notes };
+    isolation = { level: 'isolated', network: 'blocked at the OS level (bubblewrap) and by the runtime', files: 'reads only the extension files; writing is not allowed', notes };
   } else {
-    isolation = { level: 'restricted', network: 'прямой доступ заблокирован средой выполнения (модули сети и fetch удалены); изоляции сети на уровне ОС нет', files: 'чтение — только файлы расширения; запись запрещена (модель разрешений Node)', notes };
-    notes.push(platform() === 'linux' ? 'bubblewrap не найден: сетевая изоляция обеспечивается только средствами среды выполнения.' : 'На этой ОС изоляция плагинов обеспечивается моделью разрешений Node без изоляции на уровне ОС.');
+    isolation = { level: 'restricted', network: 'direct access is blocked by the runtime (network modules and fetch are removed); there is no OS-level network isolation', files: 'reads only the extension files; writing is not allowed (Node permission model)', notes };
+    notes.push(platform() === 'linux' ? 'bubblewrap was not found: network isolation is provided only by the runtime.' : 'On this OS plugin isolation is provided by the Node permission model without OS-level isolation.');
   }
   const started = Date.now();
   const calls: PluginCall[] = [];
@@ -101,8 +101,8 @@ export async function runPluginProcess(opts: { extDir: string; entry: string; in
       if (child.exitCode === null) child.kill('SIGKILL');
       resolve({ ...r, calls, durationMs: Date.now() - started, isolation, stderr: redact(stderr).slice(-4000) });
     };
-    const timer = setTimeout(() => finish({ ok: false, output: null, error: { code: 'TIMEOUT', message: `Инструмент расширения не уложился в ${Math.round(opts.timeoutMs / 1000)} с.` } }), opts.timeoutMs);
-    const onAbort = () => finish({ ok: false, output: null, error: { code: 'CANCELLED', message: 'Выполнение отменено.' } });
+    const timer = setTimeout(() => finish({ ok: false, output: null, error: { code: 'TIMEOUT', message: `The extension tool did not finish within ${Math.round(opts.timeoutMs / 1000)} s.` } }), opts.timeoutMs);
+    const onAbort = () => finish({ ok: false, output: null, error: { code: 'CANCELLED', message: 'The run was cancelled.' } });
     opts.signal?.addEventListener('abort', onAbort, { once: true });
     const reply = (m: unknown) => {
       if (!finished && child.stdin.writable) child.stdin.write(`${JSON.stringify(m)}\n`);
@@ -117,8 +117,8 @@ export async function runPluginProcess(opts: { extDir: string; entry: string; in
       }
       if (m.type === 'call' && typeof m.id === 'number' && typeof m.method === 'string') {
         if (calls.length >= MAX_CALLS) {
-          calls.push({ method: m.method, allowed: false, reason: 'превышено число обращений' });
-          reply({ type: 'result', id: m.id, ok: false, error: { code: 'BUDGET_EXCEEDED', message: 'Слишком много обращений к API.' } });
+          calls.push({ method: m.method, allowed: false, reason: 'too many calls' });
+          reply({ type: 'result', id: m.id, ok: false, error: { code: 'BUDGET_EXCEEDED', message: 'Too many API calls.' } });
           return;
         }
         const id = m.id;
@@ -136,14 +136,14 @@ export async function runPluginProcess(opts: { extDir: string; entry: string; in
           });
         return;
       }
-      if (m.type === 'done') finish(m.ok ? { ok: true, output: m.output ?? null, error: null } : { ok: false, output: null, error: { code: m.error?.code ?? 'EXTENSION_ERROR', message: m.error?.message ?? 'Ошибка расширения.' } });
+      if (m.type === 'done') finish(m.ok ? { ok: true, output: m.output ?? null, error: null } : { ok: false, output: null, error: { code: m.error?.code ?? 'EXTENSION_ERROR', message: m.error?.message ?? 'Extension error.' } });
     };
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
       stdoutBytes += Buffer.byteLength(chunk);
-      if (stdoutBytes > MAX_STDOUT) return finish({ ok: false, output: null, error: { code: 'VALIDATION_FAILED', message: 'Расширение вывело слишком много данных.' } });
+      if (stdoutBytes > MAX_STDOUT) return finish({ ok: false, output: null, error: { code: 'VALIDATION_FAILED', message: 'The extension printed too much data.' } });
       buf += chunk;
-      if (buf.length > MAX_LINE && !buf.includes('\n')) return finish({ ok: false, output: null, error: { code: 'VALIDATION_FAILED', message: 'Слишком длинное сообщение расширения.' } });
+      if (buf.length > MAX_LINE && !buf.includes('\n')) return finish({ ok: false, output: null, error: { code: 'VALIDATION_FAILED', message: 'The extension message is too long.' } });
       let nl: number;
       while ((nl = buf.indexOf('\n')) !== -1) {
         const line = buf.slice(0, nl);
@@ -155,10 +155,10 @@ export async function runPluginProcess(opts: { extDir: string; entry: string; in
     child.stderr.on('data', (c: string) => {
       if (stderr.length < 64_000) stderr += c;
     });
-    child.on('error', (e) => finish({ ok: false, output: null, error: { code: 'INTERNAL', message: `Не удалось запустить расширение: ${e.message}` } }));
+    child.on('error', (e) => finish({ ok: false, output: null, error: { code: 'INTERNAL', message: `Could not start the extension: ${e.message}` } }));
     child.on('close', (code) => {
       if (buf.trim()) onLine(buf); // a last `done` line without a trailing newline
-      setImmediate(() => finish({ ok: false, output: null, error: { code: 'EXTENSION_ERROR', message: `Расширение завершилось без результата (код ${code ?? '—'}).${stderr ? ` ${redact(stderr).slice(-300)}` : ''}` } }));
+      setImmediate(() => finish({ ok: false, output: null, error: { code: 'EXTENSION_ERROR', message: `The extension exited without a result (code ${code ?? '—'}).${stderr ? ` ${redact(stderr).slice(-300)}` : ''}` } }));
     });
     child.stdin.on('error', () => undefined);
     reply({ type: 'start', entry: opts.entry, input: opts.input });

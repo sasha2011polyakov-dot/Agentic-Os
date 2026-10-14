@@ -21,35 +21,35 @@ export type MissionStatus =
 export type MissionPhase = 'analysis' | 'context' | 'research' | 'strategy' | 'planning' | 'execution' | 'verification' | 'fix' | 'review' | 'summary' | 'done';
 
 export const MISSION_STATUS_LABELS: Record<MissionStatus, string> = {
-  draft: 'Черновик',
-  analyzing: 'Анализ',
-  researching: 'Исследование',
-  planning: 'Планирование',
-  awaiting_approval: 'Ожидание подтверждения',
-  ready: 'Готова к выполнению',
-  executing: 'Выполняется',
-  paused: 'Приостановлена',
-  needs_input: 'Требуется вмешательство',
-  verifying: 'Проверяется',
-  needs_fix: 'Требуется исправление',
-  completed: 'Выполнена',
-  partially_completed: 'Выполнена частично',
-  failed: 'Не выполнена',
-  cancelled: 'Отменена',
+  draft: 'Draft',
+  analyzing: 'Analyzing',
+  researching: 'Researching',
+  planning: 'Planning',
+  awaiting_approval: 'Awaiting approval',
+  ready: 'Ready to run',
+  executing: 'Running',
+  paused: 'Paused',
+  needs_input: 'Needs your input',
+  verifying: 'Verifying',
+  needs_fix: 'Needs fixes',
+  completed: 'Completed',
+  partially_completed: 'Partially completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
 };
 
 export const PHASE_LABELS: Record<MissionPhase, string> = {
-  analysis: 'Анализ задачи',
-  context: 'Изучение контекста',
-  research: 'Исследование',
-  strategy: 'Выбор решения',
-  planning: 'Планирование',
-  execution: 'Выполнение',
-  verification: 'Проверка результата',
-  fix: 'Исправление',
-  review: 'Независимое ревью',
-  summary: 'Итог',
-  done: 'Завершено',
+  analysis: 'Task analysis',
+  context: 'Context',
+  research: 'Research',
+  strategy: 'Solution choice',
+  planning: 'Planning',
+  execution: 'Execution',
+  verification: 'Verification',
+  fix: 'Fixes',
+  review: 'Independent review',
+  summary: 'Summary',
+  done: 'Done',
 };
 
 export const TERMINAL_STATUSES: MissionStatus[] = ['completed', 'partially_completed', 'failed', 'cancelled'];
@@ -82,7 +82,7 @@ export function canTransition(from: MissionStatus, to: MissionStatus): boolean {
 }
 
 export function assertTransition(from: MissionStatus, to: MissionStatus): void {
-  if (!canTransition(from, to)) throw new AppError('INVALID_STATE_TRANSITION', `Переход «${MISSION_STATUS_LABELS[from]}» → «${MISSION_STATUS_LABELS[to]}» недопустим.`, { details: { from, to } });
+  if (!canTransition(from, to)) throw new AppError('INVALID_STATE_TRANSITION', `The transition "${MISSION_STATUS_LABELS[from]}" → "${MISSION_STATUS_LABELS[to]}" is not allowed.`, { details: { from, to } });
 }
 
 /** Working status shown while a phase is being executed. */

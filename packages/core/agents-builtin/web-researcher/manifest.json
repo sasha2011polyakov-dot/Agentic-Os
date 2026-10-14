@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "web-researcher",
-  "name": "Веб-исследователь",
-  "version": "1.0.0",
-  "description": "Ищет и читает источники в интернете, извлекает утверждения с дословными цитатами и проверяет их кодом.",
+  "name": "Web researcher",
+  "version": "1.0.1",
+  "description": "Finds and reads sources on the internet, extracts claims with verbatim quotes and verifies them in code.",
   "author": "Agentic OS",
   "category": "research",
   "entry": "instructions.md",
@@ -16,23 +16,23 @@
   "permissions": [
     {
       "permission": "web.search",
-      "reason": "Поиск источников"
+      "reason": "Find sources"
     },
     {
       "permission": "network.fetch",
-      "reason": "Загрузка публичных страниц"
+      "reason": "Download public pages"
     },
     {
       "permission": "external.api",
-      "reason": "GitHub API для поиска репозиториев"
+      "reason": "GitHub API to find repositories"
     },
     {
       "permission": "search.use",
-      "reason": "Проверка, что уже известно локально"
+      "reason": "Check what is already known locally"
     },
     {
       "permission": "documents.read",
-      "reason": "Чтение локальных заметок по теме"
+      "reason": "Read local notes on the topic"
     }
   ],
   "dependencies": [],

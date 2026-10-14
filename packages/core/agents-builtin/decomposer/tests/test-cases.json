@@ -1,14 +1,14 @@
 {
   "cases": [
     {
-      "name": "одно требование",
+      "name": "one requirement",
       "input": {
         "requirements": [
           {
             "id": "REQ-001",
-            "statement": "Система должна позволять вход по email и паролю",
+            "statement": "The system must allow login with email and password",
             "acceptance_criteria": [
-              "Вход с верными данными успешен"
+              "Login with valid credentials succeeds"
             ]
           }
         ]

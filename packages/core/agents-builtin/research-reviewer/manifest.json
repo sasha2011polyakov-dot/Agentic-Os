@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "research-reviewer",
-  "name": "Ревьюер исследования",
-  "version": "1.0.0",
-  "description": "Проверяет, что выводы отчёта подтверждены проверенными цитатами и источниками.",
+  "name": "Research reviewer",
+  "version": "1.0.1",
+  "description": "Checks that the conclusions of a report are backed by verified quotes and sources.",
   "author": "Agentic OS",
   "category": "research",
   "entry": "instructions.md",

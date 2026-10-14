@@ -125,7 +125,7 @@ export class SourceService implements RuntimeService {
       watchMode: this.watchers.get(r.id)?.mode ?? 'off',
       checks: parseJson<CheckDefinition[]>(r.checks, []),
       accessMode: r.kind === 'vault' ? 'apply' : r.access_mode,
-      accessModeLabel: r.kind === 'vault' ? 'Хранилище системы' : modeLabel(r.access_mode),
+      accessModeLabel: r.kind === 'vault' ? 'System vault' : modeLabel(r.access_mode),
       status: r.status,
       statusMessage: r.status_message,
       lastIndexedAt: r.last_indexed_at,
@@ -142,22 +142,22 @@ export class SourceService implements RuntimeService {
 
   get(id: string): SourceInfo {
     const r = this.rt.db.get<FullRow>('SELECT * FROM sources WHERE id = ?', id);
-    if (!r) throw new AppError('NOT_FOUND', 'Источник не найден.');
+    if (!r) throw new AppError('NOT_FOUND', 'Source not found.');
     return this.toInfo(r);
   }
 
   row(id: string): FullRow {
     const r = this.rt.db.get<FullRow>('SELECT * FROM sources WHERE id = ?', id);
-    if (!r) throw new AppError('NOT_FOUND', 'Источник не найден.');
+    if (!r) throw new AppError('NOT_FOUND', 'Source not found.');
     return r;
   }
 
   private async validateFolder(path: string, ignoreId?: string): Promise<string> {
-    if (!path || !isAbsolute(path)) throw new AppError('VALIDATION_FAILED', 'Укажите абсолютный путь к папке.');
+    if (!path || !isAbsolute(path)) throw new AppError('VALIDATION_FAILED', 'Enter an absolute path to the folder.');
     const abs = resolve(path);
     try {
       const st = await stat(abs);
-      if (!st.isDirectory()) throw new AppError('VALIDATION_FAILED', 'Выбранный путь — не папка.');
+      if (!st.isDirectory()) throw new AppError('VALIDATION_FAILED', 'The selected path is not a folder.');
       await access(abs, constants.R_OK);
     } catch (e) {
       if (e instanceof AppError) throw e;
@@ -165,7 +165,7 @@ export class SourceService implements RuntimeService {
     }
     const real = await realpathLoose(abs);
     const dataDir = await realpathLoose(this.rt.app.paths.dataDir);
-    if (isInside(real, dataDir) || isInside(dataDir, real)) throw new AppError('SOURCE_OVERLAP', 'Нельзя подключать папку данных приложения.');
+    if (isInside(real, dataDir) || isInside(dataDir, real)) throw new AppError('SOURCE_OVERLAP', 'The application data folder cannot be connected.');
     for (const s of this.rt.db.all<{ id: string; name: string; root_path: string }>('SELECT id, name, root_path FROM sources')) {
       if (s.id === ignoreId) continue;
       const other = await realpathLoose(s.root_path);
@@ -186,7 +186,7 @@ export class SourceService implements RuntimeService {
       throw e;
     }
     const git = await readGitInfo(abs);
-    if (git.isRepo && git.root && git.root !== abs) warnings.push(`Папка находится внутри Git-репозитория ${git.root}.`);
+    if (git.isRepo && git.root && git.root !== abs) warnings.push(`The folder is inside the Git repository ${git.root}.`);
     const ignore = new IgnoreRules({ includeGlobs: rules.includeGlobs ?? [], excludeGlobs: [...this.rt.settings.get<string[]>('index.defaultExcludes'), ...(rules.excludeGlobs ?? [])], respectGitignore: rules.respectGitignore ?? true });
     const byReason: Record<string, { count: number; text: string }> = {};
     const sample: SourcePreview['sample'] = [];
@@ -204,9 +204,9 @@ export class SourceService implements RuntimeService {
     }
     if (total >= MAX_PREVIEW) {
       truncated = true;
-      warnings.push(`Показаны первые ${MAX_PREVIEW} элементов. Проверьте правила исключений: возможно, подключается слишком большая папка.`);
+      warnings.push(`Showing the first ${MAX_PREVIEW} items. Check the exclusion rules: the folder you are connecting may be too large.`);
     }
-    if (indexable === 0) warnings.push('Не найдено файлов для индексации. Проверьте правила включения и исключения.');
+    if (indexable === 0) warnings.push('No files to index were found. Check the include and exclude rules.');
     return { path: abs, suggestedName: basename(abs), accessible: true, git, totalCandidates: total, indexable, skipped: total - indexable, skippedByReason: byReason, sample, truncated, warnings };
   }
 
@@ -238,7 +238,7 @@ export class SourceService implements RuntimeService {
     );
     this.graph.upsertNode({ id: projectNodeId(id), type: git.isRepo ? 'repository' : 'project', label: name, refId: id, sourceId: id, props: { path: abs, purpose: input.purpose ?? '' } });
     this.rt.audit.record({ actor: 'user', action: 'source.connect', target: id, details: { path: abs, name, isGit: git.isRepo } });
-    this.rt.security.record({ actor: 'user', action: 'project.connect', outcome: 'ok', sourceId: id, resources: [abs], message: `Подключён проект «${name}» в режиме «Только изучение»${git.isRepo ? ' (Git-репозиторий; операции Git приложение не выполняет)' : ''}` });
+    this.rt.security.record({ actor: 'user', action: 'project.connect', outcome: 'ok', sourceId: id, resources: [abs], message: `Connected project "${name}" in "Read only" mode${git.isRepo ? ' (Git repository; the application does not run Git operations)' : ''}` });
     this.rt.emit('source.updated', { sourceId: id, status: 'pending' });
     this.startWatcher(id);
     void this.indexer.indexSource(id).catch((e) => this.rt.log.warn('initial indexing failed', { sourceId: id, error: e as Error }));
@@ -276,11 +276,11 @@ export class SourceService implements RuntimeService {
       rulesChanged = true;
     }
     if (patch.checks !== undefined) {
-      if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Проверки задаются только для подключённых проектов.');
+      if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Checks are set for connected projects only.');
       set('checks', JSON.stringify(validateChecks(patch.checks)));
     }
     if (patch.writable !== undefined && r.kind === 'project' && patch.writable) {
-      throw new AppError('READ_ONLY_SOURCE', 'Подключённые проекты открываются только для чтения.', { hint: 'Создавайте и изменяйте документы в хранилище системы.' });
+      throw new AppError('READ_ONLY_SOURCE', 'Connected projects are opened read only.', { hint: 'Create and edit documents in the system vault.' });
     }
     if (!sets.length) return this.get(id);
     set('updated_at', nowIso());
@@ -299,23 +299,23 @@ export class SourceService implements RuntimeService {
 
   /**
    * Changes a project's access mode (29.2). A user-only action: no tool exposes it, so agents can never raise it.
-   * The privileged mode «Применить к исходному проекту» needs an explicit confirmation.
+   * The privileged mode "Apply to the original project" needs an explicit confirmation.
    */
   setAccessMode(id: string, mode: AccessMode, opts: { actor: string; confirm?: boolean }): SourceInfo {
     const r = this.row(id);
-    if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'Режим доступа задаётся для подключённых проектов.');
-    if (!ACCESS_MODES.some((m) => m.id === mode)) throw new AppError('VALIDATION_FAILED', `Неизвестный режим: ${mode}`);
+    if (r.kind !== 'project') throw new AppError('VALIDATION_FAILED', 'The access mode is set for connected projects.');
+    if (!ACCESS_MODES.some((m) => m.id === mode)) throw new AppError('VALIDATION_FAILED', `Unknown mode: ${mode}`);
     if (opts.actor !== 'user') {
-      this.rt.security.record({ actor: opts.actor, action: 'project.mode', outcome: 'denied', sourceId: id, message: `Попытка изменить режим проекта не пользователем (${opts.actor}) отклонена` });
-      throw new AppError('PERMISSION_DENIED', 'Режим доступа к проекту меняет только пользователь.');
+      this.rt.security.record({ actor: opts.actor, action: 'project.mode', outcome: 'denied', sourceId: id, message: `An attempt to change the project mode by someone other than the user (${opts.actor}) was denied` });
+      throw new AppError('PERMISSION_DENIED', 'Only the user changes the project access mode.');
     }
     const raising = !modeAtLeast(r.access_mode, mode);
     if (mode === 'apply' && raising && !opts.confirm) {
-      throw new AppError('CONFIRMATION_REQUIRED', 'Режим «Применить к исходному проекту» позволит переносить проверенные изменения в ваши файлы. Каждое применение по-прежнему потребует просмотра изменений, прохождения проверок и резервной копии. Подтвердите включение.');
+      throw new AppError('CONFIRMATION_REQUIRED', 'The "Apply to the original project" mode lets verified changes be transferred into your files. Each apply still requires reviewing the changes, passing the checks and a backup. Confirm to enable it.');
     }
     if (mode === r.access_mode) return this.get(id);
     this.rt.db.run('UPDATE sources SET access_mode = ?, updated_at = ? WHERE id = ?', mode, nowIso(), id);
-    this.rt.security.record({ actor: opts.actor, action: 'project.mode', outcome: 'ok', sourceId: id, resources: [r.root_path], message: `Режим проекта «${r.name}»: «${modeLabel(r.access_mode)}» → «${modeLabel(mode)}»` });
+    this.rt.security.record({ actor: opts.actor, action: 'project.mode', outcome: 'ok', sourceId: id, resources: [r.root_path], message: `Project "${r.name}" mode: "${modeLabel(r.access_mode)}" → "${modeLabel(mode)}"` });
     this.rt.audit.record({ actor: opts.actor, action: 'source.access_mode', target: id, details: { from: r.access_mode, to: mode } });
     this.rt.emit('source.updated', { sourceId: id });
     return this.get(id);
@@ -325,7 +325,7 @@ export class SourceService implements RuntimeService {
   async disconnect(id: string): Promise<void> {
     const r = this.row(id);
     if (r.kind === 'vault' && id === this.rt.primaryVaultId()) {
-      throw new AppError('VALIDATION_FAILED', 'Основное хранилище системы нельзя отключить.', { hint: 'Чтобы убрать систему целиком, используйте раздел «Системы».' });
+      throw new AppError('VALIDATION_FAILED', 'The main vault of a system cannot be disconnected.', { hint: 'To remove the whole system, use "Systems".' });
     }
     this.indexer.cancel(id);
     this.stopWatcher(id);
@@ -352,7 +352,7 @@ export class SourceService implements RuntimeService {
         void this.indexer.indexSource(id).catch(() => undefined);
       }
     } catch (e) {
-      this.rt.db.run("UPDATE sources SET status = 'unavailable', status_message = ? WHERE id = ?", `Папка недоступна: ${errorMessage(e)}`, id);
+      this.rt.db.run("UPDATE sources SET status = 'unavailable', status_message = ? WHERE id = ?", `Folder unavailable: ${errorMessage(e)}`, id);
     }
     return this.get(id);
   }
@@ -415,7 +415,7 @@ export class SourceService implements RuntimeService {
     const rel = normalizeRelPath(relPath);
     const file = this.rt.db.get<{ status: string; skip_reason: string | null }>('SELECT status, skip_reason FROM files WHERE source_id = ? AND rel_path = ?', id, rel);
     if (file?.skip_reason === 'secret-name' || file?.skip_reason === 'secret-content') {
-      throw new AppError('PERMISSION_DENIED', 'Файл похож на файл с секретами и не открывается в приложении.', { hint: 'Откройте его в своём редакторе, если уверены, что это безопасно.' });
+      throw new AppError('PERMISSION_DENIED', 'The file looks like a secrets file and is not opened in the application.', { hint: 'Open it in your own editor if you are sure it is safe.' });
     }
     const res = await this.rt.fs.readText(join(r.root_path, rel), { roots: [r.root_path], writable: false });
     return { text: res.text, hash: res.hash, size: res.size };

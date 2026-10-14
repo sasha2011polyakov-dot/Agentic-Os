@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "spec-reviewer",
-  "name": "Независимый ревьюер ТЗ",
-  "version": "1.0.0",
-  "description": "Независимо проверяет итоговое ТЗ: полнота, непротиворечивость, трассируемость, проверяемость.",
+  "name": "Independent spec reviewer",
+  "version": "1.0.1",
+  "description": "Independently reviews the final specification: completeness, consistency, traceability, verifiability.",
   "author": "Agentic OS",
   "category": "spec",
   "entry": "instructions.md",

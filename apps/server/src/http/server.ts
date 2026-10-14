@@ -92,7 +92,7 @@ async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > limit) throw new AppError('VALIDATION_FAILED', 'Тело запроса слишком большое.');
+    if (size > limit) throw new AppError('VALIDATION_FAILED', 'The request body is too large.');
     chunks.push(chunk as Buffer);
   }
   if (size === 0) return undefined;
@@ -104,7 +104,7 @@ async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
     try {
       return JSON.parse(text);
     } catch {
-      throw new AppError('VALIDATION_FAILED', 'Некорректный JSON в теле запроса.');
+      throw new AppError('VALIDATION_FAILED', 'Invalid JSON in the request body.');
     }
   }
   return text;
@@ -161,7 +161,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
         const t = url.searchParams.get('token') ?? '';
         if (!safeEqual(t, token)) {
           res.writeHead(401, { 'content-type': 'text/plain; charset=utf-8' });
-          res.end('Неверный или устаревший токен. Перезапустите приложение и откройте новую ссылку из консоли.');
+          res.end('The token is invalid or expired. Restart the application and open the new link from the console.');
           return;
         }
         const session = randomToken(32);
@@ -181,14 +181,14 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
         const mutating = method !== 'GET' && method !== 'HEAD';
         if (mutating) {
           // CSRF: a custom header cannot be sent cross-origin without a preflight we never approve.
-          if (req.headers['x-aos-request'] !== '1') return sendError(res, new AppError('UNAUTHORIZED', 'Отсутствует заголовок X-AOS-Request.'));
+          if (req.headers['x-aos-request'] !== '1') return sendError(res, new AppError('UNAUTHORIZED', 'The X-AOS-Request header is missing.'));
           const origin = req.headers.origin;
-          if (origin && !allowedOrigins().has(origin)) return sendError(res, new AppError('UNAUTHORIZED', 'Запрос с чужого источника отклонён.'));
+          if (origin && !allowedOrigins().has(origin)) return sendError(res, new AppError('UNAUTHORIZED', 'A request from a foreign origin was rejected.'));
         }
         if (url.pathname === '/api/events' && method === 'GET') return handleSse(req, res, opts.core, url.searchParams.get('systemId'));
         const m = opts.router.match(method, url.pathname);
-        if (!m) return sendError(res, new AppError('NOT_FOUND', 'Метод API не найден.'));
-        if ('notAllowed' in m) return sendJson(res, 405, { error: { code: 'VALIDATION_FAILED', message: 'Метод не поддерживается.' } });
+        if (!m) return sendError(res, new AppError('NOT_FOUND', 'API method not found.'));
+        if ('notAllowed' in m) return sendJson(res, 405, { error: { code: 'VALIDATION_FAILED', message: 'The method is not supported.' } });
         const body = mutating ? await readBody(req, m.route.maxBodyBytes) : undefined;
         const ctx: RouteContext = { req, res, params: m.params, query: url.searchParams, body, core: opts.core };
         const result = await m.route.handler(ctx);
@@ -246,7 +246,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 async function serveStatic(res: ServerResponse, uiDir: string | null, pathname: string): Promise<void> {
   if (!uiDir) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP });
-    res.end('<!doctype html><meta charset="utf-8"><title>Agentic OS</title><p>Интерфейс не собран. Выполните <code>npm run build</code>.</p>');
+    res.end('<!doctype html><meta charset="utf-8"><title>Agentic OS</title><p>The interface is not built. Run <code>npm run build</code>.</p>');
     return;
   }
   let rel = normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, '');

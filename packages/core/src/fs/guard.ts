@@ -15,21 +15,21 @@ const FORBIDDEN_CHARS = /[\u0000-\u001f<>:"|?*\\]/;
 
 /** Validates one path segment (file or folder name) for cross-platform safety. */
 export function validateSegment(name: string): void {
-  if (!name || name === '.' || name === '..') throw new AppError('PATH_INVALID', `Недопустимое имя: «${name}»`);
-  if (name.length > 255) throw new AppError('PATH_INVALID', 'Имя файла длиннее 255 символов.');
-  if (FORBIDDEN_CHARS.test(name)) throw new AppError('PATH_INVALID', `Имя «${name}» содержит недопустимые символы.`);
-  if (WINDOWS_RESERVED.test(name)) throw new AppError('PATH_INVALID', `Имя «${name}» зарезервировано в Windows.`);
-  if (/[. ]$/.test(name)) throw new AppError('PATH_INVALID', `Имя «${name}» не может заканчиваться точкой или пробелом.`);
+  if (!name || name === '.' || name === '..') throw new AppError('PATH_INVALID', `Invalid name: "${name}"`);
+  if (name.length > 255) throw new AppError('PATH_INVALID', 'The file name is longer than 255 characters.');
+  if (FORBIDDEN_CHARS.test(name)) throw new AppError('PATH_INVALID', `The name "${name}" contains characters that are not allowed.`);
+  if (WINDOWS_RESERVED.test(name)) throw new AppError('PATH_INVALID', `The name "${name}" is reserved on Windows.`);
+  if (/[. ]$/.test(name)) throw new AppError('PATH_INVALID', `The name "${name}" cannot end with a dot or a space.`);
 }
 
 /** Normalizes a vault-relative path (forward slashes) and rejects traversal / absolute paths. */
 export function normalizeRelPath(rel: string): string {
   if (!rel || rel.includes('\0')) throw new AppError('PATH_INVALID');
   const unified = rel.replace(/\\/g, '/').replace(/^\.\/+/, '');
-  if (unified.startsWith('/') || /^[a-zA-Z]:/.test(unified)) throw new AppError('PATH_OUTSIDE_SCOPE', 'Ожидается относительный путь.');
+  if (unified.startsWith('/') || /^[a-zA-Z]:/.test(unified)) throw new AppError('PATH_OUTSIDE_SCOPE', 'A relative path is expected.');
   const parts = unified.split('/').filter((p) => p !== '' && p !== '.');
   for (const p of parts) {
-    if (p === '..') throw new AppError('PATH_OUTSIDE_SCOPE', 'Путь не может выходить за пределы папки (..).');
+    if (p === '..') throw new AppError('PATH_OUTSIDE_SCOPE', 'The path cannot leave the folder (..).');
     validateSegment(p);
   }
   if (parts.length === 0) throw new AppError('PATH_INVALID');
@@ -84,7 +84,7 @@ function assertWritableLocation(real: string, root: string): void {
   const rel = relative(root, real);
   for (const seg of rel.split(sep)) {
     if (PROTECTED_WRITE_SEGMENTS.has(seg)) {
-      throw new AppError('PATH_OUTSIDE_SCOPE', `Запись в служебную папку «${seg}» запрещена.`);
+      throw new AppError('PATH_OUTSIDE_SCOPE', `Writing to the service folder "${seg}" is not allowed.`);
     }
   }
 }

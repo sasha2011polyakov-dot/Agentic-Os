@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "documenter",
-  "name": "Документатор",
-  "version": "1.0.0",
-  "description": "Готовит итоговый документ или обновление документации по результатам поручения.",
+  "name": "Documenter",
+  "version": "1.0.1",
+  "description": "Prepares the final document or a documentation update based on the mission results.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",

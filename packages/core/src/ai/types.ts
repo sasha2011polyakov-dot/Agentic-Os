@@ -5,14 +5,14 @@ export type Locality = 'local' | 'cloud';
 export type TaskType = 'classification' | 'extraction' | 'generation' | 'review' | 'planning' | 'research' | 'embedding' | 'chat';
 
 export const TASK_TYPES: { id: TaskType; label: string }[] = [
-  { id: 'planning', label: 'Планирование (координатор)' },
-  { id: 'extraction', label: 'Извлечение фактов и требований' },
-  { id: 'classification', label: 'Классификация' },
-  { id: 'generation', label: 'Генерация документов' },
-  { id: 'review', label: 'Независимое ревью' },
-  { id: 'research', label: 'Веб-исследования' },
-  { id: 'chat', label: 'Свободные запросы' },
-  { id: 'embedding', label: 'Эмбеддинги (семантический поиск)' },
+  { id: 'planning', label: 'Planning (coordinator)' },
+  { id: 'extraction', label: 'Extracting facts and requirements' },
+  { id: 'classification', label: 'Classification' },
+  { id: 'generation', label: 'Document generation' },
+  { id: 'review', label: 'Independent review' },
+  { id: 'research', label: 'Web research' },
+  { id: 'chat', label: 'Free-form requests' },
+  { id: 'embedding', label: 'Embeddings (semantic search)' },
 ];
 
 export interface ModelCapabilities {

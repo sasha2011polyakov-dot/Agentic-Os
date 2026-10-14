@@ -1,7 +1,7 @@
 {
   "cases": [
     {
-      "name": "без сети",
+      "name": "no network",
       "input": {
         "question": "q",
         "queries": [

@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "research-writer",
-  "name": "Автор отчёта исследования",
-  "version": "1.0.0",
-  "description": "Пишет отчёт исследования строго на основе проверенных утверждений.",
+  "name": "Research report writer",
+  "version": "1.0.1",
+  "description": "Writes a research report strictly based on verified claims.",
   "author": "Agentic OS",
   "category": "research",
   "entry": "instructions.md",

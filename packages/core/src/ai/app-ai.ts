@@ -32,6 +32,6 @@ export async function createAppAI(app: AppServices, env: NodeJS.ProcessEnv, adap
 
 export function appAI(app: AppServices): AppAI {
   const v = app.ext.ai as AppAI | undefined;
-  if (!v) throw new AppError('INTERNAL', 'AI-сервисы приложения не инициализированы.');
+  if (!v) throw new AppError('INTERNAL', 'The application AI services are not initialized.');
   return v;
 }

@@ -142,7 +142,7 @@ export function parseFile(relPath: string, kind: FileKind, text: string, languag
         wordCount: md.wordCount,
         searchText: md.searchText,
         docType: fmType ?? inferDocType(relPath),
-        warnings: md.frontmatterError ? [`Ошибка в свойствах (YAML): ${md.frontmatterError}`] : [],
+        warnings: md.frontmatterError ? [`Error in properties (YAML): ${md.frontmatterError}`] : [],
       };
     }
     case 'code':
@@ -153,7 +153,7 @@ export function parseFile(relPath: string, kind: FileKind, text: string, languag
       try {
         outline = topLevelKeys(JSON.parse(text.replace(/^﻿/, '')));
       } catch {
-        if (!relPath.endsWith('.jsonc') && !relPath.endsWith('.json5')) warnings.push('JSON не разобран: файл проиндексирован как текст.');
+        if (!relPath.endsWith('.jsonc') && !relPath.endsWith('.json5')) warnings.push('JSON was not parsed: the file was indexed as text.');
       }
       return plain(relPath, text, { outline, docType: inferDocType(relPath) ?? 'config', warnings });
     }
@@ -184,7 +184,7 @@ export function inferDocType(relPath: string): string | null {
   if (/^readme(\.|$)/.test(name)) return 'readme';
   if (/(^|\/)(adr|decisions?)\//.test(p)) return 'decision';
   if (/(^|\/)(requirements?|reqs?)\//.test(p)) return 'requirement';
-  if (/(^|\/)(specs?|тз)\//.test(p)) return 'spec';
+  if (/(^|\/)specs?\//.test(p)) return 'spec';
   if (/(^|\/)daily\//.test(p) && /\d{4}-\d{2}-\d{2}/.test(name)) return 'daily';
   if (/(^|\/)(tests?|__tests__|spec)\//.test(p) || /\.(test|spec)\.[a-z]+$/.test(name) || /_test\.[a-z]+$/.test(name)) return 'test';
   if (/(^|\/)docs?\//.test(p)) return 'document';

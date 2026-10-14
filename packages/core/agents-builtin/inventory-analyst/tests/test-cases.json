@@ -1,9 +1,9 @@
 {
   "cases": [
     {
-      "name": "пустая инвентаризация",
+      "name": "empty inventory",
       "input": {
-        "goal": "Понять структуру",
+        "goal": "Understand the structure",
         "inventories": []
       },
       "expect": {

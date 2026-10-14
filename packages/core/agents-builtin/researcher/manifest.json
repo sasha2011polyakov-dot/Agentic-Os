@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "researcher",
-  "name": "Исследователь",
-  "version": "1.0.0",
-  "description": "Собирает подтверждённые факты из документов и проекта с цитатами и уровнем уверенности.",
+  "name": "Researcher",
+  "version": "1.0.1",
+  "description": "Collects confirmed facts from documents and the project, with quotes and a confidence level.",
   "author": "Agentic OS",
   "category": "spec",
   "entry": "instructions.md",
@@ -16,23 +16,23 @@
   "permissions": [
     {
       "permission": "search.use",
-      "reason": "Поиск по базе знаний"
+      "reason": "Search the knowledge base"
     },
     {
       "permission": "documents.read",
-      "reason": "Чтение документов"
+      "reason": "Read documents"
     },
     {
       "permission": "projects.read",
-      "reason": "Чтение файлов проекта"
+      "reason": "Read project files"
     },
     {
       "permission": "graph.read",
-      "reason": "Изучение связей"
+      "reason": "Explore links"
     },
     {
       "permission": "systems.read",
-      "reason": "Чтение других систем, явно выбранных для поручения (с указанием принадлежности результатов)"
+      "reason": "Read other systems explicitly selected for the mission (results show which system they come from)"
     }
   ],
   "dependencies": [],

@@ -50,10 +50,10 @@ function which(cmd: string): Promise<boolean> {
 /** Process-memory only; lost on restart. Always available. */
 export class SessionBackend implements SecretBackend {
   id = 'session';
-  label = 'Только на текущую сессию';
+  label = 'This session only';
   persistent = false;
   writable = true;
-  note = 'Ключ хранится в памяти до перезапуска приложения.';
+  note = 'The key is kept in memory until the application restarts.';
   private readonly map = new Map<string, string>();
   async available() {
     return true;
@@ -72,10 +72,10 @@ export class SessionBackend implements SecretBackend {
 /** Read-only: AOS_SECRET_<KEY> environment variables (e.g. AOS_SECRET_OPENAI). */
 export class EnvBackend implements SecretBackend {
   id = 'env';
-  label = 'Переменная окружения';
+  label = 'Environment variable';
   persistent = true;
   writable = false;
-  note = 'Задайте переменную AOS_SECRET_<ИМЯ> перед запуском приложения.';
+  note = 'Set the AOS_SECRET_<NAME> variable before starting the application.';
   constructor(private readonly env: NodeJS.ProcessEnv) {}
   static varName(key: string): string {
     return `AOS_SECRET_${key.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
@@ -87,20 +87,20 @@ export class EnvBackend implements SecretBackend {
     return this.env[EnvBackend.varName(key)] ?? null;
   }
   async set() {
-    throw new AppError('SECRET_STORE_UNAVAILABLE', 'Переменные окружения задаются вне приложения.');
+    throw new AppError('SECRET_STORE_UNAVAILABLE', 'Environment variables are set outside the application.');
   }
   async delete() {
-    throw new AppError('SECRET_STORE_UNAVAILABLE', 'Переменные окружения задаются вне приложения.');
+    throw new AppError('SECRET_STORE_UNAVAILABLE', 'Environment variables are set outside the application.');
   }
 }
 
 /** macOS Keychain through /usr/bin/security. */
 export class MacKeychainBackend implements SecretBackend {
   id = 'macos-keychain';
-  label = 'Связка ключей macOS';
+  label = 'macOS Keychain';
   persistent = true;
   writable = true;
-  note = 'Значение передаётся утилите security аргументом командной строки на время записи.';
+  note = 'The value is passed to the security utility as a command-line argument while it is written.';
   async available() {
     return platform() === 'darwin' && (await which('security'));
   }
@@ -110,7 +110,7 @@ export class MacKeychainBackend implements SecretBackend {
   }
   async set(key: string, value: string) {
     const r = await run('security', ['add-generic-password', '-U', '-s', SERVICE, '-a', key, '-w', value]);
-    if (r.code !== 0) throw new AppError('SECRET_STORE_UNAVAILABLE', `Связка ключей отклонила запись: ${r.stderr.trim()}`);
+    if (r.code !== 0) throw new AppError('SECRET_STORE_UNAVAILABLE', `The keychain rejected the write: ${r.stderr.trim()}`);
   }
   async delete(key: string) {
     await run('security', ['delete-generic-password', '-s', SERVICE, '-a', key]);
@@ -135,7 +135,7 @@ export class LinuxSecretServiceBackend implements SecretBackend {
   }
   async set(key: string, value: string) {
     const r = await run('secret-tool', ['store', `--label=Agentic OS: ${key}`, 'service', SERVICE, 'account', key], value);
-    if (r.code !== 0) throw new AppError('SECRET_STORE_UNAVAILABLE', `Secret Service отклонил запись: ${r.stderr.trim()}`);
+    if (r.code !== 0) throw new AppError('SECRET_STORE_UNAVAILABLE', `Secret Service rejected the write: ${r.stderr.trim()}`);
   }
   async delete(key: string) {
     await run('secret-tool', ['clear', 'service', SERVICE, 'account', key]);
@@ -145,7 +145,7 @@ export class LinuxSecretServiceBackend implements SecretBackend {
 /** Electron safeStorage (Keychain / DPAPI / libsecret-backed key). Refuses the insecure "basic_text" backend. */
 export class SafeStorageBackend implements SecretBackend {
   id = 'electron-safe-storage';
-  label = 'Защищённое хранилище ОС (Electron safeStorage)';
+  label = 'OS secure storage (Electron safeStorage)';
   persistent = true;
   writable = true;
   constructor(
@@ -210,16 +210,16 @@ export class SecretStore {
 
   private backend(id: string): SecretBackend {
     const b = this.backends.find((x) => x.id === id);
-    if (!b) throw new AppError('SECRET_STORE_UNAVAILABLE', `Неизвестное хранилище секретов: ${id}`);
+    if (!b) throw new AppError('SECRET_STORE_UNAVAILABLE', `Unknown secret store: ${id}`);
     return b;
   }
 
   async put(key: string, value: string, backendId?: string): Promise<string> {
-    if (!value || value.length < 8) throw new AppError('VALIDATION_FAILED', 'Ключ слишком короткий.');
+    if (!value || value.length < 8) throw new AppError('VALIDATION_FAILED', 'The key is too short.');
     const b = backendId ? this.backend(backendId) : await this.defaultBackend();
     if (!b) throw new AppError('SECRET_STORE_UNAVAILABLE');
-    if (!(await b.available())) throw new AppError('SECRET_STORE_UNAVAILABLE', `${b.label} недоступно на этом компьютере.`);
-    if (!b.writable) throw new AppError('SECRET_STORE_UNAVAILABLE', `${b.label}: запись из приложения невозможна.`);
+    if (!(await b.available())) throw new AppError('SECRET_STORE_UNAVAILABLE', `${b.label} is not available on this computer.`);
+    if (!b.writable) throw new AppError('SECRET_STORE_UNAVAILABLE', `${b.label}: the application cannot write to it.`);
     await b.set(key, value);
     const ref = `${b.id}:${key}`;
     this.cache.set(ref, value);

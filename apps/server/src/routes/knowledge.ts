@@ -14,7 +14,7 @@ function list(v: string | null): string[] | undefined {
 
 function strArray(v: unknown): string[] | undefined {
   if (v === undefined) return undefined;
-  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', 'Ожидается список строк.');
+  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new AppError('VALIDATION_FAILED', 'A list of strings is expected.');
   return v as string[];
 }
 
@@ -24,13 +24,13 @@ export function registerFsRoutes(r: Router): void {
     const b = body(ctx);
     const avail = await dialog.availability();
     if (!avail.native) return { path: null, native: false };
-    return { path: await dialog.pickDirectory(optStr(b.title, 'title', 200) ?? 'Выберите папку'), native: true };
+    return { path: await dialog.pickDirectory(optStr(b.title, 'title', 200) ?? 'Choose a folder'), native: true };
   });
   r.get('/api/fs/list', async (ctx) => {
     try {
       return await listDirectories(ctx.query.get('path') ?? undefined);
     } catch (e) {
-      throw new AppError('SOURCE_NOT_ACCESSIBLE', 'Папку нельзя открыть.', { details: { path: ctx.query.get('path'), reason: e instanceof Error ? e.message : String(e) } });
+      throw new AppError('SOURCE_NOT_ACCESSIBLE', 'The folder cannot be opened.', { details: { path: ctx.query.get('path'), reason: e instanceof Error ? e.message : String(e) } });
     }
   });
 }
@@ -158,7 +158,7 @@ export function registerDocRoutes(r: Router): void {
   );
   r.patch('/api/systems/:systemId/docs/:docId/properties', async (ctx) => {
     const b = body(ctx);
-    if (!b.patch || typeof b.patch !== 'object' || Array.isArray(b.patch)) throw new AppError('VALIDATION_FAILED', 'Ожидается объект patch.');
+    if (!b.patch || typeof b.patch !== 'object' || Array.isArray(b.patch)) throw new AppError('VALIDATION_FAILED', 'A patch object is expected.');
     return services(await sys(ctx)).docs.updateProperties(ctx.params.docId!, b.patch as Record<string, unknown>, str(b.expectedHash, 'expectedHash'));
   });
   r.post('/api/systems/:systemId/docs/:docId/rename-plan', async (ctx) => ({ plan: await services(await sys(ctx)).docs.planRename(ctx.params.docId!, str(body(ctx).to, 'to', { max: 1000 })) }));
@@ -174,14 +174,14 @@ export function registerDocRoutes(r: Router): void {
   r.get('/api/systems/:systemId/versions/:versionId', async (ctx) => ({ version: services(await sys(ctx)).docs.version(Number(ctx.params.versionId)) }));
   r.post('/api/systems/:systemId/docs/:docId/restore', async (ctx) => {
     const b = body(ctx);
-    if (typeof b.versionId !== 'number') throw new AppError('VALIDATION_FAILED', 'Укажите versionId.');
+    if (typeof b.versionId !== 'number') throw new AppError('VALIDATION_FAILED', 'Enter versionId.');
     return services(await sys(ctx)).docs.restore(ctx.params.docId!, b.versionId, str(b.expectedHash, 'expectedHash'));
   });
   r.get('/api/systems/:systemId/docs/:docId/unlinked', async (ctx) => ({ mentions: services(await sys(ctx)).docs.unlinkedMentions(ctx.params.docId!) }));
   r.post('/api/systems/:systemId/daily', async (ctx) => {
     const d = optStr(body(ctx).date, 'date', 10);
     const date = d ? new Date(`${d}T12:00:00`) : new Date();
-    if (Number.isNaN(date.getTime())) throw new AppError('VALIDATION_FAILED', 'Неверная дата.');
+    if (Number.isNaN(date.getTime())) throw new AppError('VALIDATION_FAILED', 'Invalid date.');
     return { doc: await services(await sys(ctx)).docs.daily(date) };
   });
   r.get('/api/systems/:systemId/folders', async (ctx) => ({ folders: await services(await sys(ctx)).docs.folders() }));
@@ -259,7 +259,7 @@ export function registerGraphRoutes(r: Router): void {
     const g = services(await sys(ctx)).graph;
     const id = str(ctx.query.get('id'), 'id');
     const node = g.getNode(id);
-    if (!node) throw new AppError('NOT_FOUND', 'Узел графа не найден.');
+    if (!node) throw new AppError('NOT_FOUND', 'Graph node not found.');
     const { incoming, outgoing } = g.edgesOf(id);
     const others = g.nodesByIds([...new Set([...incoming.map((e) => e.src), ...outgoing.map((e) => e.dst)])]);
     return { node, incoming, outgoing, nodes: others };
@@ -268,7 +268,7 @@ export function registerGraphRoutes(r: Router): void {
     const rt = await sys(ctx);
     const b = body(ctx);
     const relation = str(b.relation, 'relation', { max: 40 });
-    if (!RELATIONS.some((x) => x.id === relation)) throw new AppError('VALIDATION_FAILED', 'Неизвестный тип связи.');
+    if (!RELATIONS.some((x) => x.id === relation)) throw new AppError('VALIDATION_FAILED', 'Unknown link type.');
     const id = services(rt).graph.addEdge({ src: str(b.src, 'src'), dst: str(b.dst, 'dst'), relation, origin: 'explicit', createdBy: 'user', evidence: optStr(b.note, 'note', 500) ?? null });
     rt.audit.record({ actor: 'user', action: 'graph.edge.create', target: id, details: { src: b.src, dst: b.dst, relation } });
     rt.emit('graph.changed', { edge: id });
@@ -277,8 +277,8 @@ export function registerGraphRoutes(r: Router): void {
   r.delete('/api/systems/:systemId/graph/edges/:edgeId', async (ctx) => {
     const rt = await sys(ctx);
     const e = rt.db.get<{ derived_key: string | null; created_by: string | null }>('SELECT derived_key, created_by FROM graph_edges WHERE id = ?', ctx.params.edgeId!);
-    if (!e) throw new AppError('NOT_FOUND', 'Связь не найдена.');
-    if (e.derived_key) throw new AppError('VALIDATION_FAILED', 'Эта связь построена из содержимого документа. Измените ссылку в самом документе.');
+    if (!e) throw new AppError('NOT_FOUND', 'Link not found.');
+    if (e.derived_key) throw new AppError('VALIDATION_FAILED', 'This link is built from the document content. Change the link in the document itself.');
     services(rt).graph.removeEdge(ctx.params.edgeId!);
     rt.audit.record({ actor: 'user', action: 'graph.edge.delete', target: ctx.params.edgeId! });
     rt.emit('graph.changed', {});
@@ -287,7 +287,7 @@ export function registerGraphRoutes(r: Router): void {
   r.post('/api/systems/:systemId/graph/suggestions/:edgeId', async (ctx) => {
     const rt = await sys(ctx);
     const decision = body(ctx).decision;
-    if (decision !== 'confirmed' && decision !== 'rejected') throw new AppError('VALIDATION_FAILED', 'decision: confirmed или rejected.');
+    if (decision !== 'confirmed' && decision !== 'rejected') throw new AppError('VALIDATION_FAILED', 'decision: confirmed or rejected.');
     const edge = services(rt).graph.reviewSuggestion(ctx.params.edgeId!, decision);
     rt.audit.record({ actor: 'user', action: `graph.suggestion.${decision}`, target: edge.id });
     rt.emit('graph.changed', {});

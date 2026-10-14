@@ -37,10 +37,10 @@ export function validator(schema: Record<string, unknown>): ValidateFunction {
 
 export function formatErrors(errors: ErrorObject[] | null | undefined, max = 12): string[] {
   return (errors ?? []).slice(0, max).map((e) => {
-    const where = e.instancePath || '(корень)';
-    if (e.keyword === 'required') return `${where}: отсутствует обязательное поле «${(e.params as { missingProperty: string }).missingProperty}»`;
-    if (e.keyword === 'enum') return `${where}: допустимые значения — ${(e.params as { allowedValues: unknown[] }).allowedValues.join(', ')}`;
-    if (e.keyword === 'additionalProperties') return `${where}: лишнее поле «${(e.params as { additionalProperty: string }).additionalProperty}»`;
+    const where = e.instancePath || '(root)';
+    if (e.keyword === 'required') return `${where}: the required field "${(e.params as { missingProperty: string }).missingProperty}" is missing`;
+    if (e.keyword === 'enum') return `${where}: allowed values are ${(e.params as { allowedValues: unknown[] }).allowedValues.join(', ')}`;
+    if (e.keyword === 'additionalProperties') return `${where}: unexpected field "${(e.params as { additionalProperty: string }).additionalProperty}"`;
     return `${where}: ${e.message ?? e.keyword}`;
   });
 }

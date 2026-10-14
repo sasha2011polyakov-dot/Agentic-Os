@@ -10,11 +10,11 @@ export async function installTestAgent(
 ): Promise<void> {
   await s.agents.saveDefinition({
     id: opts.id,
-    name: `Тестовый агент ${opts.id}`,
-    description: 'Агент для автоматических тестов.',
-    instructions: 'Выполни задачу, используя инструменты, и верни итог.',
+    name: `Test agent ${opts.id}`,
+    description: 'An agent for automated tests.',
+    instructions: 'Do the task using the tools and return the result.',
     tools: opts.tools,
-    permissions: opts.permissions.map((p) => ({ permission: p, reason: 'для теста' })),
+    permissions: opts.permissions.map((p) => ({ permission: p, reason: 'for the test' })),
     taskType: 'extraction',
     inputSchema: { type: 'object', properties: { task: { type: 'string' } }, additionalProperties: true },
     outputSchema: opts.outputSchema ?? { type: 'object', required: ['summary'], properties: { summary: { type: 'string' }, items: { type: 'array', items: { type: 'string' } } } },
@@ -28,7 +28,7 @@ export function scriptAgent(agentName: string, steps: (string | ((req: ChatReque
   const calls: ChatRequest[] = [];
   let i = 0;
   const off = registerTestResponder(
-    (req) => (req.system ?? '').includes(`агента «${agentName}»`),
+    (req) => (req.system ?? '').includes(`agent "${agentName}"`),
     (req) => {
       calls.push({ ...req, messages: req.messages.map((m) => ({ ...m })) }); // snapshot: the runtime keeps appending
       const step = steps[Math.min(i, steps.length - 1)]!;

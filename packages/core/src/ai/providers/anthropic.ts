@@ -22,7 +22,7 @@ export class AnthropicProvider implements AIProvider {
   }
 
   private headers(): Record<string, string> {
-    if (!this.deps.apiKey) throw new AppError('PROVIDER_AUTH_FAILED', 'Для Anthropic не задан API-ключ.', { hint: 'Добавьте ключ в разделе «AI и модели» → «API-провайдеры».' });
+    if (!this.deps.apiKey) throw new AppError('PROVIDER_AUTH_FAILED', 'No API key is set for Anthropic.', { hint: 'Add the key in "Models" → "API providers".' });
     return { 'x-api-key': this.deps.apiKey, 'anthropic-version': VERSION };
   }
 

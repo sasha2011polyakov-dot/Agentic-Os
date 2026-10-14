@@ -1,12 +1,12 @@
 {
   "cases": [
     {
-      "name": "шаг-анализ",
+      "name": "analysis step",
       "input": {
         "step": {
           "id": "S1",
-          "title": "Анализ",
-          "goal": "Описать"
+          "title": "Analysis",
+          "goal": "Describe"
         },
         "objective": "x"
       },

@@ -46,7 +46,7 @@ async function freeName(root: string, folder: string, base: string, taken: Set<s
       return name;
     }
   }
-  throw new AppError('INTERNAL', 'Не удалось подобрать свободное имя файла.');
+  throw new AppError('INTERNAL', 'Could not find a free file name.');
 }
 
 function nextNumber(ctx: FunctionContext, prefix: string): number {
@@ -94,8 +94,8 @@ function specData(a: SpecPayload, runId: string, status: 'draft' | 'approved'): 
 export const SPEC_FUNCTIONS: WorkflowFunction[] = [
   {
     name: 'spec.context',
-    label: 'Сбор контекста',
-    description: 'Список источников и документов, выбранных для запуска, и детерминированная инвентаризация проектов.',
+    label: 'Collect context',
+    description: 'The sources and documents selected for the run, and a deterministic inventory of the projects.',
     async run(_args, ctx) {
       const allowed = readable(ctx);
       const rows = ctx.rt.db.all<{ id: string; name: string; kind: string; confidential: number }>('SELECT id, name, kind, confidential FROM sources ORDER BY kind DESC, name');
@@ -110,7 +110,7 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
         try {
           inventories.push(await projectInventory(ctx.rt, r.id));
         } catch (e) {
-          ctx.log(`Инвентаризация проекта «${r.name}» не выполнена: ${toAppError(e).message}`);
+          ctx.log(`The inventory of the project "${r.name}" failed: ${toAppError(e).message}`);
         }
       }
       return { sources, selectedDocuments, inventories, hasProjects: inventories.length > 0, confidential: inScope.some((r) => r.confidential) };
@@ -118,8 +118,8 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
   },
   {
     name: 'spec.ground_evidence',
-    label: 'Проверка цитат',
-    description: 'Программно проверяет, что цитаты свидетельств дословно есть в источниках, и что источники входят в область запуска.',
+    label: 'Verify quotes',
+    description: 'Checks in code that the quotes of the evidence are present verbatim in the sources and that the sources are within the run scope.',
     async run(args, ctx) {
       const allowed = readable(ctx);
       const s = services(ctx.rt);
@@ -145,7 +145,7 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
         const e: Evidence & { verification?: string } = { ...raw };
         if (e.kind === 'assumption' || !e.quote || !e.source) {
           e.quote_verified = false;
-          e.verification = e.kind === 'assumption' ? 'допущение' : 'нет цитаты или источника';
+          e.verification = e.kind === 'assumption' ? 'assumption' : 'no quote or source';
           if (e.kind === 'fact') e.kind = 'assumption';
           out.push(e);
           continue;
@@ -158,14 +158,14 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
         }
         if (!src) {
           e.quote_verified = false;
-          e.verification = 'источник не найден';
+          e.verification = 'source not found';
         } else if (allowed && !allowed.has(src.sourceId)) {
           e.quote_verified = false;
-          e.verification = 'источник вне области запуска';
+          e.verification = 'source outside the run scope';
         } else {
           const r = verifyQuote(e.quote, src.text);
           e.quote_verified = r.found;
-          e.verification = r.found ? (r.method === 'exact' ? 'цитата найдена' : `цитата найдена (совпадение ${Math.round(r.ratio * 100)}%)`) : 'цитата не найдена в источнике';
+          e.verification = r.found ? (r.method === 'exact' ? 'quote found' : `quote found (${Math.round(r.ratio * 100)}% match)`) : 'quote not found in the source';
           e.source = { ...e.source, title: src.title };
         }
         out.push(e);
@@ -176,24 +176,24 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
   },
   {
     name: 'spec.validate_requirements',
-    label: 'Проверка требований',
-    description: 'Уникальность ID, ссылки на свидетельства, циклы, расплывчатые формулировки, критерии приёмки, дубли.',
+    label: 'Validate requirements',
+    description: 'Unique IDs, references to evidence, cycles, vague wording, acceptance criteria, duplicates.',
     run(args) {
       return validateRequirements(arr(args.requirements), arr(args.evidence));
     },
   },
   {
     name: 'spec.validate_tasks',
-    label: 'Проверка декомпозиции',
-    description: 'Ссылки задач на требования, циклы зависимостей, покрытие требований задачами.',
+    label: 'Validate the decomposition',
+    description: 'Task references to requirements, dependency cycles, coverage of requirements by tasks.',
     run(args) {
       return validateTasks(arr(args.tasks), arr(args.requirements));
     },
   },
   {
     name: 'spec.render',
-    label: 'Сборка документа ТЗ',
-    description: 'Собирает Markdown технического задания из проверенных данных и разделов автора.',
+    label: 'Assemble the specification',
+    description: 'Assembles the Markdown of the specification from verified data and the sections of the writer.',
     run(args, ctx) {
       const data = specData(args as unknown as SpecPayload, ctx.runId, 'draft');
       return { markdown: renderSpec(data), metrics: data.metrics, findings: data.findings, blocking: countBlocking(data.findings) };
@@ -201,8 +201,8 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
   },
   {
     name: 'spec.save',
-    label: 'Сохранение ТЗ',
-    description: 'Сохраняет утверждённое ТЗ, документы требований и задачи трекера со связями в графе. Повторный запуск не создаёт дубликатов.',
+    label: 'Save the specification',
+    description: 'Saves the approved specification, the requirement documents and the tracker tasks with graph links. Running it again creates no duplicates.',
     sideEffects: true,
     async run(args, ctx) {
       const a = args as unknown as SpecPayload;
@@ -211,7 +211,7 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
       const specsFolder = ctx.rt.settings.get<string>('docs.specsFolder') || 'Specs';
       const requirements = arr<Requirement>(a.requirements);
       const tasks = arr<SpecTask>(a.tasks);
-      if (!requirements.length) throw new AppError('VALIDATION_FAILED', 'Нечего сохранять: нет требований.');
+      if (!requirements.length) throw new AppError('VALIDATION_FAILED', 'Nothing to save: there are no requirements.');
 
       // 1. Plan (stored once per run so a re-run after a crash produces the same names and numbers).
       interface Plan {
@@ -227,13 +227,13 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
         let n = nextNumber(ctx, 'REQ');
         const reqMap: Record<string, string> = {};
         for (const r of requirements) reqMap[r.id] = `REQ-${String(n++).padStart(3, '0')}`;
-        const base = sanitizeFileName(a.title || 'Техническое задание');
+        const base = sanitizeFileName(a.title || 'Specification');
         const specName = await freeName(vault.root_path, specsFolder, base, taken);
-        const reqFolder = `${specsFolder}/${specName} — требования`;
+        const reqFolder = `${specsFolder}/${specName} — requirements`;
         const reqNames: Record<string, string> = {};
         for (const r of requirements) reqNames[r.id] = await freeName(vault.root_path, reqFolder, sanitizeFileName(`${reqMap[r.id]} ${shortText(r.statement, 50)}`), taken);
         plan = { reqMap, specFolder: specsFolder, specName, reqFolder, reqNames };
-        runEvent(ctx, 'spec.save.plan', 'План сохранения ТЗ', plan);
+        runEvent(ctx, 'spec.save.plan', 'Specification save plan', plan);
       }
       const map = new Map(Object.entries(plan.reqMap));
       const reqs = renumber(requirements, map);
@@ -268,7 +268,7 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
           actor: `workflow:${ctx.runId}`,
         });
         created.set(t.id, { id: view.id, key: view.key });
-        runEvent(ctx, 'spec.save.task', `Создана задача ${view.key}`, { local: t.id, id: view.id, key: view.key });
+        runEvent(ctx, 'spec.save.task', `Task ${view.key} created`, { local: t.id, id: view.id, key: view.key });
       }
       for (const t of specTasks) {
         const me = created.get(t.id)!;
@@ -278,7 +278,7 @@ export const SPEC_FUNCTIONS: WorkflowFunction[] = [
             try {
               s.tasks.addDependency(me.id, dep.id, `workflow:${ctx.runId}`);
             } catch (e) {
-              ctx.log(`Зависимость ${me.key} → ${dep.key} не добавлена: ${toAppError(e).message}`);
+              ctx.log(`The dependency ${me.key} → ${dep.key} was not added: ${toAppError(e).message}`);
             }
           }
         }

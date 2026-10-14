@@ -36,7 +36,7 @@ function builtinDirCandidates(): string[] {
 
 export function builtinAgentsDir(): string {
   for (const c of builtinDirCandidates()) if (existsSync(join(c, 'coordinator', 'manifest.json'))) return c;
-  throw new AppError('INTERNAL', 'Не найдена папка встроенных агентов (agents-builtin).');
+  throw new AppError('INTERNAL', 'The built-in agents folder (agents-builtin) was not found.');
 }
 
 export function toEntry(pkg: AgentPackage, scope: AgentScope, path: string, report: ValidationReport): CatalogEntry {
@@ -76,7 +76,7 @@ export class AgentCatalog {
       if (!e.isDirectory()) continue;
       const path = join(dir, e.name);
       const { report, pkg } = validatePackageFiles(await readPackageDir(path));
-      if (!pkg) throw new AppError('AGENT_PACKAGE_INVALID', `Встроенный агент ${e.name} повреждён: ${report.errors.join('; ')}`);
+      if (!pkg) throw new AppError('AGENT_PACKAGE_INVALID', `The built-in agent ${e.name} is damaged: ${report.errors.join('; ')}`);
       map.set(pkg.manifest.id, { pkg, path, report });
     }
     this.builtin = map;
@@ -84,7 +84,7 @@ export class AgentCatalog {
   }
 
   private ensure(): void {
-    if (!this.loaded) throw new AppError('INTERNAL', 'Каталог агентов не загружен.');
+    if (!this.loaded) throw new AppError('INTERNAL', 'The agent catalog is not loaded.');
   }
 
   builtinEntries(): CatalogEntry[] {
@@ -127,9 +127,9 @@ export class AgentCatalog {
     const files = unzipPackage(zip);
     const { report, pkg } = validatePackageFiles(files);
     if (!pkg) throw new AppError('AGENT_PACKAGE_INVALID', report.errors.join('; '), { details: report });
-    if (this.builtin.has(pkg.manifest.id)) throw new AppError('AGENT_PACKAGE_INVALID', `Идентификатор «${pkg.manifest.id}» занят встроенным агентом.`);
+    if (this.builtin.has(pkg.manifest.id)) throw new AppError('AGENT_PACKAGE_INVALID', `The identifier "${pkg.manifest.id}" is taken by a built-in agent.`);
     if (this.sharedRows().some((r) => r.id === pkg.manifest.id && r.version === pkg.manifest.version)) {
-      throw new AppError('AGENT_PACKAGE_INVALID', `Версия ${pkg.manifest.version} агента «${pkg.manifest.id}» уже установлена. Увеличьте версию пакета.`);
+      throw new AppError('AGENT_PACKAGE_INVALID', `Version ${pkg.manifest.version} of the agent "${pkg.manifest.id}" is already installed. Increase the package version.`);
     }
     const dir = join(this.sharedDir, pkg.manifest.id, pkg.manifest.version);
     await writePackage(dir, files);
@@ -139,14 +139,14 @@ export class AgentCatalog {
 
   async removeShared(id: string, version: string): Promise<void> {
     const row = this.registryDb.get<{ install_path: string }>('SELECT install_path FROM app_agent_packages WHERE id = ? AND version = ?', id, version);
-    if (!row) throw new AppError('NOT_FOUND', 'Пакет не найден (роли расширений удаляются вместе с расширением).');
+    if (!row) throw new AppError('NOT_FOUND', 'Package not found (extension roles are removed together with the extension).');
     await rm(row.install_path, { recursive: true, force: true });
     this.registryDb.run('DELETE FROM app_agent_packages WHERE id = ? AND version = ?', id, version);
   }
 }
 
 export async function writePackage(dir: string, files: Map<string, Buffer>): Promise<void> {
-  if (existsSync(dir)) throw new AppError('AGENT_PACKAGE_INVALID', 'Папка версии пакета уже существует.');
+  if (existsSync(dir)) throw new AppError('AGENT_PACKAGE_INVALID', 'The package version folder already exists.');
   for (const [rel, buf] of files) {
     const p = join(dir, rel);
     await mkdir(dirname(p), { recursive: true });

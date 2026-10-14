@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "security-reviewer",
-  "name": "Ревьюер безопасности",
-  "version": "1.0.0",
-  "description": "Оценивает риски безопасности предложенных изменений.",
+  "name": "Security reviewer",
+  "version": "1.0.1",
+  "description": "Assesses the security risks of proposed changes.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",

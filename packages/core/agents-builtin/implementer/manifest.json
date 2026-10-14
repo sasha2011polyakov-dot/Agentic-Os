@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "implementer",
-  "name": "Исполнитель",
-  "version": "1.0.0",
-  "description": "Выполняет шаг плана: готовит изменения файлов (наборы изменений), документы и запускает разрешённые проверки.",
+  "name": "Implementer",
+  "version": "1.0.1",
+  "description": "Executes a plan step: prepares file changes (change sets) and documents, and runs allowed checks.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",
@@ -16,23 +16,23 @@
   "permissions": [
     {
       "permission": "documents.read",
-      "reason": "Чтение документов"
+      "reason": "Read documents"
     },
     {
       "permission": "projects.read",
-      "reason": "Чтение кода"
+      "reason": "Read code"
     },
     {
       "permission": "search.use",
-      "reason": "Поиск"
+      "reason": "Search"
     },
     {
       "permission": "changes.propose",
-      "reason": "Подготовка наборов изменений"
+      "reason": "Prepare change sets"
     },
     {
       "permission": "documents.create",
-      "reason": "Создание документов с результатами",
+      "reason": "Create documents with the results",
       "scope": {
         "folders": [
           "Reports",
@@ -46,15 +46,15 @@
     },
     {
       "permission": "commands.run",
-      "reason": "Запуск проверок, заданных пользователем"
+      "reason": "Run the checks set by the user"
     },
     {
       "permission": "agents.create",
-      "reason": "Черновики специализированных агентов, если подходящего нет (включает только пользователь)"
+      "reason": "Drafts of specialized agents when no suitable one exists (only the user enables them)"
     },
     {
       "permission": "workflows.create",
-      "reason": "Черновики процессов для повторяющихся задач (запускает только пользователь)"
+      "reason": "Drafts of workflows for repeated tasks (only the user runs them)"
     }
   ],
   "dependencies": [],

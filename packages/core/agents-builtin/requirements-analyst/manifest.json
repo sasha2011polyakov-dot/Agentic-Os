@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "requirements-analyst",
-  "name": "Аналитик требований",
-  "version": "1.0.0",
-  "description": "Преобразует свидетельства в атомарные проверяемые требования с критериями приёмки и трассировкой.",
+  "name": "Requirements analyst",
+  "version": "1.0.1",
+  "description": "Turns evidence into atomic, verifiable requirements with acceptance criteria and traceability.",
   "author": "Agentic OS",
   "category": "spec",
   "entry": "instructions.md",

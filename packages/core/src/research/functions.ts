@@ -31,8 +31,8 @@ interface Source {
 export const RESEARCH_FUNCTIONS: WorkflowFunction[] = [
   {
     name: 'research.local',
-    label: 'Поиск в базе знаний',
-    description: 'Что уже известно по вопросу в документах системы (до выхода в интернет).',
+    label: 'Search the knowledge base',
+    description: 'What is already known about the question in the documents of the system (before going to the internet).',
     run(args, ctx) {
       const q = String(args.question ?? '').slice(0, 300);
       if (!q.trim()) return { findings: [] };
@@ -45,8 +45,8 @@ export const RESEARCH_FUNCTIONS: WorkflowFunction[] = [
   },
   {
     name: 'research.ground_claims',
-    label: 'Проверка цитат источников',
-    description: 'Программно сверяет цитаты утверждений с сохранёнными текстами загруженных страниц и считает независимые источники.',
+    label: 'Verify source quotes',
+    description: 'Checks in code the quotes of the claims against the saved texts of the downloaded pages and counts independent sources.',
     run(args, ctx) {
       const claims = arr<Claim>(args.claims);
       const texts = appAI(ctx.rt.app).web.storedTexts(ctx.rt, claims.map((c) => c.source_url));
@@ -69,8 +69,8 @@ export const RESEARCH_FUNCTIONS: WorkflowFunction[] = [
   },
   {
     name: 'research.save',
-    label: 'Сохранение отчёта',
-    description: 'Сохраняет отчёт исследования с источниками, датами и статусом проверки цитат; добавляет факты и связи с источниками.',
+    label: 'Save the report',
+    description: 'Saves the research report with sources, dates and the quote verification status; adds facts and links to the sources.',
     sideEffects: true,
     async run(args, ctx) {
       const s = services(ctx.rt);
@@ -105,23 +105,23 @@ export const RESEARCH_FUNCTIONS: WorkflowFunction[] = [
           '',
           report.markdown_body ?? '',
           '',
-          '## Утверждения и проверка цитат',
+          '## Claims and quote verification',
           '',
-          '| ID | Утверждение | Источник | Цитата |',
+          '| ID | Claim | Source | Quote |',
           '|---|---|---|---|',
-          ...claims.map((c) => `| ${c.id} | ${c.statement.replace(/\|/g, '\\|').replace(/\n/g, ' ')} | ${c.source_url} | ${c.quote_status === 'verified' ? '✔ найдена' : c.quote_status === 'source_missing' ? '✖ источник не загружен' : '✖ не найдена'} |`),
+          ...claims.map((c) => `| ${c.id} | ${c.statement.replace(/\|/g, '\\|').replace(/\n/g, ' ')} | ${c.source_url} | ${c.quote_status === 'verified' ? '✔ found' : c.quote_status === 'source_missing' ? '✖ source not downloaded' : '✖ not found'} |`),
           '',
-          '## Источники',
+          '## Sources',
           '',
           ...sources.map((src) => {
             const r = retrieved.get(src.url);
-            return `- [${(src.title || r?.title || src.url).replace(/[[\]]/g, '')}](${src.url})${src.is_primary ? ' — первоисточник' : ''}; опубликовано: ${src.published_at ?? r?.published_at ?? 'неизвестно'}; получено: ${r?.retrieved_at?.slice(0, 10) ?? 'не загружено'}`;
+            return `- [${(src.title || r?.title || src.url).replace(/[[\]]/g, '')}](${src.url})${src.is_primary ? ' (primary source)' : ''}; published: ${src.published_at ?? r?.published_at ?? 'unknown'}; retrieved: ${r?.retrieved_at?.slice(0, 10) ?? 'not downloaded'}`;
           }),
           '',
         ];
-        if (report.limitations?.length) lines.push('## Ограничения', '', ...report.limitations.map((l) => `- ${l}`), '');
-        if (report.open_questions?.length) lines.push('## Открытые вопросы', '', ...report.open_questions.map((q) => `- ${q}`), '');
-        const title = report.title || question || 'Исследование';
+        if (report.limitations?.length) lines.push('## Limitations', '', ...report.limitations.map((l) => `- ${l}`), '');
+        if (report.open_questions?.length) lines.push('## Open questions', '', ...report.open_questions.map((q) => `- ${q}`), '');
+        const title = report.title || question || 'Research';
         const d = await s.docs.create({ title, folder: ctx.rt.settings.get<string>('docs.researchFolder') || 'Research', fileName: sanitizeFileName(title), content: lines.join('\n'), actor: `workflow:${ctx.runId}` });
         docId = d.id;
         path = d.relPath;
@@ -152,7 +152,7 @@ export const RESEARCH_FUNCTIONS: WorkflowFunction[] = [
         const row = ctx.rt.db.get<{ id: string; title: string | null; retrieved_at: string }>('SELECT id, title, retrieved_at FROM web_sources WHERE url = ? OR canonical_url = ?', src.url, src.url);
         const nodeId = `web:${shortHash(src.url)}`;
         g.upsertNode({ id: nodeId, type: 'source', label: src.title || row?.title || src.url, refId: row?.id ?? null, props: { url: src.url, retrievedAt: row?.retrieved_at ?? null } });
-        if (g.getNode(docNodeId(docId))) g.addEdge({ src: docNodeId(docId), dst: nodeId, relation: 'uses_source', origin: 'system', createdBy: `workflow:${ctx.runId}`, evidence: `запуск ${ctx.runId}` });
+        if (g.getNode(docNodeId(docId))) g.addEdge({ src: docNodeId(docId), dst: nodeId, relation: 'uses_source', origin: 'system', createdBy: `workflow:${ctx.runId}`, evidence: `run ${ctx.runId}` });
       }
       ctx.rt.emit('graph.changed', { docId });
       return { docId, path, facts, sources: sources.length };

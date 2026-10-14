@@ -58,10 +58,10 @@ describe('examples/extensions', () => {
     const ext = appExtensions(rt.app);
     // tool plugin: reads a document only through the API, with the granted permission
     await ext.install(zip(await packageFiles(join(EXAMPLES, 'word-count-tool'))), { grants: [{ permission: 'documents.read' }], enable: true });
-    const doc = await s.docs.create({ title: 'Заметка', content: '# Заметка\n\nРаз два три.\n\n## Раздел\n\nчетыре\n' });
+    const doc = await s.docs.create({ title: 'Note', content: '# Note\n\nOne two three.\n\n## Section\n\nfour\n' });
     const res = await ext.runTool('examples.word-count', 'count_words', { docId: doc.id }, { rt, scope: null, actor: 'user' });
     expect(res.ok, JSON.stringify(res.error)).toBe(true);
-    expect(res.output).toMatchObject({ title: 'Заметка', words: 6, headings: 2 });
+    expect(res.output).toMatchObject({ title: 'Note', words: 6, headings: 2 });
     // theme: tokens and sanitized CSS
     await ext.install(zip(await packageFiles(join(EXAMPLES, 'ocean-theme'))), { enable: true });
     const css = await ext.themeCss('examples.ocean-theme:ocean');
@@ -71,6 +71,6 @@ describe('examples/extensions', () => {
     await ext.install(zip(await packageFiles(join(EXAMPLES, 'meeting-notes-kit'))), { enable: true });
     expect((await s.agents.catalog()).some((c) => c.id === 'meeting-summarizer')).toBe(true);
     const tpl = await ext.importTemplate(rt, 'examples.meeting-notes-kit', 'meeting');
-    expect(tpl.path).toBe('Meetings/Встреча.md');
+    expect(tpl.path).toBe('Meetings/Meeting.md');
   });
 });

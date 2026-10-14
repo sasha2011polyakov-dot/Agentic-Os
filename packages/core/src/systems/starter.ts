@@ -1,46 +1,46 @@
 /** Optional starter content for a new system ("starter" template). Plain Markdown, editable anywhere. */
 export const STARTER_FILES: { path: string; content: string }[] = [
   {
-    path: 'Добро пожаловать.md',
+    path: 'Welcome.md',
     content: `---
 type: note
 tags:
-  - начало
+  - start
 ---
 
-# Добро пожаловать
+# Welcome
 
-Это стартовая заметка новой системы знаний. Все документы — обычные Markdown-файлы в папке системы:
-их можно редактировать здесь или в любом другом редакторе.
+This is the starter note of a new knowledge system. Every document is a plain Markdown file in the system folder:
+you can edit it here or in any other editor.
 
-## С чего начать
+## Where to start
 
-- Создайте заметку и свяжите её с другой через двойные скобки: [[Как устроены связи]].
-- Подключите папку проекта в разделе **Проекты и репозитории** — файлы останутся на месте, приложение только читает их.
-- Откройте **Граф**, чтобы увидеть связи между документами.
-- Настройте локальную модель в разделе **AI и модели**, чтобы запускать агентов без облака.
+- Create a note and link it to another one with double brackets: [[How links work]].
+- Connect a project folder in **Projects** — the files stay where they are, the application only reads them.
+- Open the **Graph** to see how documents are linked.
+- Set up a local model in **Models** to run agents without the cloud.
 
-Подробные инструкции — в разделе **Руководство**.
+Step-by-step instructions are in the **Guide**.
 `,
   },
   {
-    path: 'Как устроены связи.md',
+    path: 'How links work.md',
     content: `---
 type: note
 tags:
-  - начало
+  - start
 aliases:
-  - Связи
+  - Links
 ---
 
-# Как устроены связи
+# How links work
 
-- \`[[Название]]\` — ссылка на документ; \`[[Название|текст]]\` — с другим текстом.
-- \`[[Название#Заголовок]]\` — ссылка на раздел.
-- \`#тег\` — тег; вложенные теги пишутся через слэш: \`#проект/архитектура\`.
-- Свойства документа задаются в начале файла между строками \`---\` (YAML).
+- \`[[Title]]\` links to a document; \`[[Title|text]]\` shows different text.
+- \`[[Title#Heading]]\` links to a section.
+- \`#tag\` is a tag; nested tags use a slash: \`#project/architecture\`.
+- Document properties go at the top of the file between \`---\` lines (YAML).
 
-Входящие ссылки видны на панели справа от редактора. Вернуться к началу: [[Добро пожаловать]].
+Incoming links are shown in the panel next to the editor. Back to the start: [[Welcome]].
 `,
   },
 ];

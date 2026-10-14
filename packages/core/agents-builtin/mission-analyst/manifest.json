@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "mission-analyst",
-  "name": "Аналитик поручения",
-  "version": "1.0.0",
-  "description": "Разбирает запрос на естественном языке во внутреннее ТЗ: результат, требования, ограничения, критерии готовности, риски, нужные этапы.",
+  "name": "Mission analyst",
+  "version": "1.0.1",
+  "description": "Turns a natural-language request into an internal specification: outcome, requirements, constraints, acceptance criteria, risks, stages needed.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",

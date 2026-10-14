@@ -31,7 +31,7 @@ async function run(m) {
   try {
     const mod = await import(pathToFileURL(m.entry).href);
     const fn = mod.default ?? mod.run;
-    if (typeof fn !== 'function') throw new Error('Модуль инструмента должен экспортировать функцию по умолчанию: export default async (input, api) => …');
+    if (typeof fn !== 'function') throw new Error('A tool module must export a default function: export default async (input, api) => …');
     const output = await fn(m.input ?? {}, api);
     send({ type: 'done', ok: true, output: output === undefined ? null : output });
   } catch (e) {
@@ -54,6 +54,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     if (!p) return;
     pending.delete(m.id);
     if (m.ok) p.resolve(m.value);
-    else p.reject(Object.assign(new Error(m.error?.message ?? 'Отказано'), { code: m.error?.code ?? 'PERMISSION_DENIED' }));
+    else p.reject(Object.assign(new Error(m.error?.message ?? 'Denied'), { code: m.error?.code ?? 'PERMISSION_DENIED' }));
   }
 });

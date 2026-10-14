@@ -265,7 +265,7 @@ export class MissionEngine implements RuntimeService {
 
   private row(id: string): MissionRow {
     const r = this.rt.db.get<MissionRow>('SELECT * FROM missions WHERE id = ? OR key = ?', id, id);
-    if (!r) throw new AppError('NOT_FOUND', 'Поручение не найдено.');
+    if (!r) throw new AppError('NOT_FOUND', 'Mission not found.');
     return r;
   }
 
@@ -275,7 +275,7 @@ export class MissionEngine implements RuntimeService {
 
   private stepRow(id: string): StepRow {
     const s = this.rt.db.get<StepRow>('SELECT * FROM mission_steps WHERE id = ?', id);
-    if (!s) throw new AppError('NOT_FOUND', 'Этап поручения не найден.');
+    if (!s) throw new AppError('NOT_FOUND', 'Mission stage not found.');
     return s;
   }
 
@@ -323,7 +323,7 @@ export class MissionEngine implements RuntimeService {
     return parseJson<string[]>(m.limitations, []);
   }
 
-  /** Stages / capabilities that did not run (no agent, tool, access, model): they cap the status below «Выполнена». */
+  /** Stages / capabilities that did not run (no agent, tool, access, model): they cap the status below "Completed". */
   private gapsOf(m: MissionRow): string[] {
     return parseJson<string[]>(m.gaps, []);
   }
@@ -336,7 +336,7 @@ export class MissionEngine implements RuntimeService {
     return parseJson(m.approved_checks, []);
   }
 
-  /** Projects of the home system the mission may read (scope kind «system» = every connected project). */
+  /** Projects of the home system the mission may read (scope kind "system" = every connected project). */
   private projectsOf(m: MissionRow): { sourceId: string; name: string; accessMode: AccessMode }[] {
     const scope = this.scopeOf(m);
     if (scope.kind === 'public') return [];
@@ -401,7 +401,7 @@ export class MissionEngine implements RuntimeService {
     if (r) this.rt.emit('mission.updated', { missionId: id, status: r.status, phase: r.phase });
   }
 
-  /** `gap` = something the mission needed did not run (28.15): it is listed AND prevents the status «Выполнена». */
+  /** `gap` = something the mission needed did not run (28.15): it is listed AND prevents the status "Completed". */
   private addLimitation(id: string, text: string, gap = false): void {
     const m = this.row(id);
     const list = this.limitationsOf(m);
@@ -437,7 +437,7 @@ export class MissionEngine implements RuntimeService {
     else if (m.finished_at) p.finished_at = null;
     if (!m.started_at && WORKING_STATUSES.includes(to)) p.started_at = nowIso();
     this.patch(m.id, p);
-    if (m.status !== to) this.event(m.id, null, terminal && to !== 'completed' ? 'warn' : 'info', 'mission.status', `Статус: ${MISSION_STATUS_LABELS[to]}${opts.reason ? ` — ${opts.reason}` : ''}`, { from: m.status, to });
+    if (m.status !== to) this.event(m.id, null, terminal && to !== 'completed' ? 'warn' : 'info', 'mission.status', `Status: ${MISSION_STATUS_LABELS[to]}${opts.reason ? `: ${opts.reason}` : ''}`, { from: m.status, to });
     this.emitMission(m.id);
   }
 
@@ -452,7 +452,7 @@ export class MissionEngine implements RuntimeService {
       return false;
     }
     this.setStatus(id, phase === 'done' ? 'completed' : statusForPhase(phase), { phase, reason });
-    this.event(id, null, 'info', 'mission.phase', `Этап: ${PHASE_LABELS[phase]}`, { phase });
+    this.event(id, null, 'info', 'mission.phase', `Stage: ${PHASE_LABELS[phase]}`, { phase });
     return true;
   }
 
@@ -482,47 +482,47 @@ export class MissionEngine implements RuntimeService {
     const systemIds = uniq((input?.systemIds ?? []).map(String)).filter((s) => s !== this.rt.systemId);
     const allowWeb = input?.allowWeb === true;
     const kind = input?.kind ?? (systemIds.length ? 'systems' : sourceIds.length ? 'projects' : 'system');
-    if (!['system', 'projects', 'systems', 'public'].includes(kind)) throw new AppError('VALIDATION_FAILED', 'Область поручения: system, projects, systems или public.');
-    for (const id of sourceIds) if (!this.rt.db.get('SELECT id FROM sources WHERE id = ?', id)) throw new AppError('NOT_FOUND', `Источник ${id} не найден в этой системе.`);
-    for (const id of docIds) if (!this.rt.db.get('SELECT id FROM documents WHERE id = ?', id)) throw new AppError('NOT_FOUND', `Документ ${id} не найден в этой системе.`);
+    if (!['system', 'projects', 'systems', 'public'].includes(kind)) throw new AppError('VALIDATION_FAILED', 'Mission scope: system, projects, systems or public.');
+    for (const id of sourceIds) if (!this.rt.db.get('SELECT id FROM sources WHERE id = ?', id)) throw new AppError('NOT_FOUND', `Source ${id} was not found in this system.`);
+    for (const id of docIds) if (!this.rt.db.get('SELECT id FROM documents WHERE id = ?', id)) throw new AppError('NOT_FOUND', `Document ${id} was not found in this system.`);
     for (const id of systemIds) {
       try {
         this.deps.systems.get(id);
       } catch {
-        throw new AppError('NOT_FOUND', `Система ${id} не зарегистрирована.`);
+        throw new AppError('NOT_FOUND', `System ${id} is not registered.`);
       }
     }
-    if (kind === 'public' && !allowWeb) throw new AppError('VALIDATION_FAILED', 'Область «только общедоступные источники» требует разрешить веб-доступ.');
-    if (kind === 'public' && (sourceIds.length || docIds.length || systemIds.length)) throw new AppError('VALIDATION_FAILED', 'Область «только общедоступные источники» не может включать локальные проекты, документы или системы.');
-    if (kind === 'systems' && !systemIds.length) throw new AppError('VALIDATION_FAILED', 'Выберите хотя бы одну дополнительную систему.');
+    if (kind === 'public' && !allowWeb) throw new AppError('VALIDATION_FAILED', 'The "public sources only" scope requires web access to be allowed.');
+    if (kind === 'public' && (sourceIds.length || docIds.length || systemIds.length)) throw new AppError('VALIDATION_FAILED', 'The "public sources only" scope cannot include local projects, documents or systems.');
+    if (kind === 'systems' && !systemIds.length) throw new AppError('VALIDATION_FAILED', 'Choose at least one additional system.');
     return { kind, sourceIds, docIds, systemIds, allowWeb };
   }
 
   private normalizeAttachments(list: MissionAttachment[] | undefined): MissionAttachment[] {
     const out: MissionAttachment[] = [];
     for (const a of list ?? []) {
-      if (!a || !['document', 'project', 'url', 'text', 'file'].includes(a.kind)) throw new AppError('VALIDATION_FAILED', 'Вложение: document, project, url, text или file.');
+      if (!a || !['document', 'project', 'url', 'text', 'file'].includes(a.kind)) throw new AppError('VALIDATION_FAILED', 'Attachment: document, project, url, text or file.');
       const title = String(a.title ?? a.ref ?? '').slice(0, 300) || a.kind;
-      if (a.kind === 'document' && !this.rt.db.get('SELECT id FROM documents WHERE id = ?', a.ref)) throw new AppError('NOT_FOUND', `Документ ${a.ref} не найден.`);
-      if (a.kind === 'project' && !this.rt.db.get("SELECT id FROM sources WHERE id = ? AND kind = 'project'", a.ref)) throw new AppError('NOT_FOUND', `Проект ${a.ref} не найден.`);
-      if (a.kind === 'url' && !/^https?:\/\//i.test(String(a.ref))) throw new AppError('VALIDATION_FAILED', 'Ссылка должна начинаться с http:// или https://.');
-      if ((a.kind === 'text' || a.kind === 'file') && typeof a.text !== 'string') throw new AppError('VALIDATION_FAILED', 'Для текстового вложения нужен текст.');
+      if (a.kind === 'document' && !this.rt.db.get('SELECT id FROM documents WHERE id = ?', a.ref)) throw new AppError('NOT_FOUND', `Document ${a.ref} not found.`);
+      if (a.kind === 'project' && !this.rt.db.get("SELECT id FROM sources WHERE id = ? AND kind = 'project'", a.ref)) throw new AppError('NOT_FOUND', `Project ${a.ref} not found.`);
+      if (a.kind === 'url' && !/^https?:\/\//i.test(String(a.ref))) throw new AppError('VALIDATION_FAILED', 'A link must start with http:// or https://.');
+      if ((a.kind === 'text' || a.kind === 'file') && typeof a.text !== 'string') throw new AppError('VALIDATION_FAILED', 'A text attachment needs text.');
       out.push({ kind: a.kind, ref: String(a.ref ?? '').slice(0, 2000), title, ...(a.text !== undefined ? { text: String(a.text).slice(0, MAX_ATTACHMENT_CHARS) } : {}) });
     }
-    if (out.length > 20) throw new AppError('VALIDATION_FAILED', 'Не больше 20 вложений.');
+    if (out.length > 20) throw new AppError('VALIDATION_FAILED', 'No more than 20 attachments.');
     return out;
   }
 
   private normalizePolicy(p: Partial<MissionPolicy> | undefined): MissionPolicy {
     const out: MissionPolicy = { ...DEFAULT_POLICY, ...(p ?? {}) };
-    if (!['always', 'risky', 'never'].includes(out.approvePlan)) throw new AppError('VALIDATION_FAILED', 'Подтверждение плана: always, risky или never.');
-    if (!['auto', 'always', 'never'].includes(out.saveReport)) throw new AppError('VALIDATION_FAILED', 'Сохранение отчёта: auto, always или never.');
-    if (!Number.isInteger(out.maxFixRounds) || out.maxFixRounds < 0 || out.maxFixRounds > 5) throw new AppError('VALIDATION_FAILED', 'Циклов исправления: от 0 до 5.');
+    if (!['always', 'risky', 'never'].includes(out.approvePlan)) throw new AppError('VALIDATION_FAILED', 'Plan approval: always, risky or never.');
+    if (!['auto', 'always', 'never'].includes(out.saveReport)) throw new AppError('VALIDATION_FAILED', 'Saving the report: auto, always or never.');
+    if (!Number.isInteger(out.maxFixRounds) || out.maxFixRounds < 0 || out.maxFixRounds > 5) throw new AppError('VALIDATION_FAILED', 'Fix rounds: 0 to 5.');
     out.deniedTools = uniq((out.deniedTools ?? []).map(String));
-    for (const t of out.deniedTools) if (!KNOWN_TOOLS.has(t)) throw new AppError('VALIDATION_FAILED', `Неизвестный инструмент: ${t}`);
+    for (const t of out.deniedTools) if (!KNOWN_TOOLS.has(t)) throw new AppError('VALIDATION_FAILED', `Unknown tool: ${t}`);
     out.preapprovedChecks = (out.preapprovedChecks ?? []).map((c) => ({ sourceId: String(c.sourceId), name: String(c.name) }));
     for (const c of out.preapprovedChecks) {
-      if (!projectChecks(this.rt, c.sourceId).some((d) => d.name === c.name)) throw new AppError('CHECK_NOT_DEFINED', `Проверка «${c.name}» не задана для проекта ${c.sourceId}.`);
+      if (!projectChecks(this.rt, c.sourceId).some((d) => d.name === c.name)) throw new AppError('CHECK_NOT_DEFINED', `The check "${c.name}" is not defined for project ${c.sourceId}.`);
     }
     return out;
   }
@@ -531,23 +531,23 @@ export class MissionEngine implements RuntimeService {
     const out: MissionLimits = { ...base, ...(l ?? {}) };
     for (const k of ['maxModelCalls', 'maxTokens', 'maxCostUsd'] as const) {
       const v = out[k];
-      if (v !== null && (typeof v !== 'number' || !Number.isFinite(v) || v < 0)) throw new AppError('VALIDATION_FAILED', `Лимит ${k}: неотрицательное число или null.`);
+      if (v !== null && (typeof v !== 'number' || !Number.isFinite(v) || v < 0)) throw new AppError('VALIDATION_FAILED', `Limit ${k}: a non-negative number or null.`);
     }
-    if (!Number.isInteger(out.maxParallel) || out.maxParallel < 1 || out.maxParallel > 6) throw new AppError('VALIDATION_FAILED', 'Параллельных этапов: от 1 до 6.');
-    if (!Number.isInteger(out.stepTimeoutMs) || out.stepTimeoutMs < 5_000 || out.stepTimeoutMs > 3_600_000) throw new AppError('VALIDATION_FAILED', 'Тайм-аут этапа: от 5 секунд до 1 часа.');
+    if (!Number.isInteger(out.maxParallel) || out.maxParallel < 1 || out.maxParallel > 6) throw new AppError('VALIDATION_FAILED', 'Parallel stages: 1 to 6.');
+    if (!Number.isInteger(out.stepTimeoutMs) || out.stepTimeoutMs < 5_000 || out.stepTimeoutMs > 3_600_000) throw new AppError('VALIDATION_FAILED', 'Stage timeout: 5 seconds to 1 hour.');
     return out;
   }
 
-  /** «Поставить задачу»: the request is stored verbatim, separately from the structured model built later (28.10). */
+  /** "New mission": the request is stored verbatim, separately from the structured model built later (28.10). */
   async create(input: CreateMissionInput): Promise<MissionView> {
-    if (this.stopped) throw new AppError('SYSTEM_UNAVAILABLE', 'Система закрывается.');
+    if (this.stopped) throw new AppError('SYSTEM_UNAVAILABLE', 'The system is closing.');
     const request = String(input.request ?? '').trim();
-    if (request.length < 3) throw new AppError('VALIDATION_FAILED', 'Опишите задачу (хотя бы несколько слов).');
-    if (request.length > 20_000) throw new AppError('VALIDATION_FAILED', 'Текст задачи длиннее 20 000 символов — приложите материалы вложениями.');
+    if (request.length < 3) throw new AppError('VALIDATION_FAILED', 'Describe the task (at least a few words).');
+    if (request.length > 20_000) throw new AppError('VALIDATION_FAILED', 'The task text is longer than 20,000 characters: attach the materials instead.');
     const mode = input.mode ?? 'execute';
-    if (mode !== 'plan' && mode !== 'execute') throw new AppError('VALIDATION_FAILED', 'Режим: plan («Исследовать и спланировать») или execute («Выполнить задачу»).');
+    if (mode !== 'plan' && mode !== 'execute') throw new AppError('VALIDATION_FAILED', 'Mode: plan ("Research and plan") or execute ("Execute the task").');
     const priority = input.priority ?? 'medium';
-    if (!['critical', 'high', 'medium', 'low'].includes(priority)) throw new AppError('VALIDATION_FAILED', 'Приоритет: critical, high, medium или low.');
+    if (!['critical', 'high', 'medium', 'low'].includes(priority)) throw new AppError('VALIDATION_FAILED', 'Priority: critical, high, medium or low.');
     const attachments = this.normalizeAttachments(input.attachments);
     const scope = this.normalizeScope(input.scope);
     // a project attached by the user belongs to the scope of the mission
@@ -586,7 +586,7 @@ export class MissionEngine implements RuntimeService {
     this.rt.audit.record({ actor, action: 'mission.create', target: key, details: { missionId: id, mode, scope: { kind: scope.kind, projects: scope.sourceIds.length, docs: scope.docIds.length, systems: scope.systemIds.length, web: scope.allowWeb } } });
     if ((input.title ?? '').trim()) this.rt.audit.record({ actor, action: 'mission.title', target: key });
     this.message(id, 'user', request, { kind: 'request' });
-    this.event(id, null, 'info', 'mission.created', `Поручение ${key} поставлено (${mode === 'plan' ? 'исследовать и спланировать' : 'выполнить задачу'}; область: ${this.scopeLabel(scope)})`);
+    this.event(id, null, 'info', 'mission.created', `Mission ${key} created (${mode === 'plan' ? 'research and plan' : 'execute the task'}; scope: ${this.scopeLabel(scope)})`);
     if (input.start !== false) {
       this.setStatus(id, 'analyzing', { phase: 'analysis' });
       this.kick(id);
@@ -597,7 +597,7 @@ export class MissionEngine implements RuntimeService {
   /** Starts a draft mission. */
   launch(id: string, actor = 'user'): MissionView {
     const m = this.row(id);
-    if (m.status !== 'draft') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение уже запущено.');
+    if (m.status !== 'draft') throw new AppError('INVALID_STATE_TRANSITION', 'The mission has already started.');
     this.setStatus(m.id, 'analyzing', { phase: 'analysis' });
     this.rt.audit.record({ actor, action: 'mission.start', target: m.key });
     this.kick(m.id);
@@ -607,13 +607,13 @@ export class MissionEngine implements RuntimeService {
   private scopeLabel(s: MissionScope): string {
     switch (s.kind) {
       case 'public':
-        return 'только общедоступные источники';
+        return 'public sources only';
       case 'systems':
-        return `текущая система и ещё ${s.systemIds.length}`;
+        return `the current system and ${s.systemIds.length} more`;
       case 'projects':
-        return `выбранные проекты (${s.sourceIds.length})`;
+        return `selected projects (${s.sourceIds.length})`;
       default:
-        return 'текущая система';
+        return 'the current system';
     }
   }
 
@@ -696,7 +696,7 @@ export class MissionEngine implements RuntimeService {
     for (const cs of this.missionSets(m.id)) if (cs.summary.files > 0 || cs.status !== 'proposed') out.push({ type: 'change_set', ref: cs.id, title: cs.title, status: cs.status, systemId: this.rt.systemId });
     if (m.report_doc_id) {
       const d = this.rt.db.get<{ title: string; rel_path: string }>('SELECT title, rel_path FROM documents WHERE id = ?', m.report_doc_id);
-      out.push({ type: 'report', ref: m.report_doc_id, title: d?.title ?? 'Отчёт', status: d ? 'created' : 'missing', systemId: this.rt.systemId, ...(d ? { path: d.rel_path } : {}) });
+      out.push({ type: 'report', ref: m.report_doc_id, title: d?.title ?? 'Report', status: d ? 'created' : 'missing', systemId: this.rt.systemId, ...(d ? { path: d.rel_path } : {}) });
     }
     return out;
   }
@@ -889,7 +889,7 @@ export class MissionEngine implements RuntimeService {
       }
       if (next === 'wait') return;
     }
-    this.ask(id, 'error', 'Движок остановился', 'Слишком много переходов без результата — это похоже на внутреннюю ошибку. Состояние и результаты сохранены.', { phase: this.row(id).phase }, this.row(id).phase, 'needs_input');
+    this.ask(id, 'error', 'The engine stopped', 'Too many transitions without progress: this looks like an internal error. The state and results are saved.', { phase: this.row(id).phase }, this.row(id).phase, 'needs_input');
   }
 
   private phaseFailed(id: string, e: unknown): void {
@@ -904,11 +904,11 @@ export class MissionEngine implements RuntimeService {
   /** User-fixable problems pause the mission with a precise question; nothing is reported as done. */
   private askForError(m: MissionRow, err: AppError, stepId: string | null): void {
     const base = { code: err.code, message: err.message, hint: err.hint ?? ERROR_CATALOG[err.code]?.hint ?? null, stepId, phase: m.phase };
-    if (err.code === 'BUDGET_EXCEEDED') this.ask(m.id, 'budget', 'Достигнут лимит поручения', `${err.message} Увеличьте лимит и нажмите «Повторить», или завершите поручение с частичным результатом.`, { ...base, totals: parseJson(this.row(m.id).totals, {}), limits: this.limitsOf(m) }, m.phase, 'needs_input');
-    else if (err.code === 'AGENT_NOT_ENABLED') this.ask(m.id, 'setup_agents', 'Нужны агенты поручений', `${err.message} Установите и включите агентов поручений (явное действие пользователя).`, { ...base, agents: this.missingAgents() }, m.phase, 'needs_input');
+    if (err.code === 'BUDGET_EXCEEDED') this.ask(m.id, 'budget', 'The mission limit was reached', `${err.message} Raise the limit and press "Retry", or finish the mission with a partial result.`, { ...base, totals: parseJson(this.row(m.id).totals, {}), limits: this.limitsOf(m) }, m.phase, 'needs_input');
+    else if (err.code === 'AGENT_NOT_ENABLED') this.ask(m.id, 'setup_agents', 'Mission agents are needed', `${err.message} Install and enable the mission agents (an explicit user action).`, { ...base, agents: this.missingAgents() }, m.phase, 'needs_input');
     else if (['NO_MODEL_CONFIGURED', 'MODEL_UNAVAILABLE', 'PROVIDER_UNREACHABLE', 'PROVIDER_AUTH_FAILED', 'PROVIDER_RATE_LIMITED', 'OFFLINE_MODE', 'NETWORK_POLICY_DENIED', 'POLICY_CONFIDENTIAL_SOURCE'].includes(err.code)) {
-      this.ask(m.id, 'model', 'Модель недоступна', `${err.message} ${base.hint ?? ''} Локальная модель не требует внешнего ключа; облачный провайдер можно подключить по желанию. Автоматического переключения на облако нет.`.trim(), base, m.phase, 'needs_input');
-    } else this.ask(m.id, 'error', 'Этап не выполнен', `${err.message}${base.hint ? ` ${base.hint}` : ''} Можно повторить этап или пропустить его (результат будет помечен как частичный).`, base, m.phase, 'needs_input');
+      this.ask(m.id, 'model', 'The model is unavailable', `${err.message} ${base.hint ?? ''} A local model needs no external key; a cloud provider can be connected if you want. There is no automatic switch to the cloud.`.trim(), base, m.phase, 'needs_input');
+    } else this.ask(m.id, 'error', 'The stage failed', `${err.message}${base.hint ? ` ${base.hint}` : ''} You can retry the stage or skip it (the result will be marked as partial).`, base, m.phase, 'needs_input');
   }
 
   private missingAgents(): { id: string; installed: boolean; enabled: boolean }[] {
@@ -919,7 +919,7 @@ export class MissionEngine implements RuntimeService {
   private async advance(m: MissionRow, a: Active): Promise<'continue' | 'wait'> {
     // a change of requirements / strategy / option during work: re-plan at a safe boundary (28.13)
     if (m.plan_stale && ['execution', 'verification', 'fix', 'review', 'summary'].includes(m.phase) && m.plan) {
-      this.moveTo(m.id, m.plan_stale === 2 ? 'strategy' : 'planning', 'план пересчитывается после изменения требований');
+      this.moveTo(m.id, m.plan_stale === 2 ? 'strategy' : 'planning', 'the plan is rebuilt after the requirements changed');
       return 'continue';
     }
     if (m.phase !== 'analysis' && !m.normalized) {
@@ -1048,7 +1048,7 @@ export class MissionEngine implements RuntimeService {
   /**
    * Runs one agent as a recorded step. A step that already completed under the same idempotency key is reused (recovery
    * and re-entry never repeat finished work). Model problems fall back to another LOCAL model; user-fixable errors move
-   * the mission to «Требуется вмешательство» with a concrete question.
+   * the mission to "Needs your input" with a concrete question.
    */
   private async runAgent(m: MissionRow, a: Active, c: AgentCall): Promise<AgentOutcome> {
     let stepId: string;
@@ -1057,14 +1057,14 @@ export class MissionEngine implements RuntimeService {
       const key = this.stepKey(m, c);
       const existing = this.rt.db.get<StepRow>('SELECT * FROM mission_steps WHERE idempotency_key = ?', key);
       if (existing?.status === 'completed') {
-        this.event(m.id, existing.id, 'debug', 'step.reused', `«${existing.title}»: используется сохранённый результат`);
+        this.event(m.id, existing.id, 'debug', 'step.reused', `"${existing.title}": using the saved result`);
         return { ok: true, output: parseJson(existing.output, {}), stepId: existing.id, toolCalls: [] };
       }
       stepId = existing?.id ?? this.newStep(m, { phase: c.phase, role: c.role, agentId: c.agentId, title: c.title, planStep: c.planStep ?? null, dependsOn: c.dependsOn ?? [], key });
     }
     const prev = this.stepRow(stepId);
     this.patchStep(stepId, { status: 'running', attempts: prev.attempts + 1, started_at: nowIso(), finished_at: null, error: null, input: JSON.stringify(c.input ?? null), agent_id: c.agentId });
-    this.event(m.id, stepId, 'info', 'step.start', `«${c.title}»: агент ${c.agentId}${prev.attempts ? ` (попытка ${prev.attempts + 1})` : ''}`);
+    this.event(m.id, stepId, 'info', 'step.start', `"${c.title}": agent ${c.agentId}${prev.attempts ? ` (attempt ${prev.attempts + 1})` : ''}`);
     const limits = this.limitsOf(m);
     const timeout = new AbortController();
     const timer = setTimeout(() => timeout.abort(), limits.stepTimeoutMs);
@@ -1082,7 +1082,7 @@ export class MissionEngine implements RuntimeService {
         resolved = { pkg: r.pkg, config: r.config };
       } catch (e) {
         const err = toAppError(e);
-        throw err.code === 'NOT_FOUND' ? new AppError('AGENT_NOT_ENABLED', `Агент «${c.agentId}» не установлен в этой системе.`, { details: { agentId: c.agentId } }) : err;
+        throw err.code === 'NOT_FOUND' ? new AppError('AGENT_NOT_ENABLED', `The agent "${c.agentId}" is not installed in this system.`, { details: { agentId: c.agentId } }) : err;
       }
       const ai = appAI(this.rt.app).ai;
       const preview = (): { providerId: string; model: string } | null => {
@@ -1124,7 +1124,7 @@ export class MissionEngine implements RuntimeService {
           for (const w of res.warnings) this.event(m.id, stepId, 'warn', 'agent.warning', w);
           if (signal.aborted) throw timeout.signal.aborted && !a.controller.signal.aborted ? new AppError('TIMEOUT') : new AppError('CANCELLED');
           this.patchStep(stepId, { status: 'completed', output: JSON.stringify(res.output), finished_at: nowIso() });
-          this.event(m.id, stepId, 'info', 'step.done', `«${c.title}»: готово (${res.route ? `${res.route.locality === 'local' ? 'локальная' : 'облачная'} модель ${res.route.model}` : 'модель'})`, { route: res.route, rounds: res.rounds, repairs: res.repairs, tools: res.toolCalls.map((t) => ({ tool: t.tool, ok: t.ok, error: t.error?.code ?? null })) });
+          this.event(m.id, stepId, 'info', 'step.done', `"${c.title}": done (${res.route ? `${res.route.locality === 'local' ? 'local' : 'cloud'} model ${res.route.model}` : 'model'})`, { route: res.route, rounds: res.rounds, repairs: res.repairs, tools: res.toolCalls.map((t) => ({ tool: t.tool, ok: t.ok, error: t.error?.code ?? null })) });
           this.noteToolLimitations(m.id, res.toolCalls);
           return { ok: true, output: res.output, stepId, toolCalls: res.toolCalls };
         } catch (e) {
@@ -1133,20 +1133,20 @@ export class MissionEngine implements RuntimeService {
           alternatives ??= await this.localAlternatives(preview());
           const alt = alternatives.shift();
           if (!alt) throw err;
-          this.event(m.id, stepId, 'warn', 'model.fallback', `«${c.title}»: ${err.message} — пробую другую локальную модель ${alt.model}`, { code: err.code, to: alt });
+          this.event(m.id, stepId, 'warn', 'model.fallback', `"${c.title}": ${err.message}; trying another local model ${alt.model}`, { code: err.code, to: alt });
           config = { ...config, modelPolicy: { mode: 'local', providerId: alt.providerId, model: alt.model, allowFallback: false } };
         }
       }
     } catch (e) {
       let err = toAppError(e);
-      if (timeout.signal.aborted && !a.controller.signal.aborted) err = new AppError('TIMEOUT', `Этап «${c.title}» превысил тайм-аут ${Math.round(limits.stepTimeoutMs / 1000)} с.`);
+      if (timeout.signal.aborted && !a.controller.signal.aborted) err = new AppError('TIMEOUT', `The stage "${c.title}" exceeded the timeout of ${Math.round(limits.stepTimeoutMs / 1000)} s.`);
       if (a.controller.signal.aborted) {
-        if (a.abortReason === 'cancel') this.patchStep(stepId, { status: 'cancelled', finished_at: nowIso(), error: JSON.stringify(new AppError('CANCELLED', 'Поручение отменено.').toJSON()) });
-        else this.interruptStep(this.stepRow(stepId), 'Прервано закрытием системы.');
+        if (a.abortReason === 'cancel') this.patchStep(stepId, { status: 'cancelled', finished_at: nowIso(), error: JSON.stringify(new AppError('CANCELLED', 'The mission was cancelled.').toJSON()) });
+        else this.interruptStep(this.stepRow(stepId), 'Interrupted because the system was closed.');
         return { ok: false, stepId, error: err, fatal: true };
       }
       this.patchStep(stepId, { status: 'failed', error: JSON.stringify(err.toJSON()), finished_at: nowIso() });
-      this.event(m.id, stepId, 'error', 'step.failed', `«${c.title}»: ${err.message}`, { code: err.code, hint: err.hint });
+      this.event(m.id, stepId, 'error', 'step.failed', `"${c.title}": ${err.message}`, { code: err.code, hint: err.hint });
       if (USER_FIXABLE.includes(err.code)) {
         this.askForError(this.row(m.id), err, stepId);
         return { ok: false, stepId, error: err, fatal: true };
@@ -1157,11 +1157,11 @@ export class MissionEngine implements RuntimeService {
     }
   }
 
-  /** An interrupted step: read-only work returns to «pending»; work with side effects is never repeated silently. */
+  /** An interrupted step: read-only work returns to "pending"; work with side effects is never repeated silently. */
   private interruptStep(s: StepRow, reason: string): void {
     const sideEffects = parseJson<SideEffect[]>(s.side_effects, []);
     if (SIDE_EFFECT_ROLES.has(s.role) || sideEffects.length) {
-      this.patchStep(s.id, { status: 'failed', finished_at: nowIso(), error: JSON.stringify(new AppError('CANCELLED', `${reason} Этап мог частично выполнить действия (${sideEffects.length ? sideEffects.map((x) => `${x.tool}: ${x.target}`).join(', ') : 'изменения файлов, документы'}); автоматически он не повторяется — проверьте результаты и повторите вручную.`).toJSON()) });
+      this.patchStep(s.id, { status: 'failed', finished_at: nowIso(), error: JSON.stringify(new AppError('CANCELLED', `${reason} The stage may have partly performed actions (${sideEffects.length ? sideEffects.map((x) => `${x.tool}: ${x.target}`).join(', ') : 'file changes, documents'}); it is not repeated automatically: check the results and retry it manually.`).toJSON()) });
     } else {
       this.patchStep(s.id, { status: 'pending', attempts: Math.max(0, s.attempts - 1), error: null });
     }
@@ -1170,7 +1170,7 @@ export class MissionEngine implements RuntimeService {
   private noteToolLimitations(missionId: string, calls: ToolCallRecord[]): void {
     for (const t of calls) {
       if (t.ok || !t.error || !LIMITING_TOOL_ERRORS.has(t.error.code)) continue;
-      this.addLimitation(missionId, `Инструмент ${t.tool} недоступен: ${t.error.message}`, true);
+      this.addLimitation(missionId, `The tool ${t.tool} is unavailable: ${t.error.message}`, true);
     }
   }
 
@@ -1186,7 +1186,7 @@ export class MissionEngine implements RuntimeService {
     const enabled = this.enabledAgents();
     const missing = ids.filter((id) => !enabled.has(id));
     if (!missing.length) return true;
-    this.ask(m.id, 'setup_agents', 'Нужны агенты поручений', `Для поручения нужны агенты: ${missing.join(', ')}. Установите и включите их (одно действие «Подготовить агентов»); без вашего решения агенты не устанавливаются.`, { agents: this.missingAgents(), required: missing }, m.phase, 'needs_input');
+    this.ask(m.id, 'setup_agents', 'Mission agents are needed', `The mission needs these agents: ${missing.join(', ')}. Install and enable them (one action: "Set up agents"); agents are never installed without your decision.`, { agents: this.missingAgents(), required: missing }, m.phase, 'needs_input');
     return false;
   }
 
@@ -1232,10 +1232,10 @@ export class MissionEngine implements RuntimeService {
         }),
         projects: this.projectsOf(m).map((p) => ({ sourceId: p.sourceId, name: p.name, accessMode: modeLabel(p.accessMode) })),
       },
-      answers: [...answers, ...clarifications.map((c) => ({ question: 'Уточнение пользователя', answer: c }))],
+      answers: [...answers, ...clarifications.map((c) => ({ question: 'User clarification', answer: c }))],
       mode: m.mode,
     };
-    const res = await this.runAgent(m, a, { phase: 'analysis', role: 'mission-analyst', agentId: 'mission-analyst', title: 'Разбор запроса', input, variant: `q${answers.length}c${clarifications.length}` });
+    const res = await this.runAgent(m, a, { phase: 'analysis', role: 'mission-analyst', agentId: 'mission-analyst', title: 'Request analysis', input, variant: `q${answers.length}c${clarifications.length}` });
     if (!res.ok) {
       if (!res.fatal) this.askForError(this.row(m.id), res.error, res.stepId);
       return 'wait';
@@ -1247,7 +1247,7 @@ export class MissionEngine implements RuntimeService {
       ...out,
       requirements: [...out.requirements.map((r) => ({ ...r, source: r.source ?? 'request' })), ...extras.filter((x) => x.kind === 'requirement').map((x) => ({ id: x.id, text: x.text, source: 'user' as const }))],
       constraints: [...out.constraints, ...extras.filter((x) => x.kind === 'constraint').map((x) => x.text)],
-      assumptions: [...out.assumptions, ...out.questions.filter((q) => !q.blocking && q.default_assumption).map((q) => `${q.text} → принято: ${q.default_assumption}`)],
+      assumptions: [...out.assumptions, ...out.questions.filter((q) => !q.blocking && q.default_assumption).map((q) => `${q.text} → assumed: ${q.default_assumption}`)],
     };
     // criteria: analyst's + user's; a user decision on a criterion is kept
     const prev = this.criteriaOf(cur);
@@ -1261,16 +1261,16 @@ export class MissionEngine implements RuntimeService {
     const rounds = this.rt.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM mission_steps WHERE mission_id = ? AND phase = 'analysis' AND status = 'completed'", m.id)!.c;
     const userTitle = this.rt.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM audit_log WHERE action IN ('mission.rename','mission.title') AND target = ?", cur.key)!.c > 0;
     this.patch(m.id, { normalized: JSON.stringify(normalized), criteria: JSON.stringify(criteria), ...(userTitle || !out.title ? {} : { title: clip(out.title, 300) }) });
-    this.event(m.id, res.stepId, 'info', 'analysis.done', `Тип задачи: ${normalized.task_type}, сложность: ${normalized.complexity}. ${normalized.summary_for_user}`);
+    this.event(m.id, res.stepId, 'info', 'analysis.done', `Task type: ${normalized.task_type}, complexity: ${normalized.complexity}. ${normalized.summary_for_user}`);
     if (blocking.length && rounds <= MAX_QUESTION_ROUNDS) {
-      this.ask(m.id, 'questions', 'Нужно уточнение', blocking.length === 1 ? blocking[0]!.text : `Без ответа на эти вопросы продолжить нельзя (${blocking.length}).`, { questions: blocking.map((q) => ({ text: q.text, blocking: true })), summary: normalized.summary_for_user }, 'analysis', 'needs_input');
+      this.ask(m.id, 'questions', 'Clarification needed', blocking.length === 1 ? blocking[0]!.text : `The work cannot continue without answers to these questions (${blocking.length}).`, { questions: blocking.map((q) => ({ text: q.text, blocking: true })), summary: normalized.summary_for_user }, 'analysis', 'needs_input');
       return 'wait';
     }
     if (blocking.length) {
-      for (const q of blocking) this.addLimitation(m.id, `Вопрос остался без ответа: «${q.text}» — работа продолжена с допущениями.`);
+      for (const q of blocking) this.addLimitation(m.id, `A question was left unanswered: "${q.text}"; the work continued with assumptions.`);
     }
     if (m.mode === 'execute' && normalized.needs.implementation && this.projectsOf(cur).length && this.projectsOf(cur).every((p) => !modeAtLeast(p.accessMode, 'prepare'))) {
-      this.addLimitation(m.id, `Проекты поручения в режиме «${modeLabel('read_only')}»: изменения файлов не будут подготовлены. Режим меняет только пользователь в настройках проекта.`, true);
+      this.addLimitation(m.id, `The mission projects are in "${modeLabel('read_only')}" mode: no file changes will be prepared. Only the user changes the mode in the project settings.`, true);
     }
     return this.goNext(m.id, 'analysis');
   }
@@ -1288,34 +1288,34 @@ export class MissionEngine implements RuntimeService {
       const cs = await crossSystemSearch(this.deps.systems, scope.systemIds, `${m.title} ${n.requirements.map((r) => r.text).join(' ')}`.slice(0, 500));
       ctx.crossSystem = cs.hits;
       for (const p of cs.problems) this.addLimitation(m.id, p, true);
-      this.event(m.id, null, 'info', 'context.cross_system', `Поиск в других системах: найдено ${cs.hits.length} документов (с указанием системы-источника)`);
+      this.event(m.id, null, 'info', 'context.cross_system', `Search in other systems: ${cs.hits.length} documents found (with the source system shown)`);
     }
     const jobs: Promise<void>[] = [];
     const wantExplorer = projects.length > 0 && (n.needs.project_exploration || ['implementation', 'bugfix', 'improvement'].includes(n.task_type));
-    if (wantExplorer && !roles.has('project-explorer')) this.addLimitation(m.id, 'Проекты не изучены: агент «Исследователь проекта» не установлен или выключен.', true);
+    if (wantExplorer && !roles.has('project-explorer')) this.addLimitation(m.id, 'The projects were not explored: the "Project explorer" agent is not installed or is disabled.', true);
     let fatal = false;
     if (wantExplorer && roles.has('project-explorer')) {
       jobs.push(
-        this.runAgent(m, a, { phase: 'context', role: 'project-explorer', agentId: 'project-explorer', title: 'Изучение проектов', input: { objective, requirements: n.requirements, projects: projects.map((p) => ({ sourceId: p.sourceId, name: p.name })), focus: n.problem || n.title } }).then((r) => {
+        this.runAgent(m, a, { phase: 'context', role: 'project-explorer', agentId: 'project-explorer', title: 'Project exploration', input: { objective, requirements: n.requirements, projects: projects.map((p) => ({ sourceId: p.sourceId, name: p.name })), focus: n.problem || n.title } }).then((r) => {
           if (r.ok) ctx.explorer = r.output as unknown as ExplorerOutput;
           else if (r.fatal) fatal = true;
-          else this.addLimitation(m.id, `Изучение проектов не выполнено: ${r.error.message}`, true);
+          else this.addLimitation(m.id, `Project exploration failed: ${r.error.message}`, true);
         }),
       );
     }
     const docs = [...scope.docIds, ...parseJson<MissionAttachment[]>(m.attachments, []).filter((x) => x.kind === 'document').map((x) => x.ref)];
     const wantLocal = n.needs.local_research || docs.length > 0 || scope.kind === 'systems';
-    if (wantLocal && !roles.has('researcher')) this.addLimitation(m.id, 'Документы не изучены: агент «Исследователь» не установлен или выключен.', true);
+    if (wantLocal && !roles.has('researcher')) this.addLimitation(m.id, 'The documents were not studied: the "Researcher" agent is not installed or is disabled.', true);
     if (wantLocal && roles.has('researcher')) {
       const context: ContextBlock[] = ctx.crossSystem.length
-        ? [{ source: 'other-systems', priority: 2, content: `Найдено в других выбранных системах (читайте через read_document с systemId):\n${ctx.crossSystem.map((h) => `- systemId=${h.systemId} (${h.systemName}) docId=${h.docId} «${h.title}» ${h.path}: ${h.snippet}`).join('\n')}` }]
+        ? [{ source: 'other-systems', priority: 2, content: `Found in other selected systems (read them with read_document and systemId):\n${ctx.crossSystem.map((h) => `- systemId=${h.systemId} (${h.systemName}) docId=${h.docId} "${h.title}" ${h.path}: ${h.snippet}`).join('\n')}` }]
         : [];
       jobs.push(
         this.runAgent(m, a, {
           phase: 'context',
           role: 'researcher',
           agentId: 'researcher',
-          title: 'Изучение документов и базы знаний',
+          title: 'Study of documents and the knowledge base',
           input: { goal: objective, constraints: n.constraints, documents: uniq(docs).map((d) => ({ docId: d, title: this.rt.db.get<{ title: string }>('SELECT title FROM documents WHERE id = ?', d)?.title ?? d })), answers: this.answers(m.id) },
           context,
         }).then(async (r) => {
@@ -1324,9 +1324,9 @@ export class MissionEngine implements RuntimeService {
             const grounded = await groundEvidence(this.rt, this.deps.systems, scope.kind === 'systems' ? scope.systemIds : [], scope.sourceIds.length ? new Set([...scope.sourceIds, this.rt.primaryVaultId()]) : null, o.evidence);
             ctx.local = { evidence: grounded, gaps: o.gaps };
             const unverified = grounded.filter((e) => !e.verified && e.kind === 'fact').length;
-            this.event(m.id, r.stepId, 'info', 'context.grounded', `Свидетельства: подтверждено цитатами ${grounded.filter((e) => e.verified).length} из ${grounded.length}${unverified ? `, ${unverified} без подтверждения` : ''}`);
+            this.event(m.id, r.stepId, 'info', 'context.grounded', `Evidence: ${grounded.filter((e) => e.verified).length} of ${grounded.length} confirmed by quotes${unverified ? `, ${unverified} unconfirmed` : ''}`);
           } else if (r.fatal) fatal = true;
-          else this.addLimitation(m.id, `Изучение документов не выполнено: ${r.error.message}`, true);
+          else this.addLimitation(m.id, `The study of documents failed: ${r.error.message}`, true);
         }),
       );
     }
@@ -1343,11 +1343,11 @@ export class MissionEngine implements RuntimeService {
     const n = this.normalizedOf(m)!;
     const scope = this.scopeOf(m);
     if (!scope.allowWeb) {
-      this.addLimitation(m.id, 'Внешние источники не изучались: веб-доступ для поручения не разрешён.', true);
+      this.addLimitation(m.id, 'External sources were not studied: web access is not allowed for the mission.', true);
       return this.goNext(m.id, 'research');
     }
     if (!this.availableRoles().has('web-researcher')) {
-      this.addLimitation(m.id, 'Внешние источники не изучались: агент «Веб-исследователь» не установлен или выключен.', true);
+      this.addLimitation(m.id, 'External sources were not studied: the "Web researcher" agent is not installed or is disabled.', true);
       return this.goNext(m.id, 'research');
     }
     const ctx = this.contextOf(m);
@@ -1357,10 +1357,10 @@ export class MissionEngine implements RuntimeService {
       phase: 'research',
       role: 'web-researcher',
       agentId: 'web-researcher',
-      title: 'Поиск во внешних источниках',
+      title: 'Search in external sources',
       input: {
         question: n.desired_outcome || m.title,
-        subquestions: [...n.requirements.slice(0, 5).map((r) => r.text), ...urls.map((u) => `Изучить источник: ${u}`)],
+        subquestions: [...n.requirements.slice(0, 5).map((r) => r.text), ...urls.map((u) => `Study the source: ${u}`)],
         queries: queries.length ? queries : [m.title],
         local_findings: [...(ctx.explorer?.findings ?? []).slice(0, 10), ...(ctx.local?.evidence ?? []).filter((e) => e.verified).slice(0, 10).map((e) => ({ id: e.id, fact: e.fact }))],
       },
@@ -1368,15 +1368,15 @@ export class MissionEngine implements RuntimeService {
     });
     if (!res.ok) {
       if (res.fatal) return 'wait';
-      this.addLimitation(m.id, `Веб-исследование не выполнено: ${res.error.message}`, true);
+      this.addLimitation(m.id, `Web research failed: ${res.error.message}`, true);
       return this.goNext(m.id, 'research');
     }
     const o = res.output as unknown as WebOutput;
     const g = groundClaims(this.rt, o.claims);
     const { claims: _c, ...rest } = o;
     this.patch(m.id, { research: JSON.stringify({ web: rest, claims: g.claims, verified: g.verified, domains: g.domains } satisfies MissionResearchData) });
-    this.event(m.id, res.stepId, 'info', 'research.grounded', `Веб-утверждения: подтверждено цитатами ${g.verified} из ${o.claims.length}, независимых доменов: ${g.domains}`);
-    if (o.claims.length && !g.verified) this.addLimitation(m.id, 'Ни одна цитата из внешних источников не подтверждена в загруженном тексте: выводы веб-исследования считаются неподтверждёнными.');
+    this.event(m.id, res.stepId, 'info', 'research.grounded', `Web claims: ${g.verified} of ${o.claims.length} confirmed by quotes, independent domains: ${g.domains}`);
+    if (o.claims.length && !g.verified) this.addLimitation(m.id, 'No quote from external sources was confirmed in the downloaded text: the web research findings are considered unconfirmed.');
     return this.goNext(m.id, 'research');
   }
 
@@ -1384,23 +1384,23 @@ export class MissionEngine implements RuntimeService {
   private async phaseStrategy(m: MissionRow, a: Active): Promise<'continue' | 'wait'> {
     const n = this.normalizedOf(m)!;
     if (!this.availableRoles().has('solution-architect')) {
-      this.addLimitation(m.id, 'Варианты решения не сравнивались: агент «Архитектор решений» не установлен или выключен.', true);
+      this.addLimitation(m.id, 'Solution options were not compared: the "Solution architect" agent is not installed or is disabled.', true);
       this.patch(m.id, { plan_stale: m.plan_stale === 2 ? 1 : m.plan_stale });
       return this.goNext(m.id, 'strategy');
     }
     const ctx = this.contextOf(m);
     const research = this.researchOf(m);
-    const extraOptions = this.extrasOf(m).filter((x) => x.kind === 'option').map((x) => `Дополнительно исследовать вариант: ${x.text}`);
+    const extraOptions = this.extrasOf(m).filter((x) => x.kind === 'option').map((x) => `Also research this option: ${x.text}`);
     const feedback = this.feedback(m.id, 'strategy');
     const res = await this.runAgent(m, a, {
       phase: 'strategy',
       role: 'solution-architect',
       agentId: 'solution-architect',
-      title: 'Сравнение вариантов решения',
+      title: 'Comparison of solution options',
       input: {
         objective: n.desired_outcome || m.title,
         requirements: n.requirements,
-        constraints: [...n.constraints, ...extraOptions, ...feedback.map((f) => `Замечание пользователя: ${f}`)],
+        constraints: [...n.constraints, ...extraOptions, ...feedback.map((f) => `User comment: ${f}`)],
         findings: [
           ...(ctx.explorer?.existing_solutions ?? []).map((s) => ({ kind: 'existing_solution', ...s })),
           ...(ctx.explorer?.findings ?? []).slice(0, 15).map((f) => ({ kind: 'project_finding', id: f.id, text: f.text })),
@@ -1412,7 +1412,7 @@ export class MissionEngine implements RuntimeService {
     });
     if (!res.ok) {
       if (res.fatal) return 'wait';
-      this.addLimitation(m.id, `Сравнение вариантов не выполнено: ${res.error.message}`, true);
+      this.addLimitation(m.id, `The comparison of options failed: ${res.error.message}`, true);
       return this.goNext(m.id, 'strategy');
     }
     const o = res.output as unknown as ArchitectOutput;
@@ -1422,9 +1422,9 @@ export class MissionEngine implements RuntimeService {
     const selected = keepUser ? prevStrategy!.selected : o.selected;
     const strategy: Strategy = keepUser ? { ...prevStrategy!, option: o.options.find((x) => x.id === selected) ?? null } : { selected, option: o.options.find((x) => x.id === selected) ?? null, rationale: o.rationale, tradeoffs: o.tradeoffs, selectedBy: 'architect' };
     this.patch(m.id, { options: JSON.stringify(o.options), strategy: JSON.stringify(strategy), plan_stale: cur.plan ? 1 : 0 });
-    this.event(m.id, res.stepId, 'info', 'strategy.selected', `Выбран вариант ${strategy.selected}${strategy.option ? ` «${strategy.option.name}»` : ''}: ${clip(strategy.rationale, 300)}`);
+    this.event(m.id, res.stepId, 'info', 'strategy.selected', `Selected option ${strategy.selected}${strategy.option ? ` "${strategy.option.name}"` : ''}: ${clip(strategy.rationale, 300)}`);
     if (o.needs_user_approval && this.policyOf(cur).approvePlan !== 'never' && !keepUser) {
-      this.ask(m.id, 'strategy', 'Подтвердите выбор решения', o.approval_reason ?? 'Решение существенно влияет на архитектуру.', { options: o.options, selected: strategy.selected, rationale: strategy.rationale, tradeoffs: strategy.tradeoffs }, 'planning');
+      this.ask(m.id, 'strategy', 'Approve the chosen solution', o.approval_reason ?? 'The decision significantly affects the architecture.', { options: o.options, selected: strategy.selected, rationale: strategy.rationale, tradeoffs: strategy.tradeoffs }, 'planning');
       return 'wait';
     }
     return this.goNext(m.id, 'strategy');
@@ -1468,7 +1468,7 @@ export class MissionEngine implements RuntimeService {
         const next = steps.find((x) => x.id === s.plan_step);
         if (s.status === 'running' || s.status === 'completed') continue; // running finishes; completed results stay in history
         if (next && s.status === 'pending' && !next.keep_existing && JSON.stringify(parseJson(s.depends_on, [])) === JSON.stringify(next.depends_on) && s.title === next.title) continue;
-        this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify({ code: 'CANCELLED', message: 'План пересчитан: этап заменён.', hint: '' }) });
+        this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify({ code: 'CANCELLED', message: 'The plan was rebuilt: this stage was replaced.', hint: '' }) });
       }
       for (const p of steps) {
         const cur = byPlan.get(p.id);
@@ -1505,8 +1505,8 @@ export class MissionEngine implements RuntimeService {
     const strategy = parseJson<Strategy | null>(m.strategy, null);
     const extras = this.extrasOf(m);
     const feedbackBase = [
-      ...this.feedback(m.id, 'plan').map((f) => `Замечание пользователя к плану: ${f}`),
-      ...extras.filter((x) => x.kind !== 'option' && x.kind !== 'criterion').map((x) => `Требование пользователя ${x.id}: ${x.text}`),
+      ...this.feedback(m.id, 'plan').map((f) => `User comment on the plan: ${f}`),
+      ...extras.filter((x) => x.kind !== 'option' && x.kind !== 'criterion').map((x) => `User requirement ${x.id}: ${x.text}`),
       ...this.messages(m.id)
         .filter((x) => (x.data as { kind?: string } | null)?.kind === 'conflict_resolution')
         .map((x) => x.body),
@@ -1520,7 +1520,7 @@ export class MissionEngine implements RuntimeService {
         phase: 'planning',
         role: 'mission-planner',
         agentId: 'mission-planner',
-        title: attempt ? 'Планирование (исправление плана)' : 'Планирование',
+        title: attempt ? 'Planning (plan correction)' : 'Planning',
         input: {
           objective: n.desired_outcome || m.title,
           requirements: n.requirements,
@@ -1541,7 +1541,7 @@ export class MissionEngine implements RuntimeService {
       }
       // the user changed requirements while the planner was working: plan again for the current revision
       if (this.row(m.id).revision !== m.revision) {
-        this.event(m.id, res.stepId, 'info', 'plan.outdated', 'Требования изменились во время планирования — план составляется заново');
+        this.event(m.id, res.stepId, 'info', 'plan.outdated', 'The requirements changed during planning: the plan is being rebuilt');
         return 'continue';
       }
       const out = res.output as unknown as PlannerOutput;
@@ -1549,36 +1549,36 @@ export class MissionEngine implements RuntimeService {
       check = validatePlan(out.steps, { mode: m.mode, availableRoles: roles, completed: new Set(completed.map((s) => s.plan_step!)) });
       for (const w of check.warnings) this.event(m.id, res.stepId, 'warn', 'plan.warning', w);
       if (!check.errors.length) break;
-      this.event(m.id, res.stepId, 'warn', 'plan.invalid', `План не прошёл проверку: ${check.errors.join('; ')}`);
-      feedback = [...feedbackBase, ...check.errors.map((e) => `Исправь план: ${e}`)];
+      this.event(m.id, res.stepId, 'warn', 'plan.invalid', `The plan failed validation: ${check.errors.join('; ')}`);
+      feedback = [...feedbackBase, ...check.errors.map((e) => `Fix the plan: ${e}`)];
     }
     if (!check || check.errors.length) {
-      this.ask(m.id, 'error', 'Не удалось составить корректный план', `Планировщик дважды вернул план с ошибками: ${check?.errors.join('; ') ?? 'нет плана'}. Уточните задачу или повторите.`, { problems: check?.errors ?? [] }, 'planning', 'needs_input');
+      this.ask(m.id, 'error', 'Could not produce a valid plan', `The planner returned a plan with errors twice: ${check?.errors.join('; ') ?? 'no plan'}. Clarify the task or retry.`, { problems: check?.errors ?? [] }, 'planning', 'needs_input');
       return 'wait';
     }
     // 28.13: a new requirement that contradicts an earlier one is explained, not silently resolved
-    const conflicts = notes.filter((x) => /^\s*конфликт(?!\p{L})/iu.test(x));
+    const conflicts = notes.filter((x) => /^\s*conflict(?!\p{L})/iu.test(x));
     const resolved = this.messages(m.id).filter((x) => (x.data as { kind?: string } | null)?.kind === 'conflict_resolution').length;
     if (conflicts.length && !resolved) {
       const last = [...extras].reverse().find((x) => x.kind === 'requirement' || x.kind === 'constraint');
-      this.ask(m.id, 'conflict', 'Новое требование противоречит прежним', conflicts.join(' '), { conflicts, requirementId: last?.id ?? null, requirement: last?.text ?? null, proposedPlan: check.steps }, 'planning', 'needs_input');
+      this.ask(m.id, 'conflict', 'A new requirement contradicts earlier ones', conflicts.join(' '), { conflicts, requirementId: last?.id ?? null, requirement: last?.text ?? null, proposedPlan: check.steps }, 'planning', 'needs_input');
       return 'wait';
     }
     this.installPlan(this.row(m.id), check.steps);
-    this.event(m.id, null, 'info', 'plan.ready', `План: ${check.steps.length} шагов (${uniq(check.steps.map((s) => s.role)).join(', ')})`);
+    this.event(m.id, null, 'info', 'plan.ready', `Plan: ${check.steps.length} steps (${uniq(check.steps.map((s) => s.role)).join(', ')})`);
     if (m.mode === 'plan') return this.moveTo(m.id, 'summary') ? 'continue' : 'wait';
     const cur = this.row(m.id);
     const policy = this.policyOf(cur);
     const reasons: string[] = [];
     const checks = this.checksToApprove(cur);
-    if (policy.approvePlan === 'always') reasons.push('политика поручения: план всегда подтверждается');
+    if (policy.approvePlan === 'always') reasons.push('mission policy: the plan is always approved by the user');
     else if (policy.approvePlan === 'risky') {
       reasons.push(...riskyPlanReasons(check.steps));
-      for (const r of n.risks.filter((x) => x.level === 'high')) reasons.push(`высокий риск: ${r.text}`);
-      if (check.steps.some((s) => s.role === 'implementer') && checks.length) reasons.push(`нужно разрешить запуск проверок проекта в рабочей копии: ${checks.map((c) => `${c.sourceName}/${c.name}`).join(', ')}`);
+      for (const r of n.risks.filter((x) => x.level === 'high')) reasons.push(`high risk: ${r.text}`);
+      if (check.steps.some((s) => s.role === 'implementer') && checks.length) reasons.push(`running the project checks in a work copy must be allowed: ${checks.map((c) => `${c.sourceName}/${c.name}`).join(', ')}`);
     }
     if (reasons.length) {
-      this.ask(cur.id, 'plan', 'Подтвердите план', reasons.join('; '), { plan: check.steps, reasons, checks, warnings: check.warnings }, 'execution');
+      this.ask(cur.id, 'plan', 'Approve the plan', reasons.join('; '), { plan: check.steps, reasons, checks, warnings: check.warnings }, 'execution');
       return 'wait';
     }
     return this.moveTo(cur.id, 'execution') ? 'continue' : 'wait';
@@ -1640,7 +1640,7 @@ export class MissionEngine implements RuntimeService {
 
   /** Executes one plan step; research outputs are grounded, documenter output is saved as ONE document. */
   private async execStep(m: MissionRow, a: Active, row: StepRow, step: PlanStep): Promise<void> {
-    const res = await this.runAgent(m, a, { phase: 'execution', role: step.role, agentId: ROLE_AGENTS[step.role], title: `${step.id}. ${step.title}`, planStep: step.id, input: this.stepInput(m, step), rowId: row.id, note: `Шаг ${step.id} плана поручения ${m.key}. Критерии готовности шага: ${step.done_criteria.join('; ') || '—'}.` });
+    const res = await this.runAgent(m, a, { phase: 'execution', role: step.role, agentId: ROLE_AGENTS[step.role], title: `${step.id}. ${step.title}`, planStep: step.id, input: this.stepInput(m, step), rowId: row.id, note: `Step ${step.id} of the plan of mission ${m.key}. Step acceptance criteria: ${step.done_criteria.join('; ') || '—'}.` });
     if (!res.ok) return;
     const scope = this.scopeOf(m);
     if (step.role === 'researcher') {
@@ -1658,7 +1658,7 @@ export class MissionEngine implements RuntimeService {
       // an action the agent claims but no tool call confirms is not counted (no imitation, 28.5 stage 6)
       const okTools = new Set(res.toolCalls.filter((t) => t.ok).map((t) => t.tool));
       const claimed = o.actions.filter((x) => (x.type === 'proposed_change' && !okTools.has('propose_file_change')) || (x.type === 'created_document' && !okTools.has('create_document')) || (x.type === 'ran_check' && !okTools.has('run_check')));
-      if (claimed.length) this.addLimitation(m.id, `${step.id}: агент сообщил о действиях, которые не подтверждены вызовами инструментов (${uniq(claimed.map((x) => x.type)).join(', ')}) — они не засчитаны.`);
+      if (claimed.length) this.addLimitation(m.id, `${step.id}: the agent reported actions that are not confirmed by tool calls (${uniq(claimed.map((x) => x.type)).join(', ')}); they were not counted.`);
     }
   }
 
@@ -1667,7 +1667,7 @@ export class MissionEngine implements RuntimeService {
     if (existing) return;
     const vault = this.rt.db.get<{ writable: number }>('SELECT writable FROM sources WHERE id = ?', this.rt.primaryVaultId());
     if (!vault?.writable) {
-      this.addLimitation(m.id, 'Документ не сохранён: хранилище системы открыто только для чтения.', true);
+      this.addLimitation(m.id, 'The document was not saved: the system vault is open read only.', true);
       return;
     }
     const folder = DOC_FOLDERS.find((f) => o.target_folder && (o.target_folder === f || o.target_folder.startsWith(`${f}/`))) ? o.target_folder.replace(/\.\.+/g, '').replace(/^\/+/, '') : MISSION_FOLDER;
@@ -1675,7 +1675,7 @@ export class MissionEngine implements RuntimeService {
     const cur = parseJson<SideEffect[]>(this.stepRow(stepId).side_effects, []);
     cur.push({ tool: 'documenter.save', target: d.relPath, ref: d.id, title: d.title });
     this.patchStep(stepId, { side_effects: JSON.stringify(cur) });
-    this.event(m.id, stepId, 'info', 'document.saved', `Документ сохранён: ${d.relPath}`, { docId: d.id });
+    this.event(m.id, stepId, 'info', 'document.saved', `Document saved: ${d.relPath}`, { docId: d.id });
   }
 
   /**
@@ -1687,7 +1687,7 @@ export class MissionEngine implements RuntimeService {
     if (!m.baseline) this.patch(m.id, { baseline: JSON.stringify(this.baseline(m)) });
     const plan = this.planOf(m);
     if (plan.some((s) => s.role === 'implementer') && this.projectsOf(m).length && this.projectsOf(m).every((p) => !modeAtLeast(p.accessMode, 'prepare'))) {
-      this.addLimitation(m.id, `Подготовка изменений невозможна: все проекты поручения в режиме «${modeLabel('read_only')}». Режим меняет только пользователь.`, true);
+      this.addLimitation(m.id, `Changes cannot be prepared: every mission project is in "${modeLabel('read_only')}" mode. Only the user changes the mode.`, true);
     }
     const limits = this.limitsOf(m);
     const running = new Map<string, Promise<void>>();
@@ -1705,15 +1705,15 @@ export class MissionEngine implements RuntimeService {
           const def = this.planOf(cur).find((p) => p.id === s.plan_step);
           if (!def) continue;
           if (def.role === 'verifier') {
-            this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), output: JSON.stringify({ note: 'Проверка выполняется на этапе «Проверка результата».' }) });
-            this.event(m.id, s.id, 'info', 'step.skipped', `«${s.title}»: выполняется на этапе проверки результата`);
+            this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), output: JSON.stringify({ note: 'The check runs at the "Verification" stage.' }) });
+            this.event(m.id, s.id, 'info', 'step.skipped', `"${s.title}": runs at the verification stage`);
             continue;
           }
           if (running.size >= limits.maxParallel) break;
           if (def.role === 'implementer' && (implRunning || [...running.keys()].some((id) => this.stepRow(id).role === 'implementer'))) continue;
           if (def.role === 'web-researcher' && !this.scopeOf(cur).allowWeb) {
-            this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify(new AppError('NETWORK_POLICY_DENIED', 'Веб-доступ для поручения не разрешён.').toJSON()) });
-            this.addLimitation(m.id, `${def.id} «${def.title}» не выполнен: веб-доступ для поручения не разрешён.`, true);
+            this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify(new AppError('NETWORK_POLICY_DENIED', 'Web access is not allowed for the mission.').toJSON()) });
+            this.addLimitation(m.id, `${def.id} "${def.title}" did not run: web access is not allowed for the mission.`, true);
             continue;
           }
           // mark running synchronously so no other pass starts it twice
@@ -1724,7 +1724,7 @@ export class MissionEngine implements RuntimeService {
               .catch((e) => {
                 const err = toAppError(e);
                 this.patchStep(s.id, { status: 'failed', error: JSON.stringify(err.toJSON()), finished_at: nowIso() });
-                this.event(m.id, s.id, 'error', 'step.failed', `«${s.title}»: ${err.message}`, { code: err.code });
+                this.event(m.id, s.id, 'error', 'step.failed', `"${s.title}": ${err.message}`, { code: err.code });
               })
               .finally(() => running.delete(s.id)),
           );
@@ -1740,13 +1740,13 @@ export class MissionEngine implements RuntimeService {
     const failed = steps.filter((s) => s.status === 'failed' || s.status === 'cancelled');
     if (failed.length) {
       const first = parseJson<AppErrorJson | null>(failed[0]!.error, null);
-      this.ask(m.id, 'error', failed.length === 1 ? `Этап «${failed[0]!.title}» не выполнен` : `Не выполнены этапы: ${failed.length}`, `${first?.message ?? 'ошибка'}${first?.hint ? ` ${first.hint}` : ''} Повторите этап или пропустите его — результат будет помечен как частичный.`, { stepIds: failed.map((s) => s.id), steps: failed.map((s) => ({ id: s.id, title: s.title, error: parseJson(s.error, null) })) }, 'execution', 'needs_input');
+      this.ask(m.id, 'error', failed.length === 1 ? `The stage "${failed[0]!.title}" failed` : `Stages failed: ${failed.length}`, `${first?.message ?? 'error'}${first?.hint ? ` ${first.hint}` : ''} Retry the stage or skip it: the result will be marked as partial.`, { stepIds: failed.map((s) => s.id), steps: failed.map((s) => ({ id: s.id, title: s.title, error: parseJson(s.error, null) })) }, 'execution', 'needs_input');
       return 'wait';
     }
     // pending steps whose dependencies were skipped by the user's decision stay unreachable: mark them explicitly
     for (const s of steps.filter((x) => x.status === 'pending')) {
-      this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify(new AppError('VALIDATION_FAILED', 'Зависимости этапа не выполнены.').toJSON()) });
-      this.addLimitation(m.id, `${s.plan_step} «${s.title}» не выполнен: его зависимости пропущены.`, true);
+      this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify(new AppError('VALIDATION_FAILED', 'The stage dependencies did not run.').toJSON()) });
+      this.addLimitation(m.id, `${s.plan_step} "${s.title}" did not run: its dependencies were skipped.`, true);
     }
     return this.moveTo(m.id, 'verification') ? 'continue' : 'wait';
   }
@@ -1780,11 +1780,11 @@ export class MissionEngine implements RuntimeService {
       if (!src || src.kind !== 'project') continue;
       const defs = projectChecks(this.rt, sid);
       if (!defs.length) {
-        notRun.push({ name: `${src.name}: проверки`, reason: 'для проекта не настроены команды проверки — корректность изменений автоматически не подтверждена' });
+        notRun.push({ name: `${src.name}: checks`, reason: 'no check commands are configured for the project: the correctness of the changes is not confirmed automatically' });
         continue;
       }
       if (!modeAtLeast(src.access_mode, 'workcopy')) {
-        for (const d of defs) notRun.push({ name: `${src.name}/${d.name}`, reason: `режим проекта «${modeLabel(src.access_mode)}» не позволяет рабочую копию — проверки не запускались` });
+        for (const d of defs) notRun.push({ name: `${src.name}/${d.name}`, reason: `the project mode "${modeLabel(src.access_mode)}" does not allow a work copy: the checks were not run` });
         continue;
       }
       let wc: { id: string; rootPath: string };
@@ -1792,13 +1792,13 @@ export class MissionEngine implements RuntimeService {
         wc = await this.deps.changes.applyToWorkCopy(set!.id, sid, `mission:${m.key}`);
       } catch (e) {
         const err = toAppError(e);
-        for (const d of defs) notRun.push({ name: `${src.name}/${d.name}`, reason: `рабочая копия не создана: ${err.message}` });
+        for (const d of defs) notRun.push({ name: `${src.name}/${d.name}`, reason: `the work copy was not created: ${err.message}` });
         continue;
       }
       for (const d of defs) {
         const ok = approved.find((x) => x.sourceId === sid && x.name === d.name);
         if (!ok) {
-          notRun.push({ name: `${src.name}/${d.name}`, reason: 'запуск не подтверждён пользователем' });
+          notRun.push({ name: `${src.name}/${d.name}`, reason: 'the user has not approved running it' });
           this.recordCheck(m, { stepId: marker, kind: 'command', name: d.name, sourceId: sid, status: 'not_approved' });
           continue;
         }
@@ -1806,7 +1806,7 @@ export class MissionEngine implements RuntimeService {
           const r = await runCheck(this.rt, sid, d.name, { workCopy: wc, actor: `mission:${m.key}`, runId: m.id, signal: a.controller.signal, approvedContentHash: ok.contentHash ?? null });
           const status = r.ok ? 'passed' : r.timedOut ? 'timeout' : 'failed';
           this.recordCheck(m, { stepId: marker, kind: 'command', name: d.name, sourceId: sid, status, exitCode: r.exitCode, durationMs: r.durationMs, output: r.output, evidence: { isolation: r.isolation.level, workCopyId: wc.id, command: r.command, contentHash: set!.review.contentHash } });
-          this.event(m.id, null, r.ok ? 'info' : 'warn', 'check.done', `Проверка ${src.name}/${d.name}: ${r.ok ? 'пройдена' : r.timedOut ? 'превышен тайм-аут' : `не пройдена (код ${r.exitCode})`}; изоляция: ${r.isolation.level === 'isolated' ? 'песочница' : 'ограниченный режим'}`);
+          this.event(m.id, null, r.ok ? 'info' : 'warn', 'check.done', `Check ${src.name}/${d.name}: ${r.ok ? 'passed' : r.timedOut ? 'timed out' : `failed (exit code ${r.exitCode})`}; isolation: ${r.isolation.level === 'isolated' ? 'sandbox' : 'limited mode'}`);
         } catch (e) {
           const err = toAppError(e);
           notRun.push({ name: `${src.name}/${d.name}`, reason: err.message });
@@ -1817,7 +1817,7 @@ export class MissionEngine implements RuntimeService {
     return { notRun };
   }
 
-  /** Stage 7: deterministic checks + verifier agent + guard. An agent's «done» is not accepted without evidence. */
+  /** Stage 7: deterministic checks + verifier agent + guard. An agent's "done" is not accepted without evidence. */
   private async phaseVerification(m: MissionRow, a: Active): Promise<'continue' | 'wait'> {
     const n = this.normalizedOf(m)!;
     const set = this.openSet(m.id);
@@ -1830,14 +1830,14 @@ export class MissionEngine implements RuntimeService {
     if (set) {
       const allowedSources = scope.kind === 'system' ? null : new Set([...scope.sourceIds, this.rt.primaryVaultId()]);
       const outside = set.files.filter((f) => f.status !== 'skipped' && allowedSources && !allowedSources.has(f.sourceId));
-      this.recordCheck(m, { stepId: marker, kind: 'validator', name: 'Изменения только в области поручения', sourceId: null, status: outside.length ? 'failed' : 'passed', output: outside.length ? outside.map((f) => `${f.sourceName}:${f.path}`).join(', ') : null });
+      this.recordCheck(m, { stepId: marker, kind: 'validator', name: 'Changes only within the mission scope', sourceId: null, status: outside.length ? 'failed' : 'passed', output: outside.length ? outside.map((f) => `${f.sourceName}:${f.path}`).join(', ') : null });
     }
     const base = parseJson<Record<string, string>>(m.baseline, {});
     const now = this.baseline(m);
     const changedOriginals = Object.keys(base).filter((k) => now[k] !== undefined && now[k] !== base[k]);
     if (Object.keys(base).length) {
       const appliedByMission = this.missionSets(m.id).some((s) => s.status === 'applied' || s.status === 'partially_applied');
-      this.recordCheck(m, { stepId: marker, kind: 'validator', name: 'Исходные проекты не изменены во время выполнения', sourceId: null, status: changedOriginals.length && !appliedByMission ? 'warning' : 'passed', output: changedOriginals.length ? `изменились файлы проектов: ${changedOriginals.join(', ')} (не через поручение — возможно, правки пользователя)` : null });
+      this.recordCheck(m, { stepId: marker, kind: 'validator', name: 'Original projects not changed during execution', sourceId: null, status: changedOriginals.length && !appliedByMission ? 'warning' : 'passed', output: changedOriginals.length ? `project files changed: ${changedOriginals.join(', ')} (not by the mission; possibly user edits)` : null });
     }
     const { notRun } = await this.runMissionChecks(m, a, set, marker);
     if (a.controller.signal.aborted) return 'wait';
@@ -1847,11 +1847,11 @@ export class MissionEngine implements RuntimeService {
     let security: ReviewData['security'] = review.security;
     if (set && set.files.some((f) => f.status !== 'skipped')) {
       if (this.availableRoles().has('security-reviewer')) {
-        const r = await this.runAgent(m, a, { phase: 'verification', role: 'security-reviewer', agentId: 'security-reviewer', title: 'Проверка безопасности изменений', input: { objective: n.desired_outcome || m.title, change_summary: `${set.summary.files} файлов: +${set.summary.added} −${set.summary.removed}`, files: this.changedFilesForReview(m), findings: set.risks.map((x) => ({ title: x.title, severity: x.severity, files: x.files })) }, variant: set.review.contentHash ?? '' });
+        const r = await this.runAgent(m, a, { phase: 'verification', role: 'security-reviewer', agentId: 'security-reviewer', title: 'Security review of the changes', input: { objective: n.desired_outcome || m.title, change_summary: `${set.summary.files} files: +${set.summary.added} −${set.summary.removed}`, files: this.changedFilesForReview(m), findings: set.risks.map((x) => ({ title: x.title, severity: x.severity, files: x.files })) }, variant: set.review.contentHash ?? '' });
         if (!r.ok && r.fatal) return 'wait';
         if (r.ok) security = { ...(r.output as unknown as SecurityOutput), files: set.summary.files };
-        else this.addLimitation(m.id, `Проверка безопасности изменений не выполнена: ${r.error.message}`, true);
-      } else this.addLimitation(m.id, 'Изменения не проверены на риски безопасности: агент «Ревьюер безопасности» не установлен или выключен.', true);
+        else this.addLimitation(m.id, `The security review of the changes failed: ${r.error.message}`, true);
+      } else this.addLimitation(m.id, 'The changes were not reviewed for security risks: the "Security reviewer" agent is not installed or is disabled.', true);
     }
     const artifacts = this.artifacts(this.row(m.id));
     const { evidence, claims } = this.allEvidence(m);
@@ -1860,7 +1860,7 @@ export class MissionEngine implements RuntimeService {
       phase: 'verification',
       role: 'verifier',
       agentId: 'verifier',
-      title: m.fix_rounds ? `Проверка результата (после исправления ${m.fix_rounds})` : 'Проверка результата',
+      title: m.fix_rounds ? `Verification (after fix ${m.fix_rounds})` : 'Verification',
       input: {
         objective: n.desired_outcome || m.title,
         acceptance_criteria: this.criteriaOf(m).map((c) => ({ id: c.id, text: c.text, verification: c.verification })),
@@ -1872,7 +1872,7 @@ export class MissionEngine implements RuntimeService {
       variant: `${set?.review.contentHash ?? 'none'}:${this.criteriaOf(m).length}`,
     });
     if (!v.ok && v.fatal) return 'wait';
-    if (!v.ok) this.addLimitation(m.id, `Проверяющий агент не выполнил оценку: ${v.error.message}. Критерии оценены только детерминированно.`, true);
+    if (!v.ok) this.addLimitation(m.id, `The verifier agent did not complete the assessment: ${v.error.message}. The criteria were assessed deterministically only.`, true);
     const vo = v.ok ? (v.output as unknown as VerifierOutput) : null;
     const cur = this.row(m.id);
     const anyApplied = this.missionSets(m.id).some((s) => s.status === 'applied' || s.status === 'partially_applied');
@@ -1899,27 +1899,27 @@ export class MissionEngine implements RuntimeService {
     for (const c of criteria) this.recordCheck(cur, { stepId: marker, kind: 'criterion', name: `${c.id}. ${clip(c.text, 200)}`, sourceId: null, status: c.status, output: c.notes || null, evidence: { evidence: c.evidence, decidedBy: c.decidedBy } });
     const failedCommands = commandChecks.filter((c) => c.status !== 'passed');
     const problems = [
-      ...(vo?.problems ?? []).filter((p) => p.severity !== 'minor').map((p) => `${p.description}${p.fix_hint ? ` (как исправить: ${p.fix_hint})` : ''}`),
-      ...failedCommands.map((c) => `Проверка «${c.name}» не пройдена${c.exitCode !== null ? ` (код ${c.exitCode})` : ''}: ${clip(c.output ?? '', 1500)}`),
-      ...(security?.verdict === 'block' ? security.risks.filter((r) => r.severity === 'critical' || r.severity === 'high').map((r) => `Безопасность: ${r.description} (${r.location}) — ${r.recommendation}`) : []),
+      ...(vo?.problems ?? []).filter((p) => p.severity !== 'minor').map((p) => `${p.description}${p.fix_hint ? ` (how to fix: ${p.fix_hint})` : ''}`),
+      ...failedCommands.map((c) => `The check "${c.name}" failed${c.exitCode !== null ? ` (exit code ${c.exitCode})` : ''}: ${clip(c.output ?? '', 1500)}`),
+      ...(security?.verdict === 'block' ? security.risks.filter((r) => r.severity === 'critical' || r.severity === 'high').map((r) => `Security: ${r.description} (${r.location}): ${r.recommendation}`) : []),
     ];
     const nextReview: ReviewData = { ...this.reviewOf(cur), lastVerification: marker, ...(security ? { security } : {}), ...(vo ? { verifier: { problems: vo.problems, regressions_suspected: vo.regressions_suspected, overall: vo.overall } } : {}), checksNotRun: notRun };
     this.patch(m.id, { criteria: JSON.stringify(criteria), review: JSON.stringify(nextReview) });
     const unmet = criteria.filter((c) => c.status === 'not_met' || c.status === 'partially_met');
     const policy = this.policyOf(cur);
     // a fix round only for problems a change can fix: failed checks, unmet criteria, concrete defects — not for limits
-    // like «checks could not run» or «changes are only proposed», which no amount of re-implementation changes
+    // like "checks could not run" or "changes are only proposed", which no amount of re-implementation changes
     const fixable = problems.length > 0 || criteria.some((c) => c.status === 'not_met');
     const canFix = m.mode === 'execute' && this.planOf(cur).some((s) => s.role === 'implementer') && this.availableRoles().has('implementer') && cur.fix_rounds < policy.maxFixRounds && fixable;
-    this.event(m.id, v.ok ? v.stepId : null, unmet.length || problems.length ? 'warn' : 'info', 'verification.done', `Критерии: выполнено ${criteria.filter((c) => c.status === 'met').length} из ${criteria.filter((c) => c.status !== 'not_applicable').length}; проблем: ${problems.length}${notRun.length ? `; не запущено проверок: ${notRun.length}` : ''}`);
+    this.event(m.id, v.ok ? v.stepId : null, unmet.length || problems.length ? 'warn' : 'info', 'verification.done', `Criteria: ${criteria.filter((c) => c.status === 'met').length} of ${criteria.filter((c) => c.status !== 'not_applicable').length} met; problems: ${problems.length}${notRun.length ? `; checks not run: ${notRun.length}` : ''}`);
     if (canFix) {
-      this.patch(m.id, { review: JSON.stringify({ ...nextReview, fix: { round: cur.fix_rounds + 1, problems: [...problems, ...unmet.map((c) => `Критерий ${c.id} «${c.text}»: ${c.notes || c.status}`)] } }) });
-      this.setStatus(m.id, 'needs_fix', { phase: 'fix', reason: `проверка выявила проблемы (${problems.length + unmet.length}); попытка исправления ${cur.fix_rounds + 1} из ${policy.maxFixRounds}` });
+      this.patch(m.id, { review: JSON.stringify({ ...nextReview, fix: { round: cur.fix_rounds + 1, problems: [...problems, ...unmet.map((c) => `Criterion ${c.id} "${c.text}": ${c.notes || c.status}`)] } }) });
+      this.setStatus(m.id, 'needs_fix', { phase: 'fix', reason: `verification found problems (${problems.length + unmet.length}); fix attempt ${cur.fix_rounds + 1} of ${policy.maxFixRounds}` });
       return 'continue';
     }
     if (fixable) {
       const left = clip([...problems, ...unmet.map((c) => `${c.id}: ${c.status}`)].join('; '), 600);
-      const why = cur.fix_rounds >= policy.maxFixRounds && policy.maxFixRounds > 0 ? `После ${cur.fix_rounds} циклов исправления остались проблемы` : m.mode === 'execute' && !this.planOf(cur).some((s) => s.role === 'implementer') ? 'Проблемы не исправлялись: в плане нет этапа изменений' : policy.maxFixRounds === 0 ? 'Проблемы не исправлялись: циклы исправления отключены политикой поручения' : 'Проблемы не исправлялись: исполнитель недоступен';
+      const why = cur.fix_rounds >= policy.maxFixRounds && policy.maxFixRounds > 0 ? `Problems remain after ${cur.fix_rounds} fix round${cur.fix_rounds === 1 ? '' : 's'}` : m.mode === 'execute' && !this.planOf(cur).some((s) => s.role === 'implementer') ? 'The problems were not fixed: the plan has no change stage' : policy.maxFixRounds === 0 ? 'The problems were not fixed: fix rounds are disabled by the mission policy' : 'The problems were not fixed: the implementer is unavailable';
       this.addLimitation(m.id, `${why}: ${left}`);
     }
     return this.goNext(m.id, 'verification');
@@ -1940,10 +1940,10 @@ export class MissionEngine implements RuntimeService {
       phase: 'fix',
       role: 'implementer',
       agentId: 'implementer',
-      title: `Исправление (цикл ${round})`,
+      title: `Fix (round ${round})`,
       planStep: `FIX${round}`,
       input: {
-        step: { id: `FIX${round}`, title: 'Исправить проблемы, выявленные проверкой', goal: 'Устранить причины непройденных проверок и невыполненных критериев, не ломая остальное', done_criteria: ['проблемы проверки устранены'] },
+        step: { id: `FIX${round}`, title: 'Fix the problems found by verification', goal: 'Remove the causes of failed checks and unmet criteria without breaking anything else', done_criteria: ['the verification problems are fixed'] },
         objective: n.desired_outcome || cur.title,
         requirements: n.requirements,
         ...(strategy ? { strategy: { selected: strategy.selected, name: strategy.option?.name ?? null, rationale: strategy.rationale } } : {}),
@@ -1956,16 +1956,16 @@ export class MissionEngine implements RuntimeService {
     });
     if (!res.ok) {
       if (res.fatal) return 'wait';
-      this.addLimitation(m.id, `Исправление (цикл ${round}) не выполнено: ${res.error.message}`, true);
+      this.addLimitation(m.id, `Fix (round ${round}) failed: ${res.error.message}`, true);
       return this.goNext(m.id, 'verification');
     }
-    return this.moveTo(m.id, 'verification', `повторная проверка после исправления ${round}`) ? 'continue' : 'wait';
+    return this.moveTo(m.id, 'verification', `re-verification after fix ${round}`) ? 'continue' : 'wait';
   }
 
   /** Independent review against the ORIGINAL request (detects distortions of meaning, 28.10). */
   private async phaseReview(m: MissionRow, a: Active): Promise<'continue' | 'wait'> {
     if (!this.enabledAgents().has('independent-reviewer')) {
-      this.addLimitation(m.id, 'Независимое ревью не выполнено: агент «Независимый ревьюер поручения» не установлен или выключен.', true);
+      this.addLimitation(m.id, 'The independent review did not run: the "Independent mission reviewer" agent is not installed or is disabled.', true);
       return this.goNext(m.id, 'review');
     }
     const review = this.reviewOf(m);
@@ -1973,7 +1973,7 @@ export class MissionEngine implements RuntimeService {
       phase: 'review',
       role: 'independent-reviewer',
       agentId: 'independent-reviewer',
-      title: 'Независимое ревью',
+      title: 'Independent review',
       input: {
         original_request: m.original_request,
         normalized: this.normalizedOf(m),
@@ -1985,7 +1985,7 @@ export class MissionEngine implements RuntimeService {
     });
     if (!res.ok) {
       if (res.fatal) return 'wait';
-      this.addLimitation(m.id, `Независимое ревью не выполнено: ${res.error.message}`, true);
+      this.addLimitation(m.id, `The independent review failed: ${res.error.message}`, true);
       return this.goNext(m.id, 'review');
     }
     this.patch(m.id, { review: JSON.stringify({ ...this.reviewOf(this.row(m.id)), independent: res.output as unknown as ReviewerOutput }) });
@@ -1994,7 +1994,7 @@ export class MissionEngine implements RuntimeService {
 
   /**
    * Problems still open after the last verification (28.16): failed project checks and validators, critical/major
-   * findings of the verifier, a blocking security or independent review. Any of them rules out «Выполнена».
+   * findings of the verifier, a blocking security or independent review. Any of them rules out "Completed".
    */
   private blockingProblems(m: MissionRow): string[] {
     if (m.mode !== 'execute') return [];
@@ -2003,11 +2003,11 @@ export class MissionEngine implements RuntimeService {
     if (r.lastVerification) {
       for (const c of this.checkRecords(m.id)) {
         if ((c.evidence as { stepId?: string } | null)?.stepId !== r.lastVerification) continue;
-        if (c.kind === 'command' && (c.status === 'failed' || c.status === 'timeout')) out.push(`проверка «${c.name}» не пройдена${c.exitCode !== null ? ` (код ${c.exitCode})` : ''}`);
-        if (c.kind === 'validator' && c.status === 'failed') out.push(`проверка «${c.name}» не пройдена`);
+        if (c.kind === 'command' && (c.status === 'failed' || c.status === 'timeout')) out.push(`the check "${c.name}" failed${c.exitCode !== null ? ` (exit code ${c.exitCode})` : ''}`);
+        if (c.kind === 'validator' && c.status === 'failed') out.push(`the check "${c.name}" failed`);
       }
     }
-    for (const p of r.verifier?.problems ?? []) if (p.severity === 'critical' || p.severity === 'major') out.push(`проверяющий: ${p.description}`);
+    for (const p of r.verifier?.problems ?? []) if (p.severity === 'critical' || p.severity === 'major') out.push(`verifier: ${p.description}`);
     return uniq(out);
   }
 
@@ -2015,11 +2015,11 @@ export class MissionEngine implements RuntimeService {
     const r = this.reviewOf(m);
     const out: string[] = [];
     if (r.independent?.verdict === 'needs_changes') {
-      out.push(...r.independent.distortions.map((d) => `искажение задачи: ${d}`));
+      out.push(...r.independent.distortions.map((d) => `distortion of the task: ${d}`));
       out.push(...r.independent.defects.filter((d) => d.severity !== 'minor').map((d) => d.description));
-      if (!out.length) out.push('ревьюер потребовал доработки');
+      if (!out.length) out.push('the reviewer requested more work');
     }
-    if (r.security?.verdict === 'block') out.push(...r.security.risks.filter((x) => x.severity === 'critical' || x.severity === 'high').map((x) => `безопасность: ${x.description}`));
+    if (r.security?.verdict === 'block') out.push(...r.security.risks.filter((x) => x.severity === 'critical' || x.severity === 'high').map((x) => `security: ${x.description}`));
     return out;
   }
 
@@ -2031,45 +2031,45 @@ export class MissionEngine implements RuntimeService {
     if (m.mode === 'plan' || criteria.some((c) => c.status === 'pending')) {
       const ctx = { mode: m.mode, checks: [], checksNotRun: review.checksNotRun ?? [], artifacts: this.artifacts(m), verifiedClaims: 0, verifiedDomains: 0, verifiedEvidence: 0, changesOnlyProposed: false };
       criteria = criteria.map((c) => (c.status === 'pending' || m.mode === 'plan' ? guardCriteria([c], null, ctx)[0]! : c));
-      if (m.mode === 'execute' && criteria.some((c) => c.decidedBy === 'guard' && c.notes.includes('не оценил'))) this.addLimitation(m.id, 'Часть критериев не проверялась: этап проверки не выполнен.', true);
+      if (m.mode === 'execute' && criteria.some((c) => c.decidedBy === 'guard' && c.notes.includes('did not assess'))) this.addLimitation(m.id, 'Some criteria were not checked: the verification stage did not run.', true);
       this.patch(m.id, { criteria: JSON.stringify(criteria) });
     }
     const cur = this.row(m.id);
     const execSteps = this.currentExecSteps(m.id);
-    const failedSteps = execSteps.filter((s) => s.status === 'failed' || s.status === 'cancelled').map((s) => `${s.plan_step} «${s.title}»`);
+    const failedSteps = execSteps.filter((s) => s.status === 'failed' || s.status === 'cancelled').map((s) => `${s.plan_step} "${s.title}"`);
     const limitations = this.limitationsOf(cur);
     const status = finalStatus(criteria, { mode: m.mode, failedSteps, notExecuted: this.gapsOf(cur), limitations, blocking: this.blockingProblems(cur), planProduced: this.planOf(cur).length > 0 });
     const set = this.openSet(m.id);
     const allSets = this.missionSets(m.id);
-    const files: MissionSummary['files'] = allSets.flatMap((s) => s.files.map((f) => ({ path: f.path, source: f.sourceName, op: f.op, status: s.status === 'proposed' ? (f.status === 'skipped' ? 'отклонено' : 'предложено (не применено)') : f.status === 'applied' ? 'применено к проекту' : f.status })));
+    const files: MissionSummary['files'] = allSets.flatMap((s) => s.files.map((f) => ({ path: f.path, source: f.sourceName, op: f.op, status: s.status === 'proposed' ? (f.status === 'skipped' ? 'rejected' : 'proposed (not applied)') : f.status === 'applied' ? 'applied to the project' : f.status })));
     const artifacts = this.artifacts(cur);
     const documents = artifacts.filter((x) => x.type === 'document' && x.path).map((x) => ({ title: x.title, path: x.path!, docId: x.ref }));
     const ctx = this.contextOf(cur);
     const research = this.researchOf(cur);
     const studied = [
-      ...ctx.projects.map((p) => `проект «${p.name}» (${modeLabel(p.accessMode)})`),
-      ...(ctx.local ? [`документы: ${ctx.local.evidence.length} свидетельств, подтверждено цитатами ${ctx.local.evidence.filter((e) => e.verified).length}`] : []),
-      ...(ctx.crossSystem.length ? [`другие системы: ${uniq(ctx.crossSystem.map((h) => h.systemName)).join(', ')} (${ctx.crossSystem.length} документов)`] : []),
-      ...(research.web ? [`внешние источники: ${research.web.sources.length}, подтверждено утверждений ${research.verified} из ${research.claims.length}`] : []),
+      ...ctx.projects.map((p) => `project "${p.name}" (${modeLabel(p.accessMode)})`),
+      ...(ctx.local ? [`documents: ${ctx.local.evidence.length} pieces of evidence, ${ctx.local.evidence.filter((e) => e.verified).length} confirmed by quotes`] : []),
+      ...(ctx.crossSystem.length ? [`other systems: ${uniq(ctx.crossSystem.map((h) => h.systemName)).join(', ')} (${ctx.crossSystem.length} documents)`] : []),
+      ...(research.web ? [`external sources: ${research.web.sources.length}, claims confirmed: ${research.verified} of ${research.claims.length}`] : []),
     ];
     const checks = review.lastVerification ? this.checkRecords(m.id).filter((c) => (c.evidence as { stepId?: string } | null)?.stepId === review.lastVerification && c.kind === 'command' && ['passed', 'failed', 'timeout'].includes(c.status)) : [];
     const nextSteps: string[] = [];
     const policy = this.policyOf(cur);
     const applicable = set ? set.gates.filter((g) => g.modeAllows) : [];
-    if (set && !applicable.length) nextSteps.push(`Изменения подготовлены в наборе «${set.title}» (${set.summary.files} файлов) и не применены. Чтобы перенести их в проект, откройте «Проверить изменения»; применение возможно только в режиме «Применить к исходному проекту», который включает пользователь.`);
-    for (const c of criteria.filter((x) => x.status === 'unverifiable' && x.verification === 'manual')) nextSteps.push(`Подтвердите вручную критерий ${c.id}: «${c.text}».`);
-    for (const f of failedSteps) nextSteps.push(`Повторите этап ${f} (кнопка «Повторить»).`);
-    for (const x of review.checksNotRun ?? []) if (x.reason.includes('не подтверждён')) nextSteps.push(`Разрешите запуск проверки ${x.name} и повторите проверку.`);
+    if (set && !applicable.length) nextSteps.push(`The changes are prepared in the change set "${set.title}" (${set.summary.files} files) and were not applied. To move them into the project, open "Review changes"; applying is possible only in the "Apply to the original project" mode, which the user enables.`);
+    for (const c of criteria.filter((x) => x.status === 'unverifiable' && x.verification === 'manual')) nextSteps.push(`Confirm criterion ${c.id} manually: "${c.text}".`);
+    for (const f of failedSteps) nextSteps.push(`Retry stage ${f} (the "Retry" button).`);
+    for (const x of review.checksNotRun ?? []) if (x.reason.includes('not approved')) nextSteps.push(`Allow the check ${x.name} to run and repeat the verification.`);
     const stepsDone = execSteps.filter((s) => s.status === 'completed').map((s) => {
       const o = parseJson<Record<string, unknown>>(s.output, {});
-      return { title: `${s.plan_step} ${s.title}`, summary: String(o.summary ?? o.note ?? (Array.isArray(o.findings) ? `${o.findings.length} находок` : Array.isArray(o.evidence) ? `${o.evidence.length} свидетельств` : 'выполнено')) };
+      return { title: `${s.plan_step} ${s.title}`, summary: String(o.summary ?? o.note ?? (Array.isArray(o.findings) ? `${o.findings.length} findings` : Array.isArray(o.evidence) ? `${o.evidence.length} pieces of evidence` : 'done')) };
     });
-    const resultsLocation = [...documents.map((d) => `документ ${d.path}`), ...allSets.filter((s) => s.summary.files > 0).map((s) => `набор изменений «${s.title}» (${s.status === 'proposed' ? 'не применён' : s.status})`)];
+    const resultsLocation = [...documents.map((d) => `document ${d.path}`), ...allSets.filter((s) => s.summary.files > 0).map((s) => `change set "${s.title}" (${s.status === 'proposed' ? 'not applied' : s.status})`)];
     let summary = buildSummary({ originalRequest: cur.original_request, normalized: n, strategy: parseJson<Strategy | null>(cur.strategy, null), plan: this.planOf(cur), stepsDone, studied, files, documents, checks, checksNotRun: review.checksNotRun ?? [], limitations, criteria, status, resultsLocation, nextSteps });
-    // changes reach a project only by an explicit decision, and only where the user enabled «Применить» (29.2)
+    // changes reach a project only by an explicit decision, and only where the user enabled "Apply" (29.2)
     if (set && applicable.length && !review.apply && m.mode === 'execute') {
       this.patch(m.id, { summary: JSON.stringify(summary) });
-      this.ask(m.id, 'apply_changes', 'Применить изменения к исходному проекту?', `Подготовлено ${set.summary.files} файлов (+${set.summary.added} −${set.summary.removed}). Итог проверки: ${MISSION_STATUS_LABELS[status.status]}. Перед записью будут проверены режим, актуальность просмотра и проверок, риски; будет создана проверенная резервная копия.`, { changeSetId: set.id, contentHash: set.review.contentHash, files: set.files.map((f) => ({ id: f.id, source: f.sourceName, path: f.path, op: f.op, added: f.added, removed: f.removed, categories: f.categories })), risks: set.risks, gates: set.gates, outcome: status }, 'summary');
+      this.ask(m.id, 'apply_changes', 'Apply the changes to the original project?', `${set.summary.files} files prepared (+${set.summary.added} −${set.summary.removed}). Verification outcome: ${MISSION_STATUS_LABELS[status.status]}. Before writing, the mode, the freshness of the review and the checks, and the risks are checked; a verified backup is created.`, { changeSetId: set.id, contentHash: set.review.contentHash, files: set.files.map((f) => ({ id: f.id, source: f.sourceName, path: f.path, op: f.op, added: f.added, removed: f.removed, categories: f.categories })), risks: set.risks, gates: set.gates, outcome: status }, 'summary');
       return 'wait';
     }
     // one useful report, not a pile of them (28.5 stage 9)
@@ -2077,7 +2077,7 @@ export class MissionEngine implements RuntimeService {
     const wantReport = policy.saveReport === 'always' || (policy.saveReport === 'auto' && !documenterDoc && (m.mode === 'plan' || (n && REPORT_TASK_TYPES.includes(n.task_type)) || n?.complexity === 'complex'));
     if (wantReport) {
       const docId = await this.saveReport(this.row(m.id), summary);
-      if (docId) summary = { ...summary, resultsLocation: [`отчёт ${this.rt.db.get<{ rel_path: string }>('SELECT rel_path FROM documents WHERE id = ?', docId)?.rel_path ?? docId}`, ...summary.resultsLocation] };
+      if (docId) summary = { ...summary, resultsLocation: [`report ${this.rt.db.get<{ rel_path: string }>('SELECT rel_path FROM documents WHERE id = ?', docId)?.rel_path ?? docId}`, ...summary.resultsLocation] };
     }
     this.patch(m.id, { summary: JSON.stringify(summary) });
     this.event(m.id, null, status.status === 'completed' ? 'info' : 'warn', 'mission.summary', `${MISSION_STATUS_LABELS[status.status]}: ${status.reason}`);
@@ -2090,7 +2090,7 @@ export class MissionEngine implements RuntimeService {
   private async saveReport(m: MissionRow, s: MissionSummary): Promise<string | null> {
     const vault = this.rt.db.get<{ writable: number }>('SELECT writable FROM sources WHERE id = ?', this.rt.primaryVaultId());
     if (!vault?.writable) {
-      this.addLimitation(m.id, 'Отчёт не сохранён: хранилище системы открыто только для чтения.');
+      this.addLimitation(m.id, 'The report was not saved: the system vault is open read only.');
       return null;
     }
     try {
@@ -2101,15 +2101,15 @@ export class MissionEngine implements RuntimeService {
         const content = md.replace(/^---\n/, `---\nmission_report: ${m.id}\n`);
         if (doc.content !== content) await this.deps.docs.save(existing.doc_id, content, doc.hash, `mission:${m.key}`);
         this.patch(m.id, { report_doc_id: existing.doc_id });
-        this.event(m.id, null, 'info', 'report.updated', `Отчёт обновлён: ${doc.relPath}`, { docId: doc.id });
+        this.event(m.id, null, 'info', 'report.updated', `Report updated: ${doc.relPath}`, { docId: doc.id });
         return existing.doc_id;
       }
       const d = await this.deps.docs.create({ title: `${m.key}. ${clip(m.title, 150)}`, folder: MISSION_FOLDER, content: md, properties: { mission_report: m.id }, actor: `mission:${m.key}` });
       this.patch(m.id, { report_doc_id: d.id });
-      this.event(m.id, null, 'info', 'report.saved', `Отчёт сохранён: ${d.relPath}`, { docId: d.id });
+      this.event(m.id, null, 'info', 'report.saved', `Report saved: ${d.relPath}`, { docId: d.id });
       return d.id;
     } catch (e) {
-      this.addLimitation(m.id, `Отчёт не сохранён: ${toAppError(e).message}`);
+      this.addLimitation(m.id, `The report was not saved: ${toAppError(e).message}`);
       return null;
     }
   }
@@ -2118,9 +2118,9 @@ export class MissionEngine implements RuntimeService {
 
   private requirePending(m: MissionRow, pendingId?: string): PendingApproval {
     const p = this.pendingOf(m);
-    if (!p) throw new AppError('INVALID_STATE_TRANSITION', 'Поручение не ожидает решения.');
-    if (pendingId && pendingId !== p.id) throw new AppError('INVALID_STATE_TRANSITION', 'Решение относится к устаревшему вопросу — обновите экран.');
-    if (m.status === 'paused') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение приостановлено — сначала продолжите его.');
+    if (!p) throw new AppError('INVALID_STATE_TRANSITION', 'The mission is not waiting for a decision.');
+    if (pendingId && pendingId !== p.id) throw new AppError('INVALID_STATE_TRANSITION', 'The decision refers to an outdated question: refresh the screen.');
+    if (m.status === 'paused') throw new AppError('INVALID_STATE_TRANSITION', 'The mission is paused: resume it first.');
     return p;
   }
 
@@ -2144,14 +2144,14 @@ export class MissionEngine implements RuntimeService {
       error: ['retry', 'skip', 'reject'],
       apply_changes: ['apply', 'skip'],
     };
-    if (!allowed[p.kind].includes(d.decision)) throw new AppError('VALIDATION_FAILED', `Для вопроса «${p.title}» допустимо: ${allowed[p.kind].join(', ')}.`);
+    if (!allowed[p.kind].includes(d.decision)) throw new AppError('VALIDATION_FAILED', `For the question "${p.title}" the allowed decisions are: ${allowed[p.kind].join(', ')}.`);
     const comment = (d.comment ?? '').trim().slice(0, 10_000);
-    if (d.decision === 'revise' && !comment) throw new AppError('VALIDATION_FAILED', 'Опишите, что нужно изменить.');
+    if (d.decision === 'revise' && !comment) throw new AppError('VALIDATION_FAILED', 'Describe what needs to change.');
     this.message(m.id, 'user', comment || d.decision, { kind: 'decision', pendingId: p.id, approval: p.kind, decision: d.decision });
     this.rt.audit.record({ actor, action: 'mission.decision', target: m.key, details: { kind: p.kind, decision: d.decision, comment: comment || null } });
-    this.event(m.id, null, 'info', 'mission.decision', `Решение пользователя (${p.title}): ${d.decision}${comment ? ` — ${clip(comment, 200)}` : ''}`);
+    this.event(m.id, null, 'info', 'mission.decision', `User decision (${p.title}): ${d.decision}${comment ? `: ${clip(comment, 200)}` : ''}`);
     if (d.decision === 'reject' && p.kind !== 'conflict') {
-      await this.cancel(m.id, actor, `Отклонено пользователем на шаге «${p.title}». Промежуточные результаты сохранены.`);
+      await this.cancel(m.id, actor, `Rejected by the user at "${p.title}". Intermediate results are saved.`);
       return this.get(m.id);
     }
     switch (p.kind) {
@@ -2169,7 +2169,7 @@ export class MissionEngine implements RuntimeService {
         if (d.decision === 'approve') {
           const answers = (d.answers ?? []).filter((x) => x && typeof x.question === 'string' && typeof x.answer === 'string' && x.answer.trim());
           const missing = questions.filter((q) => !answers.some((x) => x.question.trim() === q.trim()));
-          if (missing.length) throw new AppError('VALIDATION_FAILED', `Ответьте на вопросы: ${missing.slice(0, 3).join('; ')}`, { details: { missing } });
+          if (missing.length) throw new AppError('VALIDATION_FAILED', `Answer the questions: ${missing.slice(0, 3).join('; ')}`, { details: { missing } });
           for (const x of answers) this.message(m.id, 'user', x.answer.slice(0, 5000), { kind: 'answer', question: x.question.slice(0, 1000) });
         } else this.message(m.id, 'user', comment, { kind: 'feedback', target: 'analysis' });
         this.continueAt(m.id, 'analysis');
@@ -2200,9 +2200,9 @@ export class MissionEngine implements RuntimeService {
           this.patch(m.id, { extra_requirements: JSON.stringify(this.extrasOf(cur).filter((x) => x.id !== reqId)), revision: cur.revision + 1 });
           const n = this.normalizedOf(cur);
           if (n) this.patch(m.id, { normalized: JSON.stringify({ ...n, requirements: n.requirements.filter((r) => r.id !== reqId), constraints: n.constraints.filter((c) => c !== p.data.requirement) }) });
-          this.message(m.id, 'user', `Новое требование ${reqId} отменено пользователем; прежние требования сохраняются.`, { kind: 'conflict_resolution' });
+          this.message(m.id, 'user', `The new requirement ${reqId} was cancelled by the user; the earlier requirements stay.`, { kind: 'conflict_resolution' });
         } else {
-          this.message(m.id, 'user', d.decision === 'revise' ? `Разрешение конфликта от пользователя: ${comment}` : `Пользователь подтвердил: новое требование ${reqId ?? ''} имеет приоритет над противоречащими прежними.`, { kind: 'conflict_resolution' });
+          this.message(m.id, 'user', d.decision === 'revise' ? `Conflict resolution from the user: ${comment}` : `The user confirmed: the new requirement ${reqId ?? ''} takes priority over the conflicting earlier ones.`, { kind: 'conflict_resolution' });
         }
         this.continueAt(m.id, 'planning');
         break;
@@ -2217,7 +2217,7 @@ export class MissionEngine implements RuntimeService {
         else {
           const cur = this.row(m.id);
           this.patch(m.id, { review: JSON.stringify({ ...this.reviewOf(cur), apply: { decision: 'skipped', changeSetId: String(p.data.changeSetId), at: nowIso() } }) });
-          this.addLimitation(m.id, 'Изменения не применены к исходному проекту по решению пользователя; набор изменений сохранён для просмотра.');
+          this.addLimitation(m.id, 'The changes were not applied to the original project by the user\'s decision; the change set is kept for review.');
         }
         this.setStatus(m.id, 'verifying', { phase: 'summary', pending: null });
         this.kick(m.id);
@@ -2240,13 +2240,13 @@ export class MissionEngine implements RuntimeService {
     for (const sid of ids) {
       const s = this.rt.db.get<StepRow>('SELECT * FROM mission_steps WHERE id = ? AND mission_id = ?', sid, id);
       if (s && (s.status === 'failed' || s.status === 'cancelled')) {
-        this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify({ code: 'CANCELLED', message: 'Этап пропущен пользователем.', hint: '' }) });
-        this.addLimitation(id, `Этап «${s.title}» пропущен по решению пользователя.`, true);
+        this.patchStep(s.id, { status: 'skipped', finished_at: nowIso(), error: JSON.stringify({ code: 'CANCELLED', message: 'The stage was skipped by the user.', hint: '' }) });
+        this.addLimitation(id, `The stage "${s.title}" was skipped by the user's decision.`, true);
       }
     }
     // a non-step phase error: the phase is skipped explicitly (e.g. planning cannot be skipped — it is retried)
     if (!ids.length && p.resumePhase !== 'planning' && p.resumePhase !== 'analysis') {
-      this.addLimitation(id, `Этап «${PHASE_LABELS[p.resumePhase]}» пропущен по решению пользователя.`, true);
+      this.addLimitation(id, `The stage "${PHASE_LABELS[p.resumePhase]}" was skipped by the user's decision.`, true);
       const m = this.row(id);
       this.patch(id, { phase: this.nextPhase(m, p.resumePhase) });
       p.resumePhase = this.nextPhase(m, p.resumePhase);
@@ -2258,7 +2258,7 @@ export class MissionEngine implements RuntimeService {
     const m = this.row(id);
     const current = this.approvedChecksOf(m);
     for (const c of list) {
-      if (!projectChecks(this.rt, c.sourceId).some((d) => d.name === c.name)) throw new AppError('CHECK_NOT_DEFINED', `Проверка «${c.name}» не задана для проекта.`);
+      if (!projectChecks(this.rt, c.sourceId).some((d) => d.name === c.name)) throw new AppError('CHECK_NOT_DEFINED', `The check "${c.name}" is not defined for the project.`);
       if (!offered.some((o) => o.sourceId === c.sourceId && o.name === c.name) && !current.some((o) => o.sourceId === c.sourceId && o.name === c.name)) {
         // approving a check that was not offered is allowed (user knows the project), still logged
       }
@@ -2270,10 +2270,10 @@ export class MissionEngine implements RuntimeService {
     this.patch(id, { approved_checks: JSON.stringify(current) });
     const a = this.active.get(id);
     if (a) a.scope.approvedChecks = current;
-    if (list.length) this.rt.security.record({ actor, action: 'checks.approve', outcome: 'ok', taskId: id, resources: list.map((c) => `${c.sourceId}:${c.name}`), message: `Разрешён запуск проверок в рабочей копии для поручения ${m.key}: ${list.map((c) => c.name).join(', ')}` });
+    if (list.length) this.rt.security.record({ actor, action: 'checks.approve', outcome: 'ok', taskId: id, resources: list.map((c) => `${c.sourceId}:${c.name}`), message: `Running checks in a work copy was allowed for mission ${m.key}: ${list.map((c) => c.name).join(', ')}` });
   }
 
-  /** «Применить»: review of exactly this content → checks in a work copy → all gates of ChangeSetService.apply. */
+  /** "Apply": review of exactly this content → checks in a work copy → all gates of ChangeSetService.apply. */
   private async applyChanges(id: string, p: PendingApproval, o: { actor: string; confirmRisks: string[]; contentHash?: string | undefined; approvedScripts?: Record<string, string> | undefined }): Promise<void> {
     const m = this.row(id);
     const setId = String(p.data.changeSetId);
@@ -2281,7 +2281,7 @@ export class MissionEngine implements RuntimeService {
     const seenHash = o.contentHash ?? (p.data.contentHash as string | null);
     if (seenHash && set.review.contentHash !== seenHash) {
       this.patch(id, { pending: JSON.stringify({ ...p, data: { ...p.data, contentHash: set.review.contentHash, files: set.files.map((f) => ({ id: f.id, source: f.sourceName, path: f.path, op: f.op })) } }) });
-      throw new AppError('REVIEW_STALE', 'Набор изменений изменился после того, как вы его просмотрели. Просмотрите изменения снова.');
+      throw new AppError('REVIEW_STALE', 'The change set changed after you reviewed it. Review the changes again.');
     }
     if (!set.review.reviewed) this.deps.changes.review(setId, o.actor);
     const needsChecks = set.gates.some((g) => g.kind === 'project' && g.checksConfigured.length && !g.checksPassed);
@@ -2293,29 +2293,29 @@ export class MissionEngine implements RuntimeService {
     const res = await this.deps.changes.apply(setId, { actor: o.actor, confirmRisks: o.confirmRisks });
     const cur = this.row(id);
     this.patch(id, { review: JSON.stringify({ ...this.reviewOf(cur), apply: { decision: 'applied', changeSetId: setId, at: nowIso(), result: res.status } }) });
-    this.event(id, null, res.status === 'applied' ? 'info' : 'warn', 'changes.applied', res.status === 'applied' ? `Изменения применены к исходному проекту (${res.files.filter((f) => f.status === 'applied').length} файлов); создана резервная копия` : `Изменения применены частично (${res.status}) — подробности в наборе изменений`, { changeSetId: setId, status: res.status, backupId: res.backupId });
-    if (res.status !== 'applied') this.addLimitation(id, `Применение изменений: ${res.status === 'partially_applied' ? 'частично' : res.status}. Неприменённые файлы перечислены в наборе изменений.`, true);
+    this.event(id, null, res.status === 'applied' ? 'info' : 'warn', 'changes.applied', res.status === 'applied' ? `The changes were applied to the original project (${res.files.filter((f) => f.status === 'applied').length} files); a backup was created` : `The changes were partly applied (${res.status}): see the change set for details`, { changeSetId: setId, status: res.status, backupId: res.backupId });
+    if (res.status !== 'applied') this.addLimitation(id, `Applying changes: ${res.status === 'partially_applied' ? 'partial' : res.status}. Files that were not applied are listed in the change set.`, true);
   }
 
   // ============================================================================================ intervention (28.13)
 
   async pause(id: string, actor = 'user'): Promise<MissionView> {
     const m = this.row(id);
-    if (!WORKING_STATUSES.includes(m.status) && m.status !== 'awaiting_approval' && m.status !== 'needs_input') throw new AppError('INVALID_STATE_TRANSITION', 'Приостановить можно только выполняющееся поручение.');
-    this.setStatus(m.id, 'paused', { reason: 'Приостановлено пользователем. Выполняющиеся этапы завершатся, новые не начнутся.' });
+    if (!WORKING_STATUSES.includes(m.status) && m.status !== 'awaiting_approval' && m.status !== 'needs_input') throw new AppError('INVALID_STATE_TRANSITION', 'Only a running mission can be paused.');
+    this.setStatus(m.id, 'paused', { reason: 'Paused by the user. Running stages will finish; new ones will not start.' });
     this.rt.audit.record({ actor, action: 'mission.pause', target: m.key });
     return this.get(m.id);
   }
 
   async resume(id: string, actor = 'user'): Promise<MissionView> {
     const m = this.row(id);
-    if (m.status !== 'paused' && m.status !== 'needs_input') throw new AppError('INVALID_STATE_TRANSITION', 'Продолжить можно приостановленное поручение.');
+    if (m.status !== 'paused' && m.status !== 'needs_input') throw new AppError('INVALID_STATE_TRANSITION', 'Only a paused mission can be resumed.');
     const p = this.pendingOf(m);
-    if (m.status === 'needs_input' && p) throw new AppError('INVALID_STATE_TRANSITION', `Поручение ждёт решения: «${p.title}».`);
-    // steps of a live driver keep running; steps orphaned by a crash: read-only ones continue, the others wait for «Повторить»
+    if (m.status === 'needs_input' && p) throw new AppError('INVALID_STATE_TRANSITION', `The mission is waiting for a decision: "${p.title}".`);
+    // steps of a live driver keep running; steps orphaned by a crash: read-only ones continue, the others wait for "Retry"
     const live = this.active.get(m.id);
-    if (!live?.driving || live.controller.signal.aborted) for (const s of this.stepRows(m.id).filter((x) => x.status === 'running')) this.interruptStep(s, 'Прервано.');
-    const interrupted = this.stepRows(m.id).filter((s) => s.status === 'failed' && (s.error ?? '').includes('автоматически он не повторяется'));
+    if (!live?.driving || live.controller.signal.aborted) for (const s of this.stepRows(m.id).filter((x) => x.status === 'running')) this.interruptStep(s, 'Interrupted.');
+    const interrupted = this.stepRows(m.id).filter((s) => s.status === 'failed' && (s.error ?? '').includes('is not repeated automatically'));
     this.rt.audit.record({ actor, action: 'mission.resume', target: m.key });
     if (p) {
       this.setStatus(m.id, p.kind === 'plan' || p.kind === 'strategy' || p.kind === 'apply_changes' ? 'awaiting_approval' : 'needs_input', { reason: p.title });
@@ -2323,7 +2323,7 @@ export class MissionEngine implements RuntimeService {
     }
     if (interrupted.length) {
       this.setStatus(m.id, statusForPhase(m.phase), { reason: null });
-      this.ask(m.id, 'error', 'Этап был прерван', `Этапы ${interrupted.map((s) => `«${s.title}»`).join(', ')} могли частично выполнить действия. Проверьте результаты и повторите или пропустите их.`, { stepIds: interrupted.map((s) => s.id) }, m.phase, 'needs_input');
+      this.ask(m.id, 'error', 'A stage was interrupted', `The stages ${interrupted.map((s) => `"${s.title}"`).join(', ')} may have partly performed actions. Check the results, then retry or skip them.`, { stepIds: interrupted.map((s) => s.id) }, m.phase, 'needs_input');
       return this.get(m.id);
     }
     const a = this.active.get(m.id);
@@ -2333,9 +2333,9 @@ export class MissionEngine implements RuntimeService {
     return this.get(m.id);
   }
 
-  async cancel(id: string, actor = 'user', reason = 'Отменено пользователем. Промежуточные результаты сохранены.'): Promise<MissionView> {
+  async cancel(id: string, actor = 'user', reason = 'Cancelled by the user. Intermediate results are saved.'): Promise<MissionView> {
     const m = this.row(id);
-    if (TERMINAL_STATUSES.includes(m.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Поручение уже завершено.');
+    if (TERMINAL_STATUSES.includes(m.status)) throw new AppError('INVALID_STATE_TRANSITION', 'The mission has already finished.');
     this.setStatus(m.id, 'cancelled', { reason, pending: null });
     const a = this.active.get(m.id);
     if (a) {
@@ -2349,14 +2349,14 @@ export class MissionEngine implements RuntimeService {
     return this.get(m.id);
   }
 
-  /** «Добавить требование» / «Уточнить критерии» / constraint: affected parts of the plan are recalculated (28.13). */
+  /** "Add a requirement" / "Refine criteria" / constraint: affected parts of the plan are recalculated (28.13). */
   addRequirement(id: string, input: { text: string; kind?: 'requirement' | 'criterion' | 'constraint'; verification?: CriterionVerification }, actor = 'user'): MissionView {
     const m = this.row(id);
-    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение отменено.');
+    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'The mission was cancelled.');
     const text = String(input.text ?? '').trim();
-    if (text.length < 3 || text.length > 2000) throw new AppError('VALIDATION_FAILED', 'Требование: от 3 до 2000 символов.');
+    if (text.length < 3 || text.length > 2000) throw new AppError('VALIDATION_FAILED', 'A requirement is 3 to 2000 characters long.');
     const kind = input.kind ?? 'requirement';
-    if (!['requirement', 'criterion', 'constraint'].includes(kind)) throw new AppError('VALIDATION_FAILED', 'Вид: requirement, criterion или constraint.');
+    if (!['requirement', 'criterion', 'constraint'].includes(kind)) throw new AppError('VALIDATION_FAILED', 'Kind: requirement, criterion or constraint.');
     const extras = this.extrasOf(m);
     const rid = kind === 'criterion' ? `UC${extras.filter((x) => x.kind === 'criterion').length + 1}` : `U${extras.filter((x) => x.kind !== 'criterion' && x.kind !== 'option').length + 1}`;
     extras.push({ id: rid, text, kind, addedAt: nowIso() });
@@ -2364,7 +2364,7 @@ export class MissionEngine implements RuntimeService {
     const p: Partial<Record<keyof MissionRow, string | number | null>> = { extra_requirements: JSON.stringify(extras), revision: m.revision + 1 };
     if (kind === 'criterion') {
       const verification = input.verification ?? 'review';
-      if (!['artifact_exists', 'check_command', 'review', 'source_verification', 'manual'].includes(verification)) throw new AppError('VALIDATION_FAILED', 'Способ проверки критерия неизвестен.');
+      if (!['artifact_exists', 'check_command', 'review', 'source_verification', 'manual'].includes(verification)) throw new AppError('VALIDATION_FAILED', 'Unknown criterion verification method.');
       p.criteria = JSON.stringify([...this.criteriaOf(m), { id: rid, text, verification, status: 'pending', evidence: '', notes: '', decidedBy: null, source: 'user' } satisfies Criterion]);
     } else if (n) {
       p.normalized = JSON.stringify(kind === 'constraint' ? { ...n, constraints: [...n.constraints, text] } : { ...n, requirements: [...n.requirements, { id: rid, text, source: 'user' }] });
@@ -2374,7 +2374,7 @@ export class MissionEngine implements RuntimeService {
     this.patch(m.id, p);
     this.message(m.id, 'user', text, { kind: 'requirement', id: rid, type: kind });
     this.rt.audit.record({ actor, action: 'mission.requirement', target: m.key, details: { id: rid, kind } });
-    this.event(m.id, null, 'info', 'mission.requirement', `Добавлено ${kind === 'criterion' ? 'критерий' : kind === 'constraint' ? 'ограничение' : 'требование'} ${rid}: ${clip(text, 200)}${kind !== 'criterion' && hasPlan ? ' — план будет пересчитан, выполненные этапы сохраняются' : ''}`);
+    this.event(m.id, null, 'info', 'mission.requirement', `Added ${kind === 'criterion' ? 'criterion' : kind === 'constraint' ? 'constraint' : 'requirement'} ${rid}: ${clip(text, 200)}${kind !== 'criterion' && hasPlan ? '; the plan will be recalculated, completed stages are kept' : ''}`);
     this.afterChange(m.id, kind === 'criterion' ? 'verification' : hasPlan ? 'planning' : null);
     return this.get(m.id);
   }
@@ -2402,18 +2402,18 @@ export class MissionEngine implements RuntimeService {
     // working: the driver re-plans at the next safe boundary; paused / needs_input: on continue
   }
 
-  /** «Уточнить критерии готовности»: the user's list replaces the current one; unchanged criteria keep their status. */
+  /** "Refine acceptance criteria": the user's list replaces the current one; unchanged criteria keep their status. */
   updateCriteria(id: string, list: { id?: string; text: string; verification?: CriterionVerification }[], actor = 'user'): MissionView {
     const m = this.row(id);
-    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение отменено.');
-    if (!Array.isArray(list) || list.length > 50) throw new AppError('VALIDATION_FAILED', 'Критерии — список (до 50).');
+    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'The mission was cancelled.');
+    if (!Array.isArray(list) || list.length > 50) throw new AppError('VALIDATION_FAILED', 'Criteria must be a list (up to 50).');
     const prev = this.criteriaOf(m);
     const used = new Set<string>();
     const next: Criterion[] = list.map((c, i) => {
       const text = String(c.text ?? '').trim();
-      if (text.length < 3) throw new AppError('VALIDATION_FAILED', `Критерий №${i + 1} пустой.`);
+      if (text.length < 3) throw new AppError('VALIDATION_FAILED', `Criterion #${i + 1} is empty.`);
       const verification = c.verification ?? prev.find((p) => p.id === c.id)?.verification ?? 'review';
-      if (!['artifact_exists', 'check_command', 'review', 'source_verification', 'manual'].includes(verification)) throw new AppError('VALIDATION_FAILED', `Критерий №${i + 1}: неизвестный способ проверки.`);
+      if (!['artifact_exists', 'check_command', 'review', 'source_verification', 'manual'].includes(verification)) throw new AppError('VALIDATION_FAILED', `Criterion #${i + 1}: unknown verification method.`);
       let cid = c.id && /^[A-Za-z0-9_-]{1,20}$/.test(c.id) ? c.id : `UC${i + 1}`;
       while (used.has(cid)) cid = `${cid}x`;
       used.add(cid);
@@ -2422,41 +2422,41 @@ export class MissionEngine implements RuntimeService {
     });
     this.patch(m.id, { criteria: JSON.stringify(next), revision: m.revision + 1 });
     this.rt.audit.record({ actor, action: 'mission.criteria', target: m.key, details: { count: next.length } });
-    this.event(m.id, null, 'info', 'mission.criteria', `Критерии готовности обновлены пользователем (${next.length})`);
+    this.event(m.id, null, 'info', 'mission.criteria', `Acceptance criteria updated by the user (${next.length})`);
     if (next.some((c) => c.status === 'pending') && this.row(m.id).phase !== 'analysis') this.afterChange(m.id, 'verification');
     return this.get(m.id);
   }
 
-  /** «Изменить план»: the user's plan is validated by the same rules as the planner's. */
+  /** "Edit plan": the user's plan is validated by the same rules as the planner's. */
   updatePlan(id: string, steps: PlanStep[], actor = 'user'): MissionView {
     const m = this.row(id);
-    if (TERMINAL_STATUSES.includes(m.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Поручение завершено — добавьте требование, чтобы продолжить.');
-    if (!Array.isArray(steps)) throw new AppError('VALIDATION_FAILED', 'План — список шагов.');
+    if (TERMINAL_STATUSES.includes(m.status)) throw new AppError('INVALID_STATE_TRANSITION', 'The mission has finished: add a requirement to continue.');
+    if (!Array.isArray(steps)) throw new AppError('VALIDATION_FAILED', 'A plan is a list of steps.');
     const norm: PlanStep[] = steps.map((s) => ({ id: String(s.id), title: String(s.title ?? '').slice(0, 300), goal: String(s.goal ?? s.title ?? '').slice(0, 2000), role: s.role, inputs: (s.inputs ?? []).map(String), expected_output: String(s.expected_output ?? ''), depends_on: (s.depends_on ?? []).map(String), tools: (s.tools ?? []).map(String), done_criteria: (s.done_criteria ?? []).map(String), verification: String(s.verification ?? ''), risk: (['low', 'medium', 'high'].includes(s.risk) ? s.risk : 'medium') as PlanStep['risk'], keep_existing: s.keep_existing !== false }));
-    for (const s of norm) if (!(s.role in ROLE_AGENTS)) throw new AppError('VALIDATION_FAILED', `${s.id}: неизвестная роль «${s.role}».`);
+    for (const s of norm) if (!(s.role in ROLE_AGENTS)) throw new AppError('VALIDATION_FAILED', `${s.id}: unknown role "${s.role}".`);
     const check = validatePlan(norm, { mode: m.mode, availableRoles: this.availableRoles(), completed: new Set(this.currentExecSteps(m.id).filter((s) => s.status === 'completed').map((s) => s.plan_step!)) });
     if (check.errors.length) throw new AppError('VALIDATION_FAILED', check.errors.join('; '), { details: check });
     this.installPlan(m, check.steps);
     this.rt.audit.record({ actor, action: 'mission.plan.edit', target: m.key, details: { steps: check.steps.length } });
-    this.event(m.id, null, 'info', 'plan.edited', `План изменён пользователем (${check.steps.length} шагов)`, { warnings: check.warnings });
+    this.event(m.id, null, 'info', 'plan.edited', `Plan edited by the user (${check.steps.length} steps)`, { warnings: check.warnings });
     const cur = this.row(m.id);
     const p = this.pendingOf(cur);
     if (p?.kind === 'plan') this.patch(m.id, { pending: JSON.stringify({ ...p, data: { ...p.data, plan: check.steps, warnings: check.warnings } }) });
     return this.get(m.id);
   }
 
-  /** «Попросить исследовать дополнительный вариант». */
+  /** "Ask to research another option". */
   researchOption(id: string, text: string, actor = 'user'): MissionView {
     const m = this.row(id);
-    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение отменено.');
+    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'The mission was cancelled.');
     const t = String(text ?? '').trim();
-    if (t.length < 3 || t.length > 2000) throw new AppError('VALIDATION_FAILED', 'Опишите вариант (3–2000 символов).');
+    if (t.length < 3 || t.length > 2000) throw new AppError('VALIDATION_FAILED', 'Describe the option (3–2000 characters).');
     const extras = this.extrasOf(m);
     extras.push({ id: `O${extras.filter((x) => x.kind === 'option').length + 1}`, text: t, kind: 'option', addedAt: nowIso() });
     this.patch(m.id, { extra_requirements: JSON.stringify(extras), plan_stale: 2, revision: m.revision + 1 });
     this.message(m.id, 'user', t, { kind: 'option' });
     this.rt.audit.record({ actor, action: 'mission.option', target: m.key });
-    this.event(m.id, null, 'info', 'mission.option', `Пользователь попросил исследовать вариант: ${clip(t, 200)}`);
+    this.event(m.id, null, 'info', 'mission.option', `The user asked to research an option: ${clip(t, 200)}`);
     const cur = this.row(m.id);
     if (['analyzing', 'researching'].includes(cur.status)) return this.get(m.id); // strategy has not run yet: it will include the option
     if (cur.status === 'planning' || cur.status === 'awaiting_approval' || TERMINAL_STATUSES.includes(cur.status)) this.continueAt(m.id, 'strategy');
@@ -2467,19 +2467,19 @@ export class MissionEngine implements RuntimeService {
     const m = this.row(id);
     const options = parseJson<SolutionOption[]>(m.options, []);
     const option = options.find((o) => o.id === optionId);
-    if (!option) throw new AppError('NOT_FOUND', `Вариант ${optionId} не найден.`);
+    if (!option) throw new AppError('NOT_FOUND', `Option ${optionId} not found.`);
     const prev = parseJson<Strategy | null>(m.strategy, null);
     if (prev?.selected === optionId) return;
-    const strategy: Strategy = { selected: option.id, option, rationale: `Выбрано пользователем${prev ? ` вместо варианта ${prev.selected}` : ''}.`, tradeoffs: option.cons, selectedBy: 'user' };
+    const strategy: Strategy = { selected: option.id, option, rationale: `Chosen by the user${prev ? ` instead of option ${prev.selected}` : ''}.`, tradeoffs: option.cons, selectedBy: 'user' };
     this.patch(id, { strategy: JSON.stringify(strategy), plan_stale: m.plan ? 1 : 0, revision: m.revision + 1 });
     this.rt.audit.record({ actor, action: 'mission.strategy', target: m.key, details: { optionId } });
-    this.event(id, null, 'info', 'strategy.user', `Пользователь выбрал вариант ${option.id} «${option.name}»`);
+    this.event(id, null, 'info', 'strategy.user', `The user chose option ${option.id} "${option.name}"`);
   }
 
-  /** «Выбрать другой способ решения». */
+  /** "Choose another solution". */
   async selectStrategy(id: string, optionId: string, actor = 'user'): Promise<MissionView> {
     const m = this.row(id);
-    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение отменено.');
+    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'The mission was cancelled.');
     const p = this.pendingOf(m);
     if (p?.kind === 'strategy' && m.status !== 'paused') return this.decide(m.id, { decision: 'approve', optionId, pendingId: p.id }, actor);
     this.chooseOption(m.id, optionId, actor);
@@ -2487,10 +2487,10 @@ export class MissionEngine implements RuntimeService {
     return this.get(m.id);
   }
 
-  /** «Запретить инструмент»: applies immediately, including to steps that are already running. */
+  /** "Deny a tool": applies immediately, including to steps that are already running. */
   denyTool(id: string, tool: string, actor = 'user'): MissionView {
     const m = this.row(id);
-    if (!KNOWN_TOOLS.has(tool)) throw new AppError('VALIDATION_FAILED', `Неизвестный инструмент: ${tool}`);
+    if (!KNOWN_TOOLS.has(tool)) throw new AppError('VALIDATION_FAILED', `Unknown tool: ${tool}`);
     const policy = this.policyOf(m);
     if (!policy.deniedTools.includes(tool)) policy.deniedTools.push(tool);
     this.patch(m.id, { policy: JSON.stringify(policy) });
@@ -2500,22 +2500,22 @@ export class MissionEngine implements RuntimeService {
       if (!a.scope.deniedTools.includes(tool)) a.scope.deniedTools.push(tool);
     }
     this.rt.audit.record({ actor, action: 'mission.deny_tool', target: m.key, details: { tool } });
-    this.rt.security.record({ actor, action: 'tool.deny', outcome: 'ok', taskId: m.id, resources: [tool], message: `Инструмент ${tool} запрещён для поручения ${m.key}` });
-    this.event(m.id, null, 'info', 'mission.deny_tool', `Инструмент ${tool} запрещён пользователем для этого поручения`);
+    this.rt.security.record({ actor, action: 'tool.deny', outcome: 'ok', taskId: m.id, resources: [tool], message: `The tool ${tool} was denied for mission ${m.key}` });
+    this.event(m.id, null, 'info', 'mission.deny_tool', `The tool ${tool} was denied by the user for this mission`);
     return this.get(m.id);
   }
 
-  /** «Повторить неудачный этап». */
+  /** "Retry a failed stage". */
   retryStep(id: string, stepId: string, actor = 'user'): MissionView {
     const m = this.row(id);
-    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение отменено.');
+    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'The mission was cancelled.');
     const s = this.rt.db.get<StepRow>('SELECT * FROM mission_steps WHERE (id = ? OR plan_step = ?) AND mission_id = ? ORDER BY seq DESC LIMIT 1', stepId, stepId, m.id);
-    if (!s) throw new AppError('NOT_FOUND', 'Этап не найден.');
-    if (!['failed', 'cancelled', 'skipped'].includes(s.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Повторить можно только неудачный, отменённый или пропущенный этап.');
-    if (WORKING_STATUSES.includes(m.status) && s.phase !== 'execution') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение выполняется — дождитесь паузы или ошибки.');
+    if (!s) throw new AppError('NOT_FOUND', 'Stage not found.');
+    if (!['failed', 'cancelled', 'skipped'].includes(s.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Only a failed, cancelled or skipped stage can be retried.');
+    if (WORKING_STATUSES.includes(m.status) && s.phase !== 'execution') throw new AppError('INVALID_STATE_TRANSITION', 'The mission is running: wait for a pause or an error.');
     this.patchStep(s.id, { status: 'pending', error: null, finished_at: null });
     this.rt.audit.record({ actor, action: 'mission.retry_step', target: m.key, details: { stepId: s.id } });
-    this.event(m.id, s.id, 'info', 'step.retry', `Пользователь повторяет этап «${s.title}»`);
+    this.event(m.id, s.id, 'info', 'step.retry', `The user retries the stage "${s.title}"`);
     if (WORKING_STATUSES.includes(m.status)) return this.get(m.id);
     if (m.status === 'paused') return this.get(m.id);
     const phase: MissionPhase = s.phase === 'execution' || s.phase === 'fix' ? 'execution' : s.phase;
@@ -2524,35 +2524,35 @@ export class MissionEngine implements RuntimeService {
     return this.get(m.id);
   }
 
-  /** «Повторить этап» for a whole phase (e.g. verification after the user fixed checks). */
+  /** "Retry stage" for a whole phase (e.g. verification after the user fixed checks). */
   retryPhase(id: string, phase: MissionPhase, actor = 'user'): MissionView {
     const m = this.row(id);
-    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'Поручение отменено.');
-    if (!['analysis', 'context', 'research', 'strategy', 'planning', 'execution', 'verification', 'summary'].includes(phase)) throw new AppError('VALIDATION_FAILED', 'Неизвестный этап.');
-    if (WORKING_STATUSES.includes(m.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Поручение выполняется.');
-    if (m.mode === 'plan' && ['execution', 'verification'].includes(phase)) throw new AppError('VALIDATION_FAILED', 'В режиме «Исследовать и спланировать» нет выполнения.');
+    if (m.status === 'cancelled') throw new AppError('INVALID_STATE_TRANSITION', 'The mission was cancelled.');
+    if (!['analysis', 'context', 'research', 'strategy', 'planning', 'execution', 'verification', 'summary'].includes(phase)) throw new AppError('VALIDATION_FAILED', 'Unknown stage.');
+    if (WORKING_STATUSES.includes(m.status)) throw new AppError('INVALID_STATE_TRANSITION', 'The mission is running.');
+    if (m.mode === 'plan' && ['execution', 'verification'].includes(phase)) throw new AppError('VALIDATION_FAILED', 'There is no execution in "Research and plan" mode.');
     // re-running a phase means a new revision: completed agent steps of the old revision are not reused for it
     this.patch(m.id, { revision: m.revision + 1, ...(phase === 'summary' ? { summary: null } : {}) });
     this.rt.audit.record({ actor, action: 'mission.retry_phase', target: m.key, details: { phase } });
-    this.continueAt(m.id, phase, `повтор этапа «${PHASE_LABELS[phase]}» по решению пользователя`);
+    this.continueAt(m.id, phase, `retry of the stage "${PHASE_LABELS[phase]}" by the user's decision`);
     return this.get(m.id);
   }
 
   /** Manual criteria are confirmed only by the user (28.16); a finished mission's status is recomputed. */
   confirmCriterion(id: string, criterionId: string, status: 'met' | 'partially_met' | 'not_met', evidence: string, actor = 'user'): MissionView {
     const m = this.row(id);
-    if (!['met', 'partially_met', 'not_met'].includes(status)) throw new AppError('VALIDATION_FAILED', 'Статус: met, partially_met или not_met.');
+    if (!['met', 'partially_met', 'not_met'].includes(status)) throw new AppError('VALIDATION_FAILED', 'Status: met, partially_met or not_met.');
     const ev = String(evidence ?? '').trim();
-    if (status !== 'not_met' && ev.length < 3) throw new AppError('VALIDATION_FAILED', 'Укажите, чем подтверждается выполнение.');
+    if (status !== 'not_met' && ev.length < 3) throw new AppError('VALIDATION_FAILED', 'Say what confirms that the criterion is met.');
     const criteria = this.criteriaOf(m);
     const c = criteria.find((x) => x.id === criterionId);
-    if (!c) throw new AppError('NOT_FOUND', `Критерий ${criterionId} не найден.`);
-    Object.assign(c, { status, evidence: ev, notes: `Подтверждено пользователем (${nowIso().slice(0, 16).replace('T', ' ')}).`, decidedBy: 'user' });
+    if (!c) throw new AppError('NOT_FOUND', `Criterion ${criterionId} not found.`);
+    Object.assign(c, { status, evidence: ev, notes: `Confirmed by the user (${nowIso().slice(0, 16).replace('T', ' ')}).`, decidedBy: 'user' });
     this.patch(m.id, { criteria: JSON.stringify(criteria) });
     this.rt.audit.record({ actor, action: 'mission.criterion', target: m.key, details: { criterionId, status } });
-    this.event(m.id, null, 'info', 'criterion.user', `Пользователь отметил критерий ${criterionId}: ${status}`);
+    this.event(m.id, null, 'info', 'criterion.user', `The user marked criterion ${criterionId}: ${status}`);
     if (TERMINAL_STATUSES.includes(m.status) && m.status !== 'cancelled') {
-      this.setStatus(m.id, 'verifying', { phase: 'summary', reason: 'пересчёт итога после решения пользователя' });
+      this.setStatus(m.id, 'verifying', { phase: 'summary', reason: 'recalculating the outcome after the user\'s decision' });
       this.kick(m.id);
     }
     return this.get(m.id);
@@ -2560,7 +2560,7 @@ export class MissionEngine implements RuntimeService {
 
   updateLimits(id: string, patch: Partial<MissionLimits>, actor = 'user'): MissionView {
     const m = this.row(id);
-    if (TERMINAL_STATUSES.includes(m.status)) throw new AppError('INVALID_STATE_TRANSITION', 'Поручение завершено.');
+    if (TERMINAL_STATUSES.includes(m.status)) throw new AppError('INVALID_STATE_TRANSITION', 'The mission has finished.');
     const limits = this.normalizeLimits(patch, this.limitsOf(m));
     this.patch(m.id, { limits: JSON.stringify(limits) });
     const a = this.active.get(m.id);
@@ -2572,7 +2572,7 @@ export class MissionEngine implements RuntimeService {
   rename(id: string, title: string, actor = 'user'): MissionView {
     const m = this.row(id);
     const t = String(title ?? '').trim();
-    if (t.length < 2 || t.length > 300) throw new AppError('VALIDATION_FAILED', 'Название: от 2 до 300 символов.');
+    if (t.length < 2 || t.length > 300) throw new AppError('VALIDATION_FAILED', 'A title is 2 to 300 characters long.');
     this.patch(m.id, { title: t });
     this.rt.audit.record({ actor, action: 'mission.rename', target: m.key });
     return this.get(m.id);
@@ -2607,12 +2607,12 @@ export class MissionEngine implements RuntimeService {
     };
   }
 
-  /** «Обсуждение задачи»: answers are grounded in the mission state; suggestions are applied only by the user. */
+  /** "Discuss the task": answers are grounded in the mission state; suggestions are applied only by the user. */
   async discuss(id: string, question: string, actor = 'user'): Promise<{ messageId: string; answer: AdvisorOutput }> {
     const m = this.row(id);
     const q = String(question ?? '').trim();
-    if (q.length < 2 || q.length > 5000) throw new AppError('VALIDATION_FAILED', 'Вопрос: от 2 до 5000 символов.');
-    if (!this.enabledAgents().has('mission-advisor')) throw new AppError('AGENT_NOT_ENABLED', 'Агент «Консультант поручения» не включён.', { hint: 'Подготовьте агентов поручений.' });
+    if (q.length < 2 || q.length > 5000) throw new AppError('VALIDATION_FAILED', 'A question is 2 to 5000 characters long.');
+    if (!this.enabledAgents().has('mission-advisor')) throw new AppError('AGENT_NOT_ENABLED', 'The "Mission advisor" agent is not enabled.', { hint: 'Set up the mission agents.' });
     this.message(m.id, 'user', q, { kind: 'question' });
     const { pkg, config } = await this.deps.agents.forRun('mission-advisor');
     const a = this.activate(m.id);
@@ -2627,9 +2627,9 @@ export class MissionEngine implements RuntimeService {
   async applySuggestion(id: string, messageId: string, index: number, actor = 'user'): Promise<MissionView> {
     const m = this.row(id);
     const msg = this.rt.db.get<{ data: string | null; role: string }>('SELECT data, role FROM mission_messages WHERE id = ? AND mission_id = ?', messageId, m.id);
-    if (!msg || msg.role !== 'advisor') throw new AppError('NOT_FOUND', 'Сообщение консультанта не найдено.');
+    if (!msg || msg.role !== 'advisor') throw new AppError('NOT_FOUND', 'Advisor message not found.');
     const s = parseJson<{ suggested_actions?: AdvisorOutput['suggested_actions'] }>(msg.data, {}).suggested_actions?.[index];
-    if (!s) throw new AppError('NOT_FOUND', 'Предложение не найдено.');
+    if (!s) throw new AppError('NOT_FOUND', 'Suggestion not found.');
     switch (s.action) {
       case 'add_requirement':
         return this.addRequirement(m.id, { text: s.detail }, actor);
@@ -2640,13 +2640,13 @@ export class MissionEngine implements RuntimeService {
       case 'change_strategy': {
         const opts = parseJson<SolutionOption[]>(m.options, []);
         const o = opts.find((x) => x.id === s.detail.trim() || x.name.toLowerCase() === s.detail.trim().toLowerCase());
-        if (!o) throw new AppError('NOT_FOUND', `Вариант «${s.detail}» не найден среди рассмотренных.`);
+        if (!o) throw new AppError('NOT_FOUND', `The option "${s.detail}" is not among the options considered.`);
         return this.selectStrategy(m.id, o.id, actor);
       }
       case 'retry_step':
         return this.retryStep(m.id, s.detail.trim(), actor);
       default:
-        throw new AppError('VALIDATION_FAILED', 'Это предложение не требует действия.');
+        throw new AppError('VALIDATION_FAILED', 'This suggestion needs no action.');
     }
   }
 
@@ -2674,7 +2674,7 @@ export class MissionEngine implements RuntimeService {
     return { installed, enabled };
   }
 
-  /** «Перед выполнением оцени доступность моделей и необходимых инструментов» (28.15). */
+  /** "Before running, assess the availability of models and required tools" (28.15). */
   async preflight(input: { scope?: Partial<MissionScope>; mode?: 'plan' | 'execute' } = {}): Promise<MissionPreflight> {
     const scope = this.normalizeScope(input.scope);
     const mode = input.mode ?? 'execute';
@@ -2705,20 +2705,20 @@ export class MissionEngine implements RuntimeService {
         }
       }
       agents.push({ id, role: roleOf(id), installed: !!r, enabled: !!r?.enabled, missingGrants: missing, route, routeError });
-      if (CORE_AGENTS.includes(id) && !r?.enabled) problems.push(`Агент «${id}» не ${r ? 'включён' : 'установлен'} — нажмите «Подготовить агентов».`);
+      if (CORE_AGENTS.includes(id) && !r?.enabled) problems.push(`The agent "${id}" is not ${r ? 'enabled' : 'installed'}: press "Set up agents".`);
       if (r?.enabled && routeError && CORE_AGENTS.includes(id)) problems.push(`${id}: ${routeError}`);
-      if (r?.enabled && missing.length) warnings.push(`${id}: не выданы разрешения ${missing.join(', ')} — соответствующие инструменты будут отклонены.`);
+      if (r?.enabled && missing.length) warnings.push(`${id}: permissions not granted: ${missing.join(', ')}; the matching tools will be denied.`);
     }
-    if (agents.some((x) => x.route?.locality === 'cloud')) warnings.push('Часть этапов будет выполнена облачной моделью: содержимое выбранных материалов будет отправлено провайдеру.');
-    if (agents.every((x) => !x.route || x.route.locality === 'local') && agents.some((x) => x.route)) warnings.push('Все этапы выполняются локальными моделями: данные не покидают компьютер.');
-    if (confidential) warnings.push('В области поручения есть конфиденциальные источники: используются только локальные модели.');
-    if (!scope.allowWeb) warnings.push('Веб-доступ не разрешён: внешние источники изучаться не будут (это будет указано в итоге).');
+    if (agents.some((x) => x.route?.locality === 'cloud')) warnings.push('Some stages will run on a cloud model: the content of the selected materials will be sent to the provider.');
+    if (agents.every((x) => !x.route || x.route.locality === 'local') && agents.some((x) => x.route)) warnings.push('Every stage runs on local models: data does not leave the computer.');
+    if (confidential) warnings.push('The mission scope has confidential sources: only local models are used.');
+    if (!scope.allowWeb) warnings.push('Web access is not allowed: external sources will not be studied (the summary will say so).');
     const projects = (scope.kind === 'public' ? [] : this.deps.sources.list('project').filter((s) => !scope.sourceIds.length || scope.sourceIds.includes(s.id))).map((s) => ({ sourceId: s.id, name: s.name, accessMode: s.accessMode, accessModeLabel: modeLabel(s.accessMode), checks: s.checks.map((c) => c.name) }));
     if (mode === 'execute') {
       for (const p of projects) {
-        if (p.accessMode === 'read_only') warnings.push(`Проект «${p.name}» в режиме «${p.accessModeLabel}»: изменения в нём подготовлены не будут.`);
-        else if (p.accessMode === 'prepare') warnings.push(`Проект «${p.name}» в режиме «${p.accessModeLabel}»: изменения будут подготовлены, но проверки в рабочей копии не запустятся.`);
-        if (!p.checks.length && p.accessMode !== 'read_only') warnings.push(`Для проекта «${p.name}» не заданы команды проверки — корректность изменений не будет подтверждена автоматически.`);
+        if (p.accessMode === 'read_only') warnings.push(`The project "${p.name}" is in "${p.accessModeLabel}" mode: no changes will be prepared in it.`);
+        else if (p.accessMode === 'prepare') warnings.push(`The project "${p.name}" is in "${p.accessModeLabel}" mode: changes will be prepared, but checks will not run in a work copy.`);
+        if (!p.checks.length && p.accessMode !== 'read_only') warnings.push(`No check commands are set for the project "${p.name}": the correctness of the changes will not be confirmed automatically.`);
       }
     }
     return { ok: problems.length === 0, aiMode: String(this.rt.settings.get<string>('ai.mode') ?? 'local'), offline: !!this.rt.app.appSettings.get<boolean>('net.offline'), agents, projects, problems, warnings };
@@ -2757,12 +2757,12 @@ export class MissionEngine implements RuntimeService {
   start(): void {
     const rows = this.rt.db.all<{ id: string; status: MissionStatus }>(`SELECT id, status FROM missions WHERE status IN (${WORKING_STATUSES.map(() => '?').join(',')})`, ...WORKING_STATUSES);
     for (const r of rows) {
-      for (const s of this.stepRows(r.id).filter((x) => x.status === 'running')) this.interruptStep(s, 'Прервано перезапуском приложения.');
-      this.setStatus(r.id, 'paused', { reason: 'Восстановлено после перезапуска приложения. Выполненные этапы и результаты сохранены; нажмите «Продолжить».' });
-      this.event(r.id, null, 'warn', 'mission.recovered', 'Поручение было прервано и восстановлено после перезапуска');
+      for (const s of this.stepRows(r.id).filter((x) => x.status === 'running')) this.interruptStep(s, 'Interrupted by an application restart.');
+      this.setStatus(r.id, 'paused', { reason: 'Recovered after an application restart. Completed stages and results are saved; press "Resume".' });
+      this.event(r.id, null, 'warn', 'mission.recovered', 'The mission was interrupted and recovered after a restart');
     }
     // steps left "running" under a paused / waiting mission (e.g. crash during pause)
-    for (const s of this.rt.db.all<StepRow>("SELECT s.* FROM mission_steps s JOIN missions m ON m.id = s.mission_id WHERE s.status = 'running'")) this.interruptStep(s, 'Прервано перезапуском приложения.');
+    for (const s of this.rt.db.all<StepRow>("SELECT s.* FROM mission_steps s JOIN missions m ON m.id = s.mission_id WHERE s.status = 'running'")) this.interruptStep(s, 'Interrupted by an application restart.');
   }
 
   async stop(): Promise<void> {
@@ -2774,7 +2774,7 @@ export class MissionEngine implements RuntimeService {
       if (a.driving) waits.push(a.driving);
       try {
         const m = this.row(id);
-        if (WORKING_STATUSES.includes(m.status)) this.setStatus(id, 'paused', { reason: 'Прервано закрытием системы. Нажмите «Продолжить», чтобы возобновить.' });
+        if (WORKING_STATUSES.includes(m.status)) this.setStatus(id, 'paused', { reason: 'Interrupted because the system was closed. Press "Resume" to continue.' });
       } catch {
         // closing
       }

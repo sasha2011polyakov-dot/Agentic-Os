@@ -6,31 +6,31 @@ export type AccessMode = 'read_only' | 'prepare' | 'workcopy' | 'apply';
 export const ACCESS_MODES: { id: AccessMode; label: string; short: string; allows: string[]; forbids: string[] }[] = [
   {
     id: 'read_only',
-    label: 'Только изучение',
-    short: 'Агенты читают и анализируют проект. Файлы проекта не меняются.',
-    allows: ['чтение файлов и документации', 'поиск и индексация (во внутреннем хранилище приложения)', 'анализ архитектуры и уязвимостей', 'план изменений и технические задания'],
-    forbids: ['изменение, удаление и перемещение файлов', 'подготовка изменений файлов', 'запуск команд и скриптов', 'установка зависимостей', 'операции Git, отправка изменений'],
+    label: 'Read only',
+    short: 'Agents read and analyze the project. Project files do not change.',
+    allows: ['reading files and documentation', 'search and indexing (in the internal storage of the application)', 'architecture and vulnerability analysis', 'change plans and specifications'],
+    forbids: ['changing, deleting and moving files', 'preparing file changes', 'running commands and scripts', 'installing dependencies', 'Git operations, pushing changes'],
   },
   {
     id: 'prepare',
-    label: 'Подготовить изменения',
-    short: 'Агенты готовят предложения изменений. Они хранятся отдельно; исходные файлы не меняются.',
-    allows: ['всё из «Только изучение»', 'предложения изменений файлов (diff, patch)', 'просмотр и скачивание патча'],
-    forbids: ['изменение исходных файлов', 'запуск команд и проверок', 'операции Git'],
+    label: 'Prepare changes',
+    short: 'Agents prepare proposed changes. They are kept separately; the original files do not change.',
+    allows: ['everything in "Read only"', 'proposed file changes (diff, patch)', 'viewing and downloading the patch'],
+    forbids: ['changing the original files', 'running commands and checks', 'Git operations'],
   },
   {
     id: 'workcopy',
-    label: 'Работать в копии',
-    short: 'Изменения применяются к отдельной рабочей копии в папке приложения; там же запускаются проверки. Исходный проект не меняется.',
-    allows: ['всё из «Подготовить изменения»', 'рабочая копия проекта', 'применение изменений к рабочей копии', 'запуск проверок, заданных пользователем, в рабочей копии'],
-    forbids: ['изменение исходных файлов', 'операции Git', 'установка зависимостей автоматически'],
+    label: 'Work in a copy',
+    short: 'Changes are applied to a separate work copy in the application folder; the checks run there too. The original project does not change.',
+    allows: ['everything in "Prepare changes"', 'a work copy of the project', 'applying changes to the work copy', 'running the checks set by the user in the work copy'],
+    forbids: ['changing the original files', 'Git operations', 'installing dependencies automatically'],
   },
   {
     id: 'apply',
-    label: 'Применить к исходному проекту',
-    short: 'Разрешает переносить проверенные изменения в исходный проект — только после вашей проверки, прохождения проверок и создания резервной копии.',
-    allows: ['всё из «Работать в копии»', 'применение просмотренных и проверенных изменений к исходным файлам с резервной копией и возможностью восстановления'],
-    forbids: ['применение без вашего подтверждения', 'применение непросмотренных или изменившихся после просмотра наборов', 'операции Git (commit, push, reset) — не выполняются никогда'],
+    label: 'Apply to the original project',
+    short: 'Allows moving verified changes into the original project: only after your review, passed checks and a backup.',
+    allows: ['everything in "Work in a copy"', 'applying reviewed and checked changes to the original files with a backup and the option to restore'],
+    forbids: ['applying without your confirmation', 'applying sets that were not reviewed or changed after the review', 'Git operations (commit, push, reset): never performed'],
   },
 ];
 
@@ -62,18 +62,18 @@ const CATEGORY_RULES: { category: FileCategory; test: (p: string, name: string) 
 ];
 
 export const CATEGORY_TEXT: Record<FileCategory, { label: string; risk: string }> = {
-  git: { label: 'служебные файлы Git', risk: 'Изменение может повредить историю и состояние репозитория.' },
-  secret: { label: 'файлы с секретами', risk: 'Файлы с ключами и паролями не изменяются приложением.' },
-  ci: { label: 'настройки CI/CD', risk: 'Изменит автоматическую сборку и публикацию: может запустить или сломать процессы на сервере.' },
-  deploy: { label: 'конфигурация развёртывания', risk: 'Может изменить то, как и куда публикуется приложение.' },
-  build: { label: 'система сборки', risk: 'Может сломать сборку или изменить состав итогового приложения.' },
-  dependencies: { label: 'зависимости и манифест пакета', risk: 'Может добавить или обновить сторонний код; при установке выполнятся его скрипты.' },
-  migration: { label: 'миграции данных', risk: 'Запуск миграции может изменить или удалить данные в базе.' },
-  install_script: { label: 'скрипты установки', risk: 'Такие скрипты выполняются с правами пользователя при установке.' },
-  license: { label: 'лицензия', risk: 'Изменение лицензии имеет юридические последствия.' },
-  security_config: { label: 'настройки безопасности', risk: 'Может ослабить защиту проекта или изменить права доступа.' },
-  backup: { label: 'резервные копии', risk: 'Изменение или удаление может лишить возможности восстановления.' },
-  executable: { label: 'исполняемые файлы и скрипты', risk: 'Изменённый скрипт может выполнить произвольные действия при запуске.' },
+  git: { label: 'Git service files', risk: 'The change can damage the history and the state of the repository.' },
+  secret: { label: 'files with secrets', risk: 'Files with keys and passwords are not changed by the application.' },
+  ci: { label: 'CI/CD settings', risk: 'Changes the automatic build and publishing: it can trigger or break processes on the server.' },
+  deploy: { label: 'deployment configuration', risk: 'Can change how and where the application is published.' },
+  build: { label: 'build system', risk: 'Can break the build or change what goes into the final application.' },
+  dependencies: { label: 'dependencies and the package manifest', risk: 'Can add or update third-party code; its scripts run on installation.' },
+  migration: { label: 'data migrations', risk: 'Running a migration can change or delete data in the database.' },
+  install_script: { label: 'installation scripts', risk: 'Such scripts run with the user\'s rights on installation.' },
+  license: { label: 'license', risk: 'Changing the license has legal consequences.' },
+  security_config: { label: 'security settings', risk: 'Can weaken the protection of the project or change access rights.' },
+  backup: { label: 'backups', risk: 'Changing or deleting them can make a restore impossible.' },
+  executable: { label: 'executable files and scripts', risk: 'A changed script can perform arbitrary actions when it runs.' },
 };
 
 /** Categories that are never written by the application (any mode). */
@@ -108,12 +108,12 @@ export const MASS_WRITE_THRESHOLD = 30;
  */
 export function analyzeRisks(files: { path: string; op: 'create' | 'modify' | 'delete' }[], ctx: { original: boolean; dirFileCounts?: Map<string, number> }): RiskItem[] {
   const risks: RiskItem[] = [];
-  const backup = ctx.original ? 'Перед применением будет создана и проверена резервная копия затронутых файлов.' : 'Изменения применяются к рабочей копии, исходный проект не затрагивается.';
-  const reversible = ctx.original ? 'Да: можно восстановить из резервной копии (раздел «Резервные копии»).' : 'Да: рабочую копию можно удалить или пересоздать.';
-  const onRefuse = 'Эти файлы не будут изменены; остальные изменения можно применить отдельно (выборочно).';
+  const backup = ctx.original ? 'A verified backup of the affected files is created before applying.' : 'The changes are applied to a work copy; the original project is not touched.';
+  const reversible = ctx.original ? 'Yes: it can be restored from the backup ("Backups").' : 'Yes: the work copy can be deleted or recreated.';
+  const onRefuse = 'These files will not change; the other changes can be applied separately (selectively).';
   const deletes = files.filter((f) => f.op === 'delete');
   if (deletes.length >= MASS_DELETE_THRESHOLD) {
-    risks.push({ id: 'mass_delete', title: `Удаление ${deletes.length} файлов`, what: `Будут удалены файлы: ${deletes.slice(0, 10).map((f) => f.path).join(', ')}${deletes.length > 10 ? ` и ещё ${deletes.length - 10}` : ''}.`, files: deletes.map((f) => f.path), danger: 'Если файлы нужны, проект может перестать работать.', reversible, backup, onRefuse, severity: 'high' });
+    risks.push({ id: 'mass_delete', title: `Deleting ${deletes.length} files`, what: `These files will be deleted: ${deletes.slice(0, 10).map((f) => f.path).join(', ')}${deletes.length > 10 ? ` and ${deletes.length - 10} more` : ''}.`, files: deletes.map((f) => f.path), danger: 'If the files are needed, the project may stop working.', reversible, backup, onRefuse, severity: 'high' });
   }
   // a folder disappears when every file it contains is deleted (counts come from the project index)
   if (ctx.dirFileCounts) {
@@ -124,12 +124,12 @@ export function analyzeRisks(files: { path: string; op: 'create' | 'modify' | 'd
     }
     const emptied = [...byDir].filter(([dir, list]) => (ctx.dirFileCounts!.get(dir) ?? Infinity) <= list.length);
     if (emptied.length) {
-      risks.push({ id: 'dir_delete', title: `Удаление папок: ${emptied.map(([d]) => d).slice(0, 5).join(', ')}`, what: `Будут удалены все файлы в папках ${emptied.map(([d]) => d).join(', ')}.`, files: emptied.flatMap(([, l]) => l), danger: 'Папка исчезнет целиком вместе с содержимым.', reversible, backup, onRefuse, severity: 'high' });
+      risks.push({ id: 'dir_delete', title: `Deleting folders: ${emptied.map(([d]) => d).slice(0, 5).join(', ')}`, what: `All files in the folders ${emptied.map(([d]) => d).join(', ')} will be deleted.`, files: emptied.flatMap(([, l]) => l), danger: 'The folder disappears entirely together with its content.', reversible, backup, onRefuse, severity: 'high' });
     }
   }
   const writes = files.filter((f) => f.op !== 'delete');
   if (writes.length >= MASS_WRITE_THRESHOLD) {
-    risks.push({ id: 'mass_write', title: `Перезапись ${writes.length} файлов`, what: `Будет создано или изменено ${writes.length} файлов.`, files: writes.map((f) => f.path), danger: 'Массовая правка затрудняет проверку: ошибки легко пропустить.', reversible, backup, onRefuse, severity: 'medium' });
+    risks.push({ id: 'mass_write', title: `Overwriting ${writes.length} files`, what: `${writes.length} files will be created or changed.`, files: writes.map((f) => f.path), danger: 'A mass edit is hard to review: mistakes are easy to miss.', reversible, backup, onRefuse, severity: 'medium' });
   }
   const byCat = new Map<FileCategory, string[]>();
   for (const f of files) for (const c of categorize(f.path)) {
@@ -140,7 +140,7 @@ export function analyzeRisks(files: { path: string; op: 'create' | 'modify' | 'd
   }
   for (const [cat, paths] of byCat) {
     const t = CATEGORY_TEXT[cat];
-    risks.push({ id: `cat_${cat}`, title: `Изменение: ${t.label}`, what: `Затрагиваются ${t.label}: ${paths.slice(0, 8).join(', ')}${paths.length > 8 ? ` и ещё ${paths.length - 8}` : ''}.`, files: paths, danger: t.risk, reversible, backup, onRefuse, severity: ['ci', 'deploy', 'migration', 'install_script', 'security_config', 'git', 'secret'].includes(cat) ? 'high' : 'medium' });
+    risks.push({ id: `cat_${cat}`, title: `Change: ${t.label}`, what: `Affected ${t.label}: ${paths.slice(0, 8).join(', ')}${paths.length > 8 ? ` and ${paths.length - 8} more` : ''}.`, files: paths, danger: t.risk, reversible, backup, onRefuse, severity: ['ci', 'deploy', 'migration', 'install_script', 'security_config', 'git', 'secret'].includes(cat) ? 'high' : 'medium' });
   }
   return risks;
 }

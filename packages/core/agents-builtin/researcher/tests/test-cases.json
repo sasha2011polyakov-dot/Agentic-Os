@@ -1,9 +1,9 @@
 {
   "cases": [
     {
-      "name": "без документов",
+      "name": "no documents",
       "input": {
-        "goal": "Найти требования ко входу",
+        "goal": "Find the login requirements",
         "documents": []
       },
       "expect": {

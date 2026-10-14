@@ -11,13 +11,13 @@ const SECRET_NAME_PATTERNS: RegExp[] = [
 ];
 
 const NAMED_SECRET_PATTERNS: { name: string; re: RegExp }[] = [
-  { name: 'приватный ключ', re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
-  { name: 'ключ доступа AWS', re: /\bAKIA[0-9A-Z]{16}\b/ },
-  { name: 'токен GitHub', re: /\bgh[pousr]_[A-Za-z0-9]{30,}\b/ },
-  { name: 'токен GitHub', re: /\bgithub_pat_[A-Za-z0-9_]{30,}\b/ },
-  { name: 'API-ключ (OpenAI/Anthropic)', re: /\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}\b/ },
-  { name: 'токен Slack', re: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/ },
-  { name: 'ключ Google API', re: /\bAIza[0-9A-Za-z_-]{35}\b/ },
+  { name: 'private key', re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  { name: 'AWS access key', re: /\bAKIA[0-9A-Z]{16}\b/ },
+  { name: 'GitHub token', re: /\bgh[pousr]_[A-Za-z0-9]{30,}\b/ },
+  { name: 'GitHub token', re: /\bgithub_pat_[A-Za-z0-9_]{30,}\b/ },
+  { name: 'API key (OpenAI/Anthropic)', re: /\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}\b/ },
+  { name: 'Slack token', re: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/ },
+  { name: 'Google API key', re: /\bAIza[0-9A-Za-z_-]{35}\b/ },
 ];
 const SECRET_CONTENT_PATTERNS: RegExp[] = NAMED_SECRET_PATTERNS.map((p) => p.re);
 

@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "mission-advisor",
-  "name": "Консультант поручения",
-  "version": "1.0.0",
-  "description": "Отвечает на вопросы пользователя о ходе поручения и предлагает корректировки.",
+  "name": "Mission advisor",
+  "version": "1.0.1",
+  "description": "Answers user questions about the progress of a mission and suggests adjustments.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",

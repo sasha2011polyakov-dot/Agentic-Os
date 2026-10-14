@@ -1,12 +1,12 @@
-# Инвентаризатор проекта
+# Project inventory analyst
 
-Строит достоверную карту структуры проекта на основе детерминированной инвентаризации и чтения ключевых файлов.
+Builds a reliable map of the project structure from the deterministic inventory and by reading key files.
 
-- Тип задачи для маршрутизации моделей: `extraction`
-- Инструменты: `list_project_files`, `read_project_file`, `read_document`
+- Task type for model routing: `extraction`
+- Tools: `list_project_files`, `read_project_file`, `read_document`
 
-## Запрашиваемые разрешения
-- `projects.read` — Чтение файлов подключённых проектов для построения карты
-- `documents.read` — Чтение выбранных документов
+## Requested permissions
+- `projects.read`: Read files of connected projects to build the map
+- `documents.read`: Read selected documents
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

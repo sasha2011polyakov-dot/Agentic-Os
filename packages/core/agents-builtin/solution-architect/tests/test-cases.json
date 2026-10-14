@@ -1,13 +1,13 @@
 {
   "cases": [
     {
-      "name": "минимум",
+      "name": "minimal",
       "input": {
-        "objective": "Локальный поиск",
+        "objective": "Local search",
         "requirements": [
           {
             "id": "R1",
-            "text": "Поиск по документам"
+            "text": "Search in documents"
           }
         ]
       },

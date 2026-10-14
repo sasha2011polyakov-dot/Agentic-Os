@@ -14,14 +14,14 @@ export const ROLE_AGENTS: Record<PlanRole, string> = {
 };
 
 export const ROLE_DESCRIPTIONS: Record<PlanRole, string> = {
-  'project-explorer': 'Изучает подключённые проекты: структуру, код, тесты, существующие решения (только чтение).',
-  researcher: 'Ищет сведения в базе знаний системы и документах, собирает свидетельства с цитатами.',
-  'web-researcher': 'Ищет и читает внешние источники (если веб-доступ разрешён), цитаты проверяются программно.',
-  'solution-architect': 'Сравнивает варианты решения и обосновывает выбор.',
-  implementer: 'Готовит изменения файлов (набор изменений, применяется к рабочей копии), создаёт документы, запускает разрешённые проверки.',
-  verifier: 'Проверяет результат по критериям готовности.',
-  documenter: 'Готовит документ с результатами (сохраняется в базе знаний системы).',
-  'security-reviewer': 'Проверяет предлагаемые изменения на риски безопасности.',
+  'project-explorer': 'Explores connected projects: structure, code, tests, existing solutions (read only).',
+  researcher: 'Searches the knowledge base and documents of the system and collects evidence with quotes.',
+  'web-researcher': 'Finds and reads external sources (if web access is allowed); quotes are checked by code.',
+  'solution-architect': 'Compares solution options and justifies the choice.',
+  implementer: 'Prepares file changes (a change set applied to a work copy), creates documents, runs allowed checks.',
+  verifier: 'Checks the result against the acceptance criteria.',
+  documenter: 'Prepares a document with the results (saved in the knowledge base of the system).',
+  'security-reviewer': 'Reviews proposed changes for security risks.',
 };
 
 /** Agents a mission may use (installed and enabled on explicit user request). */
@@ -45,20 +45,20 @@ export function validatePlan(raw: PlanStep[], ctx: { mode: 'plan' | 'execute'; a
   const steps: PlanStep[] = [];
   for (const s of raw) {
     if (!/^S\d+$/.test(s.id)) {
-      errors.push(`Шаг «${s.title}»: идентификатор ${s.id} должен иметь вид S1, S2…`);
+      errors.push(`Step "${s.title}": the identifier ${s.id} must look like S1, S2…`);
       continue;
     }
     if (seen.has(s.id)) {
-      errors.push(`Повторяющийся идентификатор шага ${s.id}.`);
+      errors.push(`Duplicate step identifier ${s.id}.`);
       continue;
     }
     seen.add(s.id);
     if (!ctx.availableRoles.has(s.role) && !ctx.completed.has(s.id)) {
-      errors.push(`${s.id}: роль «${s.role}» недоступна (агент не установлен или выключен).`);
+      errors.push(`${s.id}: the role "${s.role}" is unavailable (the agent is not installed or is disabled).`);
       continue;
     }
     if (ctx.mode === 'plan' && s.role === 'implementer') {
-      errors.push(`${s.id}: в режиме «Исследовать и спланировать» нельзя планировать изменения файлов — опишите их как будущий шаг в notes.`);
+      errors.push(`${s.id}: in "Research and plan" mode, file changes cannot be planned: describe them as a future step in notes.`);
       continue;
     }
     steps.push({ ...s, depends_on: [...new Set((s.depends_on ?? []).filter((d) => d !== s.id))] });
@@ -67,23 +67,23 @@ export function validatePlan(raw: PlanStep[], ctx: { mode: 'plan' | 'execute'; a
   for (const s of steps) {
     const missing = s.depends_on.filter((d) => !ids.has(d));
     if (missing.length) {
-      warnings.push(`${s.id}: зависимости ${missing.join(', ')} не найдены и убраны.`);
+      warnings.push(`${s.id}: dependencies ${missing.join(', ')} were not found and were removed.`);
       s.depends_on = s.depends_on.filter((d) => ids.has(d));
     }
   }
-  for (const cyc of dependencyCycles(new Map(steps.map((s) => [s.id, s.depends_on])))) errors.push(`Циклическая зависимость шагов: ${cyc.join(' → ')}.`);
+  for (const cyc of dependencyCycles(new Map(steps.map((s) => [s.id, s.depends_on])))) errors.push(`Circular step dependency: ${cyc.join(' → ')}.`);
   if (ctx.mode === 'execute' && !steps.some((s) => s.role === 'verifier')) {
     const n = Math.max(0, ...steps.map((s) => Number(s.id.slice(1)) || 0)) + 1;
-    steps.push({ id: `S${n}`, title: 'Проверка результата', goal: 'Проверить результат по критериям готовности', role: 'verifier', inputs: [], expected_output: 'Статус каждого критерия с доказательствами', depends_on: steps.map((s) => s.id), tools: [], done_criteria: ['Все критерии оценены'], verification: 'детерминированная проверка и проверяющий агент', risk: 'low', keep_existing: false });
-    warnings.push('В план добавлен заключительный шаг проверки.');
+    steps.push({ id: `S${n}`, title: 'Verify the result', goal: 'Check the result against the acceptance criteria', role: 'verifier', inputs: [], expected_output: 'Status of each criterion with evidence', depends_on: steps.map((s) => s.id), tools: [], done_criteria: ['Every criterion assessed'], verification: 'deterministic checks and the verifier agent', risk: 'low', keep_existing: false });
+    warnings.push('A final verification step was added to the plan.');
   }
-  if (!steps.length && ctx.mode === 'execute') errors.push('План не содержит шагов.');
+  if (!steps.length && ctx.mode === 'execute') errors.push('The plan has no steps.');
   return { steps, errors, warnings };
 }
 
 /** Steps whose execution touches nothing outside the mission (used to explain approvals). */
 export function riskyPlanReasons(steps: PlanStep[]): string[] {
   const out: string[] = [];
-  for (const s of steps) if (s.risk === 'high') out.push(`${s.id} «${s.title}»: высокий риск`);
+  for (const s of steps) if (s.risk === 'high') out.push(`${s.id} "${s.title}": high risk`);
   return out;
 }

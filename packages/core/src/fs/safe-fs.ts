@@ -43,7 +43,7 @@ export class SafeFs {
       const st = await stat(real);
       return { text: buf.toString('utf8'), hash: sha256(buf), mtimeMs: Math.floor(st.mtimeMs), size: st.size };
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new AppError('NOT_FOUND', 'Файл не найден на диске.');
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new AppError('NOT_FOUND', 'The file was not found on disk.');
       throw new AppError('SOURCE_NOT_ACCESSIBLE', undefined, { cause: e });
     }
   }
@@ -64,7 +64,7 @@ export class SafeFs {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw new AppError('SOURCE_NOT_ACCESSIBLE', undefined, { cause: e });
     }
     if (opts.expectedHash === null && previousHash !== null) {
-      throw new AppError('WRITE_CONFLICT', 'Файл с таким именем уже существует.', { details: { currentHash: previousHash } });
+      throw new AppError('WRITE_CONFLICT', 'A file with this name already exists.', { details: { currentHash: previousHash } });
     }
     if (typeof opts.expectedHash === 'string' && previousHash !== opts.expectedHash) {
       throw new AppError('WRITE_CONFLICT', undefined, {
@@ -79,14 +79,14 @@ export class SafeFs {
     await atomicWrite(real, text);
     // check-then-use race (29.11): the folder must still be the one that was checked
     const dirAfter = await realpath(dirname(real)).catch(() => null);
-    if (dirAfter !== dirname(real)) throw new AppError('PATH_OUTSIDE_SCOPE', 'Путь изменился во время записи (возможна подмена каталога). Операция остановлена.', { details: { target: real } });
+    if (dirAfter !== dirname(real)) throw new AppError('PATH_OUTSIDE_SCOPE', 'The path changed during the write (the folder may have been swapped). The operation was stopped.', { details: { target: real } });
     return { path: real, hash: newHash, created: previous === null, previousHash };
   }
 
   async move(fromAbs: string, toAbs: string, scope: AccessScope): Promise<void> {
     const from = await assertInScope(fromAbs, scope, { write: true });
     const to = await assertInScope(toAbs, scope, { write: true });
-    if (await exists(to)) throw new AppError('WRITE_CONFLICT', 'В месте назначения уже есть файл с таким именем.');
+    if (await exists(to)) throw new AppError('WRITE_CONFLICT', 'A file with this name already exists at the destination.');
     await mkdir(dirname(to), { recursive: true });
     await rename(from, to);
   }

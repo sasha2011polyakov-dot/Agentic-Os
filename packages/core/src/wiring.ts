@@ -102,12 +102,12 @@ export async function wireSystemServices(core: AppCore): Promise<void> {
       );
     },
     async pauseRuns(rt: SystemRuntime) {
-      await services(rt).workflows.pauseAll('Приостановлено: система отключается или переключается.');
-      await services(rt).missions.pauseAll('Приостановлено: система отключается или переключается.');
+      await services(rt).workflows.pauseAll('Paused: the system is being closed or switched.');
+      await services(rt).missions.pauseAll('Paused: the system is being closed or switched.');
     },
     async cancelRuns(rt: SystemRuntime) {
-      await services(rt).workflows.cancelAll('Отменено: система отключается.');
-      await services(rt).missions.cancelAll('Отменено: система отключается.');
+      await services(rt).workflows.cancelAll('Cancelled: the system is being closed.');
+      await services(rt).missions.cancelAll('Cancelled: the system is being closed.');
     },
   };
 }

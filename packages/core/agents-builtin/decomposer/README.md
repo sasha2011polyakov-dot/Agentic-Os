@@ -1,11 +1,11 @@
-# Декомпозитор
+# Decomposer
 
-Превращает требования в иерархию реализуемых задач с зависимостями и критериями завершения.
+Turns requirements into a hierarchy of implementable tasks with dependencies and completion criteria.
 
-- Тип задачи для маршрутизации моделей: `planning`
-- Инструменты: нет (работает только с переданными данными)
+- Task type for model routing: `planning`
+- Tools: none (works only with the data it receives)
 
-## Запрашиваемые разрешения
-- не требуются
+## Requested permissions
+- none
 
-Вход и выход описаны JSON-схемами в папке `schemas/`. Пакет не содержит исполняемого кода.
+The input and the output are described by JSON schemas in the `schemas/` folder. The package contains no executable code.

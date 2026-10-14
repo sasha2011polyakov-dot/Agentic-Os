@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "research-planner",
-  "name": "Планировщик исследования",
-  "version": "1.0.0",
-  "description": "Формулирует исследовательский вопрос, подвопросы и поисковые запросы.",
+  "name": "Research planner",
+  "version": "1.0.1",
+  "description": "Formulates the research question, sub-questions and search queries.",
   "author": "Agentic OS",
   "category": "research",
   "entry": "instructions.md",

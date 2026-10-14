@@ -93,13 +93,13 @@ export class DocumentService {
 
   private row(docId: string): DocRow {
     const r = this.rt.db.get<DocRow>('SELECT * FROM documents WHERE id = ?', docId);
-    if (!r) throw new AppError('NOT_FOUND', 'Документ не найден.');
+    if (!r) throw new AppError('NOT_FOUND', 'Document not found.');
     return r;
   }
 
   private sourceOf(sourceId: string): { id: string; kind: 'vault' | 'project'; root_path: string; writable: number; name: string } {
     const s = this.rt.db.get<{ id: string; kind: 'vault' | 'project'; root_path: string; writable: number; name: string }>('SELECT id, kind, root_path, writable, name FROM sources WHERE id = ?', sourceId);
-    if (!s) throw new AppError('NOT_FOUND', 'Источник документа не найден.');
+    if (!s) throw new AppError('NOT_FOUND', 'The document source was not found.');
     return s;
   }
 
@@ -257,7 +257,7 @@ export class DocumentService {
     const vault = this.vault();
     const user = this.rt.db
       .all<{ id: string; rel_path: string; title: string; doc_type: string | null }>("SELECT id, rel_path, title, doc_type FROM documents WHERE source_id = ? AND rel_path LIKE ? ESCAPE '\\'", vault.id, `${folder.replace(/[\\%_]/g, (c) => `\\${c}`)}/%`)
-      .map((d) => ({ id: `user:${d.rel_path}`, name: d.title, description: `Пользовательский шаблон (${d.rel_path})`, docType: d.doc_type, builtin: false, folderHint: null, content: '' }));
+      .map((d) => ({ id: `user:${d.rel_path}`, name: d.title, description: `User template (${d.rel_path})`, docType: d.doc_type, builtin: false, folderHint: null, content: '' }));
     return [...BUILTIN_TEMPLATES, ...user];
   }
 
@@ -270,7 +270,7 @@ export class DocumentService {
       const r = await this.rt.fs.readText(join(vault.root_path, rel), this.scopeFor({ ...vault, writable: 0 }));
       return { content: r.text, folderHint: null };
     }
-    throw new AppError('NOT_FOUND', 'Шаблон не найден.');
+    throw new AppError('NOT_FOUND', 'Template not found.');
   }
 
   /** Next free id with the prefix, e.g. REQ-007, across this system's documents. */
@@ -291,7 +291,7 @@ export class DocumentService {
 
   async create(input: { title: string; folder?: string; templateId?: string; properties?: Record<string, unknown>; content?: string; actor?: string; fileName?: string }): Promise<DocDetail> {
     const title = input.title.trim();
-    if (!title) throw new AppError('VALIDATION_FAILED', 'Укажите название документа.');
+    if (!title) throw new AppError('VALIDATION_FAILED', 'Enter a document title.');
     const vault = this.vault();
     let body = input.content ?? '';
     let folderHint: string | null = null;
@@ -312,7 +312,7 @@ export class DocumentService {
     const res = await this.rt.fs.writeText(join(vault.root_path, relPath), body, { scope: this.scopeFor(vault), expectedHash: null, reason: 'create', actor: input.actor ?? 'user', history: { sourceId: vault.id, relPath, docId: null } });
     await this.indexer.indexPaths(vault.id, [relPath]);
     const doc = this.rt.db.get<{ id: string }>('SELECT id FROM documents WHERE source_id = ? AND rel_path = ?', vault.id, relPath);
-    if (!doc) throw new AppError('INTERNAL', 'Документ создан, но не проиндексирован.');
+    if (!doc) throw new AppError('INTERNAL', 'The document was created but not indexed.');
     this.rt.audit.record({ actor: input.actor ?? 'user', action: 'doc.create', target: relPath, details: { docId: doc.id, template: input.templateId ?? null, hash: res.hash } });
     this.rt.emit('docs.changed', { docId: doc.id, change: 'create' });
     return this.get(doc.id);
@@ -328,7 +328,7 @@ export class DocumentService {
         return rel;
       }
     }
-    throw new AppError('VALIDATION_FAILED', 'Не удалось подобрать свободное имя файла.');
+    throw new AppError('VALIDATION_FAILED', 'Could not find a free file name.');
   }
 
   /** Saves new content. expectedHash protects against overwriting external edits (WRITE_CONFLICT). */
@@ -376,9 +376,9 @@ export class DocumentService {
     if (!src.writable) throw new AppError('READ_ONLY_SOURCE');
     let newRel = normalizeRelPath(newRelPathInput);
     if (!/\.[a-z0-9]+$/i.test(newRel)) newRel += posix.extname(r.rel_path) || '.md';
-    if (newRel === r.rel_path) throw new AppError('VALIDATION_FAILED', 'Новое имя совпадает с текущим.');
+    if (newRel === r.rel_path) throw new AppError('VALIDATION_FAILED', 'The new name is the same as the current one.');
     const exists = this.rt.db.get<{ id: string }>('SELECT id FROM files WHERE source_id = ? AND rel_path = ?', src.id, newRel);
-    if (exists) throw new AppError('WRITE_CONFLICT', 'Файл с таким именем уже существует.');
+    if (exists) throw new AppError('WRITE_CONFLICT', 'A file with this name already exists.');
     const linkers = this.rt.db.all<{ src_doc_id: string }>('SELECT DISTINCT src_doc_id FROM doc_links WHERE resolved_doc_id = ?', docId);
     const changes: RenamePlan['changes'] = [];
     for (const { src_doc_id } of linkers) {
@@ -437,7 +437,7 @@ export class DocumentService {
   async rename(docId: string, newRelPath: string, opts: { updateLinks: boolean; planHash?: string; actor?: string } = { updateLinks: true }): Promise<{ docId: string; relPath: string; updated: string[]; failed: { relPath: string; error: string }[] }> {
     const plan = await this.planRename(docId, newRelPath);
     if (opts.planHash && opts.planHash !== plan.planHash) {
-      throw new AppError('WRITE_CONFLICT', 'Файлы изменились после построения плана переименования.', { hint: 'Постройте план заново и проверьте изменения.' });
+      throw new AppError('WRITE_CONFLICT', 'Files changed after the rename plan was built.', { hint: 'Build the plan again and review the changes.' });
     }
     const r = this.row(docId);
     const src = this.sourceOf(r.source_id);
@@ -528,7 +528,7 @@ export class DocumentService {
   async uploadAttachment(fileName: string, bytes: Buffer, folder = ATTACHMENTS_FOLDER): Promise<{ relPath: string; embed: string }> {
     const vault = this.vault();
     const ext = posix.extname(fileName).toLowerCase();
-    if (!ATTACHMENT_MIME[ext]) throw new AppError('VALIDATION_FAILED', 'Поддерживаются изображения и PDF.');
+    if (!ATTACHMENT_MIME[ext]) throw new AppError('VALIDATION_FAILED', 'Images and PDF are supported.');
     if (bytes.length > 20 * 1024 * 1024) throw new AppError('FILE_TOO_LARGE');
     const base = sanitizeFileName(posix.basename(fileName, ext));
     const relFolder = normalizeRelPath(folder);
@@ -553,11 +553,11 @@ export class DocumentService {
       rel = this.rt.db.get('SELECT rel_path, source_id FROM files WHERE ulower(rel_path) = ulower(?)', candidate);
     }
     if (!rel) rel = this.rt.db.get("SELECT rel_path, source_id FROM files WHERE ulower(rel_path) LIKE ? ESCAPE '\\' ORDER BY length(rel_path) LIMIT 1", `%/${posix.basename(key).toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}`);
-    if (!rel) throw new AppError('NOT_FOUND', 'Вложение не найдено.');
+    if (!rel) throw new AppError('NOT_FOUND', 'Attachment not found.');
     const src = this.sourceOf(rel.source_id);
     const ext = posix.extname(rel.rel_path).toLowerCase();
     const mime = ATTACHMENT_MIME[ext];
-    if (!mime) throw new AppError('VALIDATION_FAILED', 'Тип файла не отображается в приложении.');
+    if (!mime) throw new AppError('VALIDATION_FAILED', 'This file type is not displayed in the application.');
     const bytes = await this.rt.fs.readBytes(join(src.root_path, rel.rel_path), this.scopeFor({ ...src, writable: 0 }));
     void vault;
     return { bytes, mime, relPath: rel.rel_path };
@@ -572,7 +572,7 @@ export class DocumentService {
 
   version(versionId: number) {
     const v = this.rt.history.get(versionId);
-    if (!v) throw new AppError('NOT_FOUND', 'Версия не найдена.');
+    if (!v) throw new AppError('NOT_FOUND', 'Version not found.');
     return v;
   }
 
@@ -580,7 +580,7 @@ export class DocumentService {
   async restore(docId: string, versionId: number, expectedHash: string, actor = 'user'): Promise<{ hash: string }> {
     const v = this.version(versionId);
     const r = this.row(docId);
-    if (v.relPath !== r.rel_path && v.docId !== docId) throw new AppError('VALIDATION_FAILED', 'Версия относится к другому документу.');
+    if (v.relPath !== r.rel_path && v.docId !== docId) throw new AppError('VALIDATION_FAILED', 'The version belongs to another document.');
     const res = await this.save(docId, v.content, expectedHash, actor);
     this.rt.audit.record({ actor, action: 'doc.restore', target: r.rel_path, details: { versionId } });
     return { hash: res.hash };
@@ -622,7 +622,7 @@ export function sanitizeFileName(name: string): string {
   // eslint-disable-next-line no-control-regex
   let s = name.replace(/[\u0000-\u001f<>:"/\\|?*#^[\]]/g, ' ').replace(/\s+/g, ' ').trim();
   s = s.replace(/[. ]+$/, '').slice(0, 150);
-  if (!s) s = 'Без названия';
+  if (!s) s = 'Untitled';
   try {
     validateSegment(s);
   } catch {

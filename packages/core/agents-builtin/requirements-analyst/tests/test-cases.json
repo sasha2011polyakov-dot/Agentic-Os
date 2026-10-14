@@ -1,15 +1,15 @@
 {
   "cases": [
     {
-      "name": "одно свидетельство",
+      "name": "one piece of evidence",
       "input": {
-        "goal": "Вход по паролю",
+        "goal": "Password login",
         "evidence": [
           {
             "id": "E1",
-            "fact": "Пользователь входит по email и паролю",
+            "fact": "The user logs in with email and password",
             "kind": "fact",
-            "quote": "входить по email и паролю",
+            "quote": "log in with email and password",
             "quote_verified": true
           }
         ]

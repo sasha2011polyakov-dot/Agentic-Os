@@ -1,1 +1,1 @@
-{ "cases": [{ "name": "минимальный вход", "input": { "docId": "doc_example" }, "expect": { "requiredPaths": ["decisions", "action_items"] } }] }
+{ "cases": [{ "name": "minimal input", "input": { "docId": "doc_example" }, "expect": { "requiredPaths": ["decisions", "action_items"] } }] }

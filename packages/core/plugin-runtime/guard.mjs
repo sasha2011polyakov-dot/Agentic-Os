@@ -7,7 +7,7 @@ import module from 'node:module';
 const DENY = new Set(['net', 'http', 'https', 'http2', 'tls', 'dgram', 'dns', 'child_process', 'worker_threads', 'cluster', 'inspector', 'vm', 'repl', 'module', 'sqlite', 'v8', 'wasi', 'trace_events']);
 const bare = (s) => String(s).replace(/^node:/, '').split('/')[0];
 const denied = (what) => {
-  const e = new Error(`Модуль «${what}» недоступен расширению: используйте API приложения.`);
+  const e = new Error(`The module "${what}" is not available to extensions: use the application API.`);
   e.code = 'ERR_ACCESS_DENIED';
   return e;
 };

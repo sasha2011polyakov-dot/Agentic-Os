@@ -14,8 +14,8 @@ export interface TemplateInfo {
 export const BUILTIN_TEMPLATES: TemplateInfo[] = [
   {
     id: 'builtin:note',
-    name: 'Обычная заметка',
-    description: 'Свободная заметка с тегами.',
+    name: 'Note',
+    description: 'A free-form note with tags.',
     docType: 'note',
     builtin: true,
     folderHint: null,
@@ -31,8 +31,8 @@ created: {{date}}
   },
   {
     id: 'builtin:technical-decision',
-    name: 'Техническое решение',
-    description: 'Короткое обоснование принятого технического решения.',
+    name: 'Technical decision',
+    description: 'A short rationale for a technical decision.',
     docType: 'decision',
     builtin: true,
     folderHint: 'Decisions',
@@ -41,29 +41,29 @@ type: decision
 status: proposed
 created: {{date}}
 tags:
-  - решение
+  - decision
 ---
 
 # {{title}}
 
-## Контекст
-Какая проблема решается и какие ограничения действуют.
+## Context
+What problem is being solved and which constraints apply.
 
-## Решение
-Что выбрано.
+## Decision
+What was chosen.
 
-## Рассмотренные альтернативы
-- Вариант A — плюсы / минусы
-- Вариант B — плюсы / минусы
+## Alternatives considered
+- Option A: pros / cons
+- Option B: pros / cons
 
-## Последствия
-Что меняется, какие риски появляются.
+## Consequences
+What changes and which risks appear.
 `,
   },
   {
     id: 'builtin:requirement',
-    name: 'Требование',
-    description: 'Атомарное проверяемое требование с критериями приёмки.',
+    name: 'Requirement',
+    description: 'An atomic, verifiable requirement with acceptance criteria.',
     docType: 'requirement',
     builtin: true,
     folderHint: 'Requirements',
@@ -76,32 +76,32 @@ priority: medium
 source: ""
 created: {{date}}
 tags:
-  - требование
+  - requirement
 ---
 
 # {{title}}
 
-## Формулировка
-Система должна …
+## Statement
+The system must …
 
-## Обоснование
-Почему это нужно и на каком источнике основано.
+## Rationale
+Why this is needed and which source it is based on.
 
-## Критерии приёмки
-- [ ] Критерий 1 (проверяемый)
-- [ ] Критерий 2
+## Acceptance criteria
+- [ ] Criterion 1 (verifiable)
+- [ ] Criterion 2
 
-## Зависимости
+## Dependencies
 -
 
-## Открытые вопросы
+## Open questions
 -
 `,
   },
   {
     id: 'builtin:technical-spec',
-    name: 'Техническое задание',
-    description: 'Структура ТЗ: цель, границы, требования, сценарии, приёмка, риски.',
+    name: 'Specification',
+    description: 'Specification structure: goal, scope, requirements, scenarios, acceptance, risks.',
     docType: 'spec',
     builtin: true,
     folderHint: 'Specs',
@@ -111,56 +111,56 @@ status: draft
 version: 1
 created: {{date}}
 tags:
-  - тз
+  - spec
 ---
 
 # {{title}}
 
-## 1. Цель
+## 1. Goal
 
-## 2. Контекст проекта
+## 2. Project context
 
-## 3. Проблема
+## 3. Problem
 
-## 4. Границы задачи
-**Входит:**
-**Не входит:**
+## 4. Scope
+**In scope:**
+**Out of scope:**
 
-## 5. Термины и определения
+## 5. Terms and definitions
 
-## 6. Текущее состояние системы
+## 6. Current state of the system
 
-## 7. Функциональные требования
+## 7. Functional requirements
 
-## 8. Нефункциональные требования
+## 8. Non-functional requirements
 
-## 9. Пользовательские сценарии
+## 9. User scenarios
 
-## 10. Архитектурные ограничения
+## 10. Architectural constraints
 
-## 11. Входные и выходные данные
+## 11. Inputs and outputs
 
-## 12. Зависимости
+## 12. Dependencies
 
-## 13. Критерии приёмки
+## 13. Acceptance criteria
 
-## 14. План тестирования
+## 14. Test plan
 
-## 15. Риски и ограничения
+## 15. Risks and limitations
 
-## 16. Открытые вопросы
+## 16. Open questions
 
-## 17. Допущения
+## 17. Assumptions
 
-## 18. Источники
+## 18. Sources
 
-## 19. План декомпозиции
+## 19. Decomposition plan
 `,
   },
   {
     id: 'builtin:research',
-    name: 'Исследование',
-    description: 'Вопрос, источники, выводы с цитатами, ограничения.',
+    name: 'Research',
+    description: 'Question, sources, findings with quotes, limitations.',
     docType: 'research',
     builtin: true,
     folderHint: 'Research',
@@ -170,28 +170,28 @@ status: in-progress
 created: {{date}}
 review_after: ""
 tags:
-  - исследование
+  - research
 ---
 
 # {{title}}
 
-## Вопрос
+## Question
 
-## Выводы
+## Findings
 
-## Источники
-| Утверждение | Источник | Дата публикации | Дата получения | Цитата |
+## Sources
+| Claim | Source | Published | Retrieved | Quote |
 |---|---|---|---|---|
 
-## Противоречия и ограничения
+## Contradictions and limitations
 
-## Открытые вопросы
+## Open questions
 `,
   },
   {
     id: 'builtin:adr',
-    name: 'Архитектурное решение (ADR)',
-    description: 'Architecture Decision Record: статус, контекст, решение, последствия.',
+    name: 'Architecture decision (ADR)',
+    description: 'Architecture Decision Record: status, context, decision, consequences.',
     docType: 'decision',
     builtin: true,
     folderHint: 'Decisions',
@@ -207,24 +207,24 @@ tags:
 
 # {{title}}
 
-## Статус
-Предложено
+## Status
+Proposed
 
-## Контекст
+## Context
 
-## Решение
+## Decision
 
-## Последствия
-### Положительные
-### Отрицательные
+## Consequences
+### Positive
+### Negative
 
-## Связанные решения
+## Related decisions
 `,
   },
   {
     id: 'builtin:task',
-    name: 'Задача',
-    description: 'Задача в виде заметки (для синхронизации с разделом «Задачи» используйте сам раздел).',
+    name: 'Task',
+    description: 'A task as a note (to sync with the Tasks board, use the board itself).',
     docType: 'task',
     builtin: true,
     folderHint: 'Tasks',
@@ -238,20 +238,20 @@ created: {{date}}
 
 # {{title}}
 
-## Цель
+## Goal
 
-## Описание
+## Description
 
-## Критерии завершения
+## Done when
 - [ ]
 
-## Зависимости
+## Dependencies
 `,
   },
   {
     id: 'builtin:meeting',
-    name: 'Протокол встречи',
-    description: 'Участники, повестка, решения, договорённости и действия.',
+    name: 'Meeting notes',
+    description: 'Participants, agenda, decisions, agreements and action items.',
     docType: 'meeting',
     builtin: true,
     folderHint: 'Meetings',
@@ -260,28 +260,28 @@ type: meeting
 date: {{date}}
 participants: []
 tags:
-  - встреча
+  - meeting
 ---
 
 # {{title}}
 
-## Повестка
+## Agenda
 
-## Обсуждение
+## Discussion
 
-## Решения
+## Decisions
 -
 
-## Договорённости и действия
-- [ ] Кто — что — когда
+## Agreements and action items
+- [ ] Who — what — when
 
-## Открытые вопросы
+## Open questions
 `,
   },
   {
     id: 'builtin:project-plan',
-    name: 'План проекта',
-    description: 'Цели, этапы, вехи, риски, ресурсы.',
+    name: 'Project plan',
+    description: 'Goals, stages, milestones, risks, resources.',
     docType: 'plan',
     builtin: true,
     folderHint: 'Plans',
@@ -293,25 +293,25 @@ created: {{date}}
 
 # {{title}}
 
-## Цели и результат
+## Goals and outcome
 
-## Этапы
-| Этап | Результат | Срок | Ответственный |
+## Stages
+| Stage | Outcome | Due | Owner |
 |---|---|---|---|
 
-## Вехи
+## Milestones
 
-## Риски
-| Риск | Влияние | Вероятность | Митигирующие действия |
+## Risks
+| Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
 
-## Ресурсы и зависимости
+## Resources and dependencies
 `,
   },
   {
     id: 'builtin:agent-report',
-    name: 'Отчёт агента',
-    description: 'Результат работы агента: что сделано, на каких источниках, что не удалось.',
+    name: 'Agent report',
+    description: 'The result of an agent run: what was done, which sources were used, what failed.',
     docType: 'agent-report',
     builtin: true,
     folderHint: 'Reports',
@@ -324,21 +324,21 @@ created: {{date}}
 
 # {{title}}
 
-## Задача
+## Task
 
-## Результат
+## Result
 
-## Использованные источники
+## Sources used
 
-## Ограничения и непроверенные утверждения
+## Limitations and unverified claims
 
-## Что требует решения пользователя
+## Decisions needed from the user
 `,
   },
   {
     id: 'builtin:daily',
-    name: 'Ежедневная заметка',
-    description: 'Используется командой «Ежедневная заметка».',
+    name: 'Daily note',
+    description: 'Used by the "Daily note" command.',
     docType: 'daily',
     builtin: true,
     folderHint: 'Daily',
@@ -349,10 +349,10 @@ date: {{date}}
 
 # {{date}}
 
-## Задачи
+## Tasks
 - [ ]
 
-## Заметки
+## Notes
 
 `,
   },

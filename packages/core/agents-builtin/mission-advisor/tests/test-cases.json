@@ -1,9 +1,9 @@
 {
   "cases": [
     {
-      "name": "вопрос",
+      "name": "question",
       "input": {
-        "question": "Почему выбран этот вариант?",
+        "question": "Why was this option chosen?",
         "mission_state": {}
       },
       "expect": {

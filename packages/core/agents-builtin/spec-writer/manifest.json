@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "spec-writer",
-  "name": "Генератор технического задания",
-  "version": "1.0.0",
-  "description": "Пишет повествовательные разделы ТЗ на основе требований, задач и свидетельств.",
+  "name": "Specification writer",
+  "version": "1.0.1",
+  "description": "Writes the narrative sections of the specification based on requirements, tasks and evidence.",
   "author": "Agentic OS",
   "category": "spec",
   "entry": "instructions.md",

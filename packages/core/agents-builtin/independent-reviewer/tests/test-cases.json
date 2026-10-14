@@ -1,7 +1,7 @@
 {
   "cases": [
     {
-      "name": "минимум",
+      "name": "minimal",
       "input": {
         "original_request": "x",
         "normalized": {},

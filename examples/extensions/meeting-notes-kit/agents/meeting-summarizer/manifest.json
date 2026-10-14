@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "meeting-summarizer",
-  "name": "Итоги встречи",
+  "name": "Meeting summary",
   "version": "1.0.0",
-  "description": "Выделяет из заметок встречи решения, задачи с ответственными и открытые вопросы.",
+  "description": "Extracts decisions, action items with owners and open questions from meeting notes.",
   "author": "Agentic OS contributors",
   "category": "productivity",
   "entry": "instructions.md",
@@ -13,7 +13,7 @@
     "output": "schemas/output.schema.json"
   },
   "tools": "tools.json",
-  "permissions": [{ "permission": "documents.read", "reason": "Прочитать заметку встречи, указанную пользователем." }],
+  "permissions": [{ "permission": "documents.read", "reason": "Read the meeting note chosen by the user." }],
   "dependencies": [],
   "model": { "taskType": "extraction", "structuredOutput": "preferred" },
   "defaults": { "temperature": 0.1, "maxOutputTokens": 3000, "maxToolRounds": 3, "repairAttempts": 2 }

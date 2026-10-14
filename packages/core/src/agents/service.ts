@@ -85,7 +85,7 @@ export class AgentService {
 
   private row(id: string): AgentRow {
     const r = this.rt.db.get<AgentRow>('SELECT * FROM agents WHERE id = ?', id);
-    if (!r) throw new AppError('NOT_FOUND', `Агент «${id}» не установлен в этой системе.`);
+    if (!r) throw new AppError('NOT_FOUND', `The agent "${id}" is not installed in this system.`);
     return r;
   }
 
@@ -97,16 +97,16 @@ export class AgentService {
   async package(scope: AgentScope, id: string, version?: string): Promise<AgentPackage> {
     if (scope === 'builtin') {
       const p = this.catalogApp.builtinPackage(id);
-      if (!p) throw new AppError('NOT_FOUND', `Встроенный агент «${id}» не найден.`);
+      if (!p) throw new AppError('NOT_FOUND', `The built-in agent "${id}" was not found.`);
       return p;
     }
     if (scope === 'app') {
       const p = await this.catalogApp.sharedPackage(id, version);
-      if (!p) throw new AppError('AGENT_PACKAGE_INVALID', `Общий пакет «${id}@${version ?? '*'}» не найден или повреждён.`);
+      if (!p) throw new AppError('AGENT_PACKAGE_INVALID', `The shared package "${id}@${version ?? '*'}" was not found or is damaged.`);
       return p;
     }
     const row = this.systemRows().find((r) => r.id === id && (!version || r.version === version));
-    if (!row) throw new AppError('NOT_FOUND', `Пакет «${id}@${version ?? '*'}» не найден в системе.`);
+    if (!row) throw new AppError('NOT_FOUND', `The package "${id}@${version ?? '*'}" was not found in the system.`);
     const { pkg, report } = validatePackageFiles(await readPackageDir(join(this.rt.paths.root, row.install_path)));
     if (!pkg) throw new AppError('AGENT_PACKAGE_INVALID', report.errors.join('; '));
     return pkg;
@@ -193,14 +193,14 @@ export class AgentService {
   async install(input: { id: string; scope: AgentScope; version?: string; grants: PermissionId[]; grantScopes?: Partial<Record<PermissionId, GrantScope>> }): Promise<InstalledAgent> {
     const pkg = await this.package(input.scope, input.id, input.version);
     const existing = this.rt.db.get<AgentRow>('SELECT * FROM agents WHERE id = ?', input.id);
-    if (existing && existing.scope !== input.scope) throw new AppError('VALIDATION_FAILED', `Агент «${input.id}» уже установлен из другого источника (${existing.scope}). Удалите его сначала.`);
+    if (existing && existing.scope !== input.scope) throw new AppError('VALIDATION_FAILED', `The agent "${input.id}" is already installed from another source (${existing.scope}). Remove it first.`);
     for (const dep of pkg.manifest.dependencies) {
       const d = this.rt.db.get<AgentRow>('SELECT * FROM agents WHERE id = ?', dep.agent);
-      if (!d) throw new AppError('VALIDATION_FAILED', `Требуется агент «${dep.agent}» (${dep.version}). Установите его сначала.`);
-      if (!semver.satisfies(d.active_version, dep.version)) throw new AppError('AGENT_INCOMPATIBLE', `Агенту нужна версия «${dep.agent}» ${dep.version}, установлена ${d.active_version}.`);
+      if (!d) throw new AppError('VALIDATION_FAILED', `The agent "${dep.agent}" (${dep.version}) is required. Install it first.`);
+      if (!semver.satisfies(d.active_version, dep.version)) throw new AppError('AGENT_INCOMPATIBLE', `The agent needs "${dep.agent}" version ${dep.version}; ${d.active_version} is installed.`);
     }
     const requested = new Set(pkg.manifest.permissions.map((p) => p.permission));
-    for (const g of input.grants) if (!requested.has(g)) throw new AppError('VALIDATION_FAILED', `Пакет не запрашивает разрешение ${g}.`);
+    for (const g of input.grants) if (!requested.has(g)) throw new AppError('VALIDATION_FAILED', `The package does not request the permission ${g}.`);
     const now = nowIso();
     this.rt.db.transaction(() => {
       if (existing) {
@@ -235,8 +235,8 @@ export class AgentService {
     const current = this.config(id);
     const next: AgentConfig = { modelPolicy: { ...current.modelPolicy, ...(cfg.modelPolicy ?? {}) }, generation: { ...current.generation, ...(cfg.generation ?? {}) } };
     const g = next.generation;
-    if (g.temperature !== undefined && (g.temperature < 0 || g.temperature > 2)) throw new AppError('VALIDATION_FAILED', 'Температура должна быть от 0 до 2.');
-    if (g.maxOutputTokens !== undefined && (g.maxOutputTokens < 64 || g.maxOutputTokens > 64000)) throw new AppError('VALIDATION_FAILED', 'Лимит ответа: от 64 до 64000 токенов.');
+    if (g.temperature !== undefined && (g.temperature < 0 || g.temperature > 2)) throw new AppError('VALIDATION_FAILED', 'The temperature must be between 0 and 2.');
+    if (g.maxOutputTokens !== undefined && (g.maxOutputTokens < 64 || g.maxOutputTokens > 64000)) throw new AppError('VALIDATION_FAILED', 'The response limit is 64 to 64,000 tokens.');
     this.rt.db.run('UPDATE agent_configs SET model_policy = ?, generation = ?, updated_at = ? WHERE agent_id = ?', JSON.stringify(next.modelPolicy), JSON.stringify(next.generation), nowIso(), id);
     this.rt.audit.record({ actor: 'user', action: 'agent.configure', target: id, details: next });
     this.rt.emit('agents.changed', { agentId: id });
@@ -265,7 +265,7 @@ export class AgentService {
 
   async rollback(id: string): Promise<InstalledAgent> {
     const r = this.row(id);
-    if (!r.previous_version) throw new AppError('VALIDATION_FAILED', 'Нет предыдущей версии для отката.');
+    if (!r.previous_version) throw new AppError('VALIDATION_FAILED', 'There is no previous version to roll back to.');
     await this.package(r.scope, id, r.previous_version);
     this.rt.db.run('UPDATE agents SET active_version = ?, previous_version = ?, updated_at = ? WHERE id = ?', r.previous_version, r.active_version, nowIso(), id);
     this.rt.audit.record({ actor: 'user', action: 'agent.rollback', target: id, details: { from: r.active_version, to: r.previous_version } });
@@ -283,8 +283,8 @@ export class AgentService {
   }
 
   private async storeSystemPackage(id: string, version: string, files: Map<string, Buffer>, origin: 'imported' | 'created'): Promise<void> {
-    if (this.catalogApp.builtinPackage(id)) throw new AppError('AGENT_PACKAGE_INVALID', `Идентификатор «${id}» занят встроенным агентом.`);
-    if (this.systemRows().some((r) => r.id === id && r.version === version)) throw new AppError('AGENT_PACKAGE_INVALID', `Версия ${version} агента «${id}» уже есть в системе. Увеличьте версию.`);
+    if (this.catalogApp.builtinPackage(id)) throw new AppError('AGENT_PACKAGE_INVALID', `The identifier "${id}" is taken by a built-in agent.`);
+    if (this.systemRows().some((r) => r.id === id && r.version === version)) throw new AppError('AGENT_PACKAGE_INVALID', `Version ${version} of the agent "${id}" already exists in the system. Increase the version.`);
     const rel = join('.aos', 'agents', id, version);
     await writePackage(join(this.rt.paths.root, rel), files);
     this.rt.db.run('INSERT INTO system_agent_packages(id, version, manifest, origin, install_path, installed_at) VALUES (?, ?, ?, ?, ?, ?)', id, version, files.get('manifest.json')!.toString('utf8'), origin, rel, nowIso());
@@ -303,7 +303,7 @@ export class AgentService {
       name: def.name,
       version,
       description: def.description,
-      author: 'Пользователь',
+      author: 'User',
       category: def.category ?? 'custom',
       entry: 'instructions.md',
       platform: '>=0.1.0 <1.0.0',
@@ -344,7 +344,7 @@ export class AgentService {
   /** Resolves an enabled agent for execution (used by the workflow engine). */
   async forRun(id: string): Promise<{ pkg: AgentPackage; config: AgentConfig; version: string }> {
     const r = this.row(id);
-    if (!r.enabled) throw new AppError('AGENT_NOT_ENABLED', `Агент «${id}» не включён в этой системе.`, { details: { agentId: id } });
+    if (!r.enabled) throw new AppError('AGENT_NOT_ENABLED', `The agent "${id}" is not enabled in this system.`, { details: { agentId: id } });
     const pkg = await this.package(r.scope, id, r.active_version);
     return { pkg, config: this.config(id), version: r.active_version };
   }
@@ -353,7 +353,7 @@ export class AgentService {
   async testRun(id: string, opts: { signal?: AbortSignal; scope?: Partial<RunScope> } = {}): Promise<{ ok: boolean; message: string; cases: { name: string; ok: boolean; problems: string[]; output?: unknown }[] }> {
     const r = this.row(id);
     const pkg = await this.package(r.scope, id, r.active_version);
-    const cases = pkg.tests.length ? pkg.tests.slice(0, 3) : [{ name: 'минимальный вход', input: {} }];
+    const cases = pkg.tests.length ? pkg.tests.slice(0, 3) : [{ name: 'minimal input', input: {} }];
     const results: { name: string; ok: boolean; problems: string[]; output?: unknown }[] = [];
     for (const c of cases) {
       const problems: string[] = [];
@@ -361,10 +361,10 @@ export class AgentService {
       try {
         const res: AgentRunResult = await this.runtime.run(id, pkg, this.config(id), c.input, { scope: { sourceIds: [], docIds: [], extraSystems: [], allowWeb: false, ...opts.scope }, ...(opts.signal ? { signal: opts.signal } : {}) });
         output = res.output;
-        for (const p of c.expect?.requiredPaths ?? []) if (getPath(res.output, p) === undefined) problems.push(`нет поля ${p}`);
+        for (const p of c.expect?.requiredPaths ?? []) if (getPath(res.output, p) === undefined) problems.push(`missing field ${p}`);
         for (const [p, n] of Object.entries(c.expect?.minItems ?? {})) {
           const v = getPath(res.output, p);
-          if (!Array.isArray(v) || v.length < n) problems.push(`${p}: ожидалось не меньше ${n} элементов`);
+          if (!Array.isArray(v) || v.length < n) problems.push(`${p}: expected at least ${n} items`);
         }
       } catch (e) {
         problems.push(toAppError(e).message);
@@ -372,7 +372,7 @@ export class AgentService {
       results.push({ name: c.name, ok: problems.length === 0, problems, ...(output !== undefined ? { output } : {}) });
     }
     const ok = results.every((x) => x.ok);
-    const message = ok ? 'Все тестовые сценарии пройдены.' : `Не пройдено сценариев: ${results.filter((x) => !x.ok).length} из ${results.length}.`;
+    const message = ok ? 'All test cases passed.' : `Test cases failed: ${results.filter((x) => !x.ok).length} of ${results.length}.`;
     this.rt.db.run('UPDATE agents SET last_test_at = ?, last_test_result = ? WHERE id = ?', nowIso(), JSON.stringify({ ok, message, cases: results.map(({ output: _o, ...rest }) => rest) }), id);
     this.rt.audit.record({ actor: 'user', action: 'agent.test', target: id, outcome: ok ? 'ok' : 'error', details: { message } });
     this.rt.emit('agents.changed', { agentId: id });

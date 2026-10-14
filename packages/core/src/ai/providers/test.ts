@@ -40,8 +40,8 @@ export class TestProvider implements LocalModelProvider {
 
   async listModels(): Promise<ModelInfo[]> {
     return [
-      { id: 'test-model', providerId: this.config.id, displayName: 'Тестовая модель', locality: 'local', contextLength: 32768, sizeBytes: null, parameterSize: null, quantization: null, loaded: true, capabilities: { chat: true, structuredOutput: true, tools: false, embeddings: false, vision: false } },
-      { id: 'test-embed', providerId: this.config.id, displayName: 'Тестовые эмбеддинги', locality: 'local', contextLength: 8192, sizeBytes: null, parameterSize: null, quantization: null, loaded: true, capabilities: { chat: false, structuredOutput: false, tools: false, embeddings: true, vision: false } },
+      { id: 'test-model', providerId: this.config.id, displayName: 'Test model', locality: 'local', contextLength: 32768, sizeBytes: null, parameterSize: null, quantization: null, loaded: true, capabilities: { chat: true, structuredOutput: true, tools: false, embeddings: false, vision: false } },
+      { id: 'test-embed', providerId: this.config.id, displayName: 'Test embeddings', locality: 'local', contextLength: 8192, sizeBytes: null, parameterSize: null, quantization: null, loaded: true, capabilities: { chat: false, structuredOutput: false, tools: false, embeddings: true, vision: false } },
     ];
   }
 
@@ -51,7 +51,7 @@ export class TestProvider implements LocalModelProvider {
     // honour cancellation like real providers do (HTTP requests are aborted with the signal)
     const aborted = new Promise<never>((_, reject) => {
       if (!req.signal) return;
-      const fail = () => reject(new AppError('CANCELLED', 'Запрос к модели отменён.'));
+      const fail = () => reject(new AppError('CANCELLED', 'The model request was cancelled.'));
       if (req.signal.aborted) fail();
       else req.signal.addEventListener('abort', fail, { once: true });
     });
@@ -62,7 +62,7 @@ export class TestProvider implements LocalModelProvider {
         if (text !== null) break;
       }
     }
-    if (text === null) text = req.jsonSchema ? JSON.stringify(sampleFromSchema(req.jsonSchema.schema)) : `Тестовый ответ на: ${req.messages.at(-1)?.content.slice(0, 80) ?? ''}`;
+    if (text === null) text = req.jsonSchema ? JSON.stringify(sampleFromSchema(req.jsonSchema.schema)) : `Test answer to: ${req.messages.at(-1)?.content.slice(0, 80) ?? ''}`;
     return {
       text,
       finishReason: 'stop',

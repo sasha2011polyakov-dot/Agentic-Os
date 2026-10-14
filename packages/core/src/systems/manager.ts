@@ -103,7 +103,7 @@ export class SystemManager {
     try {
       const manifest = await readManifest(rec.storagePath);
       if (manifest.systemId !== systemId) {
-        this.registry.update(systemId, { status: 'error', statusDetail: `В папке находится другая система (${manifest.systemId}).`, lastCheckedAt: now });
+        this.registry.update(systemId, { status: 'error', statusDetail: `The folder contains another system (${manifest.systemId}).`, lastCheckedAt: now });
         return 'error';
       }
       if (rec.status !== 'connected' || rec.statusDetail) this.registry.update(systemId, { status: 'connected', statusDetail: null, lastCheckedAt: now });
@@ -111,7 +111,7 @@ export class SystemManager {
       return 'connected';
     } catch (e) {
       const err = toAppError(e);
-      const detail = err.code === 'SYSTEM_NOT_FOUND_AT_PATH' ? 'Папка системы не найдена или в ней нет .aos/system.json.' : err.message;
+      const detail = err.code === 'SYSTEM_NOT_FOUND_AT_PATH' ? 'The system folder was not found or has no .aos/system.json.' : err.message;
       this.registry.update(systemId, { status: 'unavailable', statusDetail: detail, lastCheckedAt: now });
       const rt = this.runtimes.get(systemId);
       if (rt) await this.closeRuntime(systemId);
@@ -212,7 +212,7 @@ export class SystemManager {
     const real = await realpathLoose(target);
     const dataDir = await realpathLoose(this.app.paths.dataDir);
     if (isInside(real, dataDir) || isInside(dataDir, real)) {
-      throw new AppError('SYSTEM_PATH_CONFLICT', 'Нельзя размещать систему в папке данных приложения или выше неё.');
+      throw new AppError('SYSTEM_PATH_CONFLICT', 'A system cannot be placed in the application data folder or above it.');
     }
     for (const rec of this.registry.list()) {
       if (rec.systemId === ignoreSystemId) continue;
@@ -225,21 +225,21 @@ export class SystemManager {
 
   async create(input: CreateSystemInput): Promise<SystemInfo> {
     const name = input.name.trim();
-    if (!name || name.length > 120) throw new AppError('VALIDATION_FAILED', 'Название системы должно содержать от 1 до 120 символов.');
-    if (!isAbsolute(input.storagePath)) throw new AppError('VALIDATION_FAILED', 'Укажите абсолютный путь к папке хранилища.');
+    if (!name || name.length > 120) throw new AppError('VALIDATION_FAILED', 'The system name must be 1 to 120 characters long.');
+    if (!isAbsolute(input.storagePath)) throw new AppError('VALIDATION_FAILED', 'Enter an absolute path to the vault folder.');
     const storagePath = resolve(input.storagePath);
     await this.assertNoOverlap(storagePath);
 
     let createdFolder = false;
     if (await exists(storagePath)) {
       const st = await stat(storagePath);
-      if (!st.isDirectory()) throw new AppError('VALIDATION_FAILED', 'По указанному пути находится файл, а не папка.');
+      if (!st.isDirectory()) throw new AppError('VALIDATION_FAILED', 'The path points to a file, not a folder.');
       if (await exists(systemPaths(storagePath).manifest)) {
-        throw new AppError('VALIDATION_FAILED', 'В этой папке уже есть система Agentic OS.', { hint: 'Используйте «Подключить существующую».' });
+        throw new AppError('VALIDATION_FAILED', 'This folder already contains an Agentic OS system.', { hint: 'Use "Connect existing".' });
       }
       const entries = (await readdir(storagePath)).filter((e) => e !== '.DS_Store');
       if (entries.length > 0 && !input.adoptExistingFolder) {
-        throw new AppError('VALIDATION_FAILED', 'Папка не пуста.', { hint: 'Выберите пустую папку или включите «Создать систему в существующей папке» — тогда будет добавлена только служебная папка .aos, ваши файлы не изменятся.' });
+        throw new AppError('VALIDATION_FAILED', 'The folder is not empty.', { hint: 'Choose an empty folder or enable "Create the system in an existing folder": only the .aos service folder will be added, your files will not change.' });
       }
     } else {
       await mkdir(storagePath, { recursive: true });
@@ -254,14 +254,14 @@ export class SystemManager {
       await mkdir(systemPaths(storagePath).aosDir, { recursive: true });
       const manifest: SystemManifest = { format: SYSTEM_FORMAT, formatVersion: SYSTEM_FORMAT_VERSION, systemId, name, createdAt };
       await writeManifest(storagePath, manifest);
-      this.registry.addStep(opId, { name: 'Паспорт системы записан', status: 'done' });
+      this.registry.addStep(opId, { name: 'System manifest written', status: 'done' });
 
       if (input.template === 'starter') {
         for (const f of STARTER_FILES) {
           const target = join(storagePath, f.path);
           if (!(await exists(target))) await atomicWrite(target, f.content);
         }
-        this.registry.addStep(opId, { name: 'Стартовые заметки созданы', status: 'done' });
+        this.registry.addStep(opId, { name: 'Starter notes created', status: 'done' });
       }
 
       const count = this.registry.list().length;
@@ -278,11 +278,11 @@ export class SystemManager {
         createdAt,
         lastOpenedAt: null,
       });
-      this.registry.addStep(opId, { name: 'Система зарегистрирована', status: 'done' });
+      this.registry.addStep(opId, { name: 'System registered', status: 'done' });
 
       rt = await this.runtime(systemId);
       rt.audit.record({ actor: 'user', action: 'system.create', target: systemId, details: { name } });
-      this.registry.addStep(opId, { name: 'База системы создана', status: 'done' });
+      this.registry.addStep(opId, { name: 'System database created', status: 'done' });
       this.registry.finishOperation(opId, 'completed');
       this.app.registryAudit.record({ actor: 'user', action: 'system.create', systemId, details: { name, storagePath } });
       if (!this.activeSystemId()) this.app.appSettings.set('ui.activeSystemId', systemId);
@@ -290,7 +290,7 @@ export class SystemManager {
       return this.get(systemId);
     } catch (e) {
       // Roll back only what this operation created. Pre-existing user files are never touched.
-      this.registry.addStep(opId, { name: 'Ошибка', status: 'failed', detail: errorMessage(e) });
+      this.registry.addStep(opId, { name: 'Error', status: 'failed', detail: errorMessage(e) });
       if (rt) await this.closeRuntime(systemId);
       this.registry.remove(systemId);
       await rm(systemPaths(storagePath).aosDir, { recursive: true, force: true }).catch(() => {});
@@ -329,9 +329,9 @@ export class SystemManager {
     const opId = this.registry.startOperation(opts.asCopy ? 'system.attach-copy' : 'system.attach', manifest.systemId, { path: p });
     try {
       if (registered && opts.asCopy) {
-        finalManifest = { ...manifest, systemId: `sys_${ulid()}`, name: opts.name ?? `${manifest.name} (копия)` };
+        finalManifest = { ...manifest, systemId: `sys_${ulid()}`, name: opts.name ?? `${manifest.name} (copy)` };
         await reassignSystemId(p, manifest.systemId, finalManifest, this.app);
-        this.registry.addStep(opId, { name: 'Копии присвоен новый идентификатор', status: 'done', detail: finalManifest.systemId });
+        this.registry.addStep(opId, { name: 'The copy got a new identifier', status: 'done', detail: finalManifest.systemId });
       }
       this.registry.insert({
         systemId: finalManifest.systemId,
@@ -347,7 +347,7 @@ export class SystemManager {
         lastOpenedAt: null,
       });
       await this.runtime(finalManifest.systemId);
-      this.registry.addStep(opId, { name: 'Система подключена', status: 'done' });
+      this.registry.addStep(opId, { name: 'System connected', status: 'done' });
       this.registry.finishOperation(opId, 'completed');
       this.app.registryAudit.record({ actor: 'user', action: opts.asCopy ? 'system.attach-copy' : 'system.attach', systemId: finalManifest.systemId, details: { path: p } });
       this.app.events.emit('systems.changed', { reason: 'attach', systemId: finalManifest.systemId });
@@ -367,13 +367,13 @@ export class SystemManager {
     const clean: { name?: string; description?: string; icon?: string; color?: string } = {};
     if (patch.name !== undefined) {
       const n = patch.name.trim();
-      if (!n || n.length > 120) throw new AppError('VALIDATION_FAILED', 'Название системы должно содержать от 1 до 120 символов.');
+      if (!n || n.length > 120) throw new AppError('VALIDATION_FAILED', 'The system name must be 1 to 120 characters long.');
       clean.name = n;
     }
     if (patch.description !== undefined) clean.description = patch.description.slice(0, 2000);
     if (patch.icon !== undefined) clean.icon = patch.icon.slice(0, 40);
     if (patch.color !== undefined) {
-      if (!/^#[0-9a-fA-F]{6}$/.test(patch.color)) throw new AppError('VALIDATION_FAILED', 'Цвет задаётся в формате #RRGGBB.');
+      if (!/^#[0-9a-fA-F]{6}$/.test(patch.color)) throw new AppError('VALIDATION_FAILED', 'The color must use the #RRGGBB format.');
       clean.color = patch.color;
     }
     this.registry.update(systemId, clean);
@@ -397,7 +397,7 @@ export class SystemManager {
     const p = resolve(newPath);
     const manifest = await readManifest(p);
     if (manifest.systemId !== systemId) {
-      throw new AppError('SYSTEM_ID_CONFLICT', 'В выбранной папке находится другая система.', { details: { expected: systemId, found: manifest.systemId } });
+      throw new AppError('SYSTEM_ID_CONFLICT', 'The selected folder contains another system.', { details: { expected: systemId, found: manifest.systemId } });
     }
     await this.assertNoOverlap(p, systemId);
     await this.closeRuntime(systemId);
@@ -493,7 +493,7 @@ export class SystemManager {
    */
   async deleteData(systemId: string, opts: { mode: 'service-data' | 'everything'; confirmName: string; activeRuns?: ActiveRunsPolicy }): Promise<{ status: 'completed' | 'partial'; steps: { name: string; status: string; detail?: string }[] }> {
     const rec = this.registry.require(systemId);
-    if (opts.confirmName !== rec.name) throw new AppError('CONFIRMATION_REQUIRED', 'Введённое название не совпадает с названием системы.');
+    if (opts.confirmName !== rec.name) throw new AppError('CONFIRMATION_REQUIRED', 'The name you entered does not match the system name.');
     const opId = this.registry.startOperation('system.delete-data', systemId, { mode: opts.mode, path: rec.storagePath, name: rec.name });
     const rt = this.runtimes.get(systemId);
     if (rt && !rt.isClosed) {
@@ -508,7 +508,7 @@ export class SystemManager {
     if (await exists(rec.storagePath)) {
       try {
         const m = await readManifest(rec.storagePath);
-        if (m.systemId !== systemId) throw new AppError('SYSTEM_ID_CONFLICT', 'В папке находится другая система — удаление отменено.');
+        if (m.systemId !== systemId) throw new AppError('SYSTEM_ID_CONFLICT', 'The folder contains another system: deletion cancelled.');
       } catch (e) {
         const err = toAppError(e);
         if (err.code !== 'SYSTEM_NOT_FOUND_AT_PATH') {
@@ -517,28 +517,28 @@ export class SystemManager {
         }
         if (opts.mode === 'everything') {
           this.registry.finishOperation(opId, 'failed', 'passport missing');
-          throw new AppError('CONFIRMATION_REQUIRED', 'В папке нет паспорта системы — удаление всей папки отменено для безопасности.', { hint: 'Удалите папку вручную, если уверены, или выберите «Удалить из списка».' });
+          throw new AppError('CONFIRMATION_REQUIRED', 'The folder has no system manifest: deleting the whole folder was cancelled for safety.', { hint: 'Delete the folder manually if you are sure, or choose "Remove from list".' });
         }
       }
     }
     await this.closeRuntime(systemId);
-    this.registry.addStep(opId, { name: 'Система закрыта', status: 'done' });
+    this.registry.addStep(opId, { name: 'System closed', status: 'done' });
     let failed = false;
     const target = opts.mode === 'everything' ? rec.storagePath : systemPaths(rec.storagePath).aosDir;
     try {
       await rm(target, { recursive: true, force: true, maxRetries: 3 });
       if (await exists(target)) throw new Error('folder still exists after removal');
-      this.registry.addStep(opId, { name: opts.mode === 'everything' ? 'Папка системы удалена' : 'Служебные данные (.aos) удалены', status: 'done', detail: target });
+      this.registry.addStep(opId, { name: opts.mode === 'everything' ? 'System folder deleted' : 'Service data (.aos) deleted', status: 'done', detail: target });
     } catch (e) {
       failed = true;
-      this.registry.addStep(opId, { name: 'Удаление файлов', status: 'failed', detail: errorMessage(e) });
+      this.registry.addStep(opId, { name: 'Deleting files', status: 'failed', detail: errorMessage(e) });
     }
     if (!failed) {
       this.registry.remove(systemId);
-      this.registry.addStep(opId, { name: 'Регистрация удалена', status: 'done' });
+      this.registry.addStep(opId, { name: 'Registration removed', status: 'done' });
       if (this.app.appSettings.get('ui.activeSystemId') === systemId) this.app.appSettings.set('ui.activeSystemId', this.firstConnectedId(systemId));
     } else {
-      this.registry.update(systemId, { status: 'error', statusDetail: 'Удаление завершено не полностью. Подробности — в журнале операций.' });
+      this.registry.update(systemId, { status: 'error', statusDetail: 'Deletion did not complete. See the operations log for details.' });
     }
     const status = failed ? 'partial' : 'completed';
     this.registry.finishOperation(opId, status);

@@ -133,15 +133,15 @@ function compile(node: QueryNode, params: SqlValue[]): string {
 function explain(node: QueryNode): string {
   switch (node.kind) {
     case 'and':
-      return node.items.map(explain).join(' И ');
+      return node.items.map(explain).join(' AND ');
     case 'or':
-      return `(${node.items.map(explain).join(' ИЛИ ')})`;
+      return `(${node.items.map(explain).join(' OR ')})`;
     case 'not':
-      return `НЕ ${explain(node.item)}`;
+      return `NOT ${explain(node.item)}`;
     case 'text':
-      return `${node.field === 'title' ? 'в названии' : node.field === 'body' ? 'в тексте' : ''} ${node.phrase ? `фраза «${node.value}»` : `слово «${node.value}»`}`.trim();
+      return `${node.field === 'title' ? 'in title' : node.field === 'body' ? 'in text' : ''} ${node.phrase ? `phrase "${node.value}"` : `word "${node.value}"`}`.trim();
     case 'prop':
-      return node.cmp === 'exists' ? `есть свойство ${node.key}` : node.cmp === 'null' ? `свойство ${node.key} пустое` : `свойство ${node.key} ${node.cmp} ${node.value}`;
+      return node.cmp === 'exists' ? `has property ${node.key}` : node.cmp === 'null' ? `property ${node.key} is empty` : `property ${node.key} ${node.cmp} ${node.value}`;
     case 'op':
       return `${node.op}: ${node.value}`;
   }
@@ -218,7 +218,7 @@ export class SearchService {
       }));
       return { hits, total, query, explain: explain(node), tookMs: Date.now() - started };
     } catch (e) {
-      throw new AppError('VALIDATION_FAILED', 'Не удалось разобрать поисковый запрос.', { hint: 'Проверьте парность кавычек и скобок.', details: { error: e instanceof Error ? e.message : String(e) } });
+      throw new AppError('VALIDATION_FAILED', 'Could not parse the search query.', { hint: 'Check that quotes and parentheses are paired.', details: { error: e instanceof Error ? e.message : String(e) } });
     }
   }
 }

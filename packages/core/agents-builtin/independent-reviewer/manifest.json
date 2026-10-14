@@ -1,9 +1,9 @@
 {
   "formatVersion": 1,
   "id": "independent-reviewer",
-  "name": "Независимый ревьюер поручения",
-  "version": "1.0.0",
-  "description": "Независимо проверяет итог поручения и сверяет нормализованные требования с исходным запросом.",
+  "name": "Independent mission reviewer",
+  "version": "1.0.1",
+  "description": "Independently reviews the mission outcome and compares the normalized requirements with the original request.",
   "author": "Agentic OS",
   "category": "mission",
   "entry": "instructions.md",

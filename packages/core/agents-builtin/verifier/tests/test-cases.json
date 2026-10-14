@@ -1,13 +1,13 @@
 {
   "cases": [
     {
-      "name": "без артефактов",
+      "name": "no artifacts",
       "input": {
         "objective": "x",
         "acceptance_criteria": [
           {
             "id": "AC1",
-            "text": "Есть отчёт"
+            "text": "There is a report"
           }
         ],
         "artifacts": [],

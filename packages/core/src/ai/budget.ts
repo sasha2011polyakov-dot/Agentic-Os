@@ -31,9 +31,9 @@ export class RunBudget {
   check(): void {
     const t = this.totals;
     const l = this.limits;
-    if (l.maxModelCalls !== null && t.modelCalls >= l.maxModelCalls) throw new AppError('BUDGET_EXCEEDED', `Достигнут лимит вызовов модели для запуска (${l.maxModelCalls}).`);
-    if (l.maxTokens !== null && t.inputTokens + t.outputTokens >= l.maxTokens) throw new AppError('BUDGET_EXCEEDED', `Достигнут лимит токенов для запуска (${l.maxTokens}).`);
-    if (l.maxCostUsd !== null && t.costUsd >= l.maxCostUsd) throw new AppError('BUDGET_EXCEEDED', `Достигнут лимит стоимости запуска ($${l.maxCostUsd}).`);
+    if (l.maxModelCalls !== null && t.modelCalls >= l.maxModelCalls) throw new AppError('BUDGET_EXCEEDED', `The model call limit for the run was reached (${l.maxModelCalls}).`);
+    if (l.maxTokens !== null && t.inputTokens + t.outputTokens >= l.maxTokens) throw new AppError('BUDGET_EXCEEDED', `The token limit for the run was reached (${l.maxTokens}).`);
+    if (l.maxCostUsd !== null && t.costUsd >= l.maxCostUsd) throw new AppError('BUDGET_EXCEEDED', `The cost limit for the run was reached ($${l.maxCostUsd}).`);
   }
 
   add(usage: { inputTokens: number | null; outputTokens: number | null; costUsd: number | null; cloud: boolean }): void {
@@ -65,14 +65,14 @@ export class BudgetGuard {
     if (b.maxCloudRequestsPerDay !== null) {
       const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const n = this.db.get<{ c: number }>("SELECT COUNT(*) AS c FROM ai_usage WHERE locality = 'cloud' AND ts >= ? AND status <> 'denied'", since)!.c;
-      if (n >= b.maxCloudRequestsPerDay) throw new AppError('BUDGET_EXCEEDED', `Достигнут дневной лимит облачных запросов (${b.maxCloudRequestsPerDay}).`);
+      if (n >= b.maxCloudRequestsPerDay) throw new AppError('BUDGET_EXCEEDED', `The daily limit of cloud requests was reached (${b.maxCloudRequestsPerDay}).`);
     }
     if (b.monthlyCostUsd !== null) {
       const monthStart = new Date();
       monthStart.setUTCDate(1);
       monthStart.setUTCHours(0, 0, 0, 0);
       const spent = this.db.get<{ s: number | null }>("SELECT SUM(cost_usd) AS s FROM ai_usage WHERE locality = 'cloud' AND ts >= ?", monthStart.toISOString())!.s ?? 0;
-      if (spent >= b.monthlyCostUsd) throw new AppError('BUDGET_EXCEEDED', `Достигнут месячный лимит расходов ($${b.monthlyCostUsd}).`);
+      if (spent >= b.monthlyCostUsd) throw new AppError('BUDGET_EXCEEDED', `The monthly spending limit was reached ($${b.monthlyCostUsd}).`);
     }
   }
 

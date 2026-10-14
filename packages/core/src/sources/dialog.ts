@@ -44,7 +44,7 @@ export class NativeDialog {
   }
 
   /** Returns the chosen absolute path, or null when the user cancelled. */
-  async pickDirectory(title = 'Выберите папку'): Promise<string | null> {
+  async pickDirectory(title = 'Choose a folder'): Promise<string | null> {
     const { tool } = await this.availability();
     if (!tool) throw new Error('native dialog unavailable');
     let r: { code: number; stdout: string };

@@ -1,7 +1,7 @@
 {
   "cases": [
     {
-      "name": "пусто",
+      "name": "empty",
       "input": {
         "objective": "x",
         "results": []

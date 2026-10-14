@@ -11,13 +11,13 @@
     "tools": [
       {
         "name": "count_words",
-        "title": "Подсчёт слов",
-        "description": "Считает слова, символы и заголовки документа.",
+        "title": "Word count",
+        "description": "Counts the words, characters and headings of a document.",
         "entry": "tools/count.mjs",
         "inputSchema": { "type": "object", "required": ["docId"], "additionalProperties": false, "properties": { "docId": { "type": "string" } } },
         "timeoutSec": 10
       }
     ]
   },
-  "permissions": [{ "permission": "documents.read", "reason": "Прочитать документ, который нужно посчитать." }]
+  "permissions": [{ "permission": "documents.read", "reason": "Read the document to count." }]
 }

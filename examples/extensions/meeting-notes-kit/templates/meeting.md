@@ -4,14 +4,14 @@ date:
 participants: []
 ---
 
-# Встреча
+# Meeting
 
-## Повестка
+## Agenda
 
-## Обсуждение
+## Discussion
 
-## Решения
+## Decisions
 
-## Задачи
+## Action items
 
-## Открытые вопросы
+## Open questions

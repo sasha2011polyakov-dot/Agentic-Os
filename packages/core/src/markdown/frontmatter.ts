@@ -34,7 +34,7 @@ export function parseFrontmatter(raw: string | null): ParsedFrontmatter {
   try {
     const value = parseYaml(raw, { prettyErrors: true, uniqueKeys: false });
     if (value === null || value === undefined) return { data: {}, error: null };
-    if (typeof value !== 'object' || Array.isArray(value)) return { data: {}, error: 'Frontmatter должен быть набором «ключ: значение».' };
+    if (typeof value !== 'object' || Array.isArray(value)) return { data: {}, error: 'Frontmatter must be a set of "key: value" pairs.' };
     return { data: normalizeValues(value as Record<string, unknown>), error: null };
   } catch (e) {
     return { data: {}, error: e instanceof Error ? e.message.split('\n')[0]! : String(e) };
