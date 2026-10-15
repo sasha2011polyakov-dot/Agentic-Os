@@ -1,36 +1,36 @@
-# AI Core и Web Research — итоговая архитектура
+# AI Core and web research: final architecture
 
-Статус: принято · Дата: 2026-10-12 · Первоисточники API: см. раздел 6.
+Status: accepted · Date: 2026-10-12 · Primary API sources: see section 6.
 
 ## 1. AI Core
 
 ```
                          AI Core (core/ai)
-   ┌───────────────┬───────────────┬─────────────────┬──────────────┐
-   │ ProviderRegistry│ ModelRouter  │ BudgetGuard      │ SecretStore  │
-   │ (конфиги в БД)  │ (политики)   │ (лимиты, учёт)   │ (ключи вне БД)│
-   └───────┬────────┴──────┬────────┴────────┬────────┴──────┬───────┘
-           │               │                 │               │
-   ┌───────▼───────┐ ┌─────▼──────┐   ┌──────▼──────┐  ┌─────▼─────┐
-   │ OllamaProvider │ │ OpenAICompat│   │ Anthropic   │  │ Test (только│
-   │ local          │ │ local|cloud │   │ cloud       │  │ при флаге)  │
-   └───────┬───────┘ └─────┬──────┘   └──────┬──────┘  └───────────┘
+   ┌────────────────┬──────────────┬──────────────────┬───────────────┐
+   │ ProviderRegistry│ ModelRouter  │ BudgetGuard      │ SecretStore   │
+   │ (configs in DB) │ (policies)   │ (limits, usage)  │ (keys off DB) │
+   └───────┬────────┴──────┬───────┴────────┬─────────┴──────┬────────┘
+           │               │                │                │
+   ┌───────▼───────┐ ┌─────▼──────┐   ┌──────▼──────┐  ┌─────▼──────┐
+   │ OllamaProvider │ │ OpenAICompat│   │ Anthropic   │  │ Test (only  │
+   │ local          │ │ local|cloud │   │ cloud       │  │ with a flag)│
+   └───────┬───────┘ └─────┬──────┘   └──────┬──────┘  └────────────┘
            └───────────────┴──────┬──────────┘
                            HttpClient + NetworkPolicy (core/net)
 ```
 
-### 1.1. Провайдеры
+### 1.1. Providers
 
-| Адаптер | Покрывает | Эндпоинты | Structured output | Эмбеддинги | Управление моделями |
+| Adapter | Covers | Endpoints | Structured output | Embeddings | Model management |
 |---|---|---|---|---|---|
-| `ollama` | Ollama | `GET /api/version`, `GET /api/tags`, `POST /api/show`, `POST /api/chat` (`stream:false`), `POST /api/embed`, `POST /api/pull` (поток прогресса), `DELETE /api/delete`, `GET /api/ps` | `format: <JSON Schema>` | `/api/embed` | pull/delete; `capabilities` и `<arch>.context_length` из `/api/show` |
-| `openai-compatible` | LM Studio (`http://localhost:1234/v1`), OpenAI, другие совместимые серверы | `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/embeddings`; для LM Studio дополнительно `GET /api/v0/models` (`state`, `type`, `max_context_length`) | `response_format: {type:"json_schema", json_schema:{name, schema, strict}}` | `/v1/embeddings` | Нет (LM Studio управляет моделями сам) |
-| `anthropic` | Anthropic Messages API | `POST /v1/messages` (заголовки `x-api-key`, `anthropic-version: 2023-06-01`), `GET /v1/models` | `output_config.format = {type:"json_schema", schema}` | Нет | Нет |
-| `test` | Детерминированный провайдер для автотестов | — | Да | Да | — |
+| `ollama` | Ollama | `GET /api/version`, `GET /api/tags`, `POST /api/show`, `POST /api/chat` (`stream:false`), `POST /api/embed`, `POST /api/pull` (a progress stream), `DELETE /api/delete`, `GET /api/ps` | `format: <JSON Schema>` | `/api/embed` | pull/delete; `capabilities` and `<arch>.context_length` from `/api/show` |
+| `openai-compatible` | LM Studio (`http://localhost:1234/v1`), OpenAI, other compatible servers | `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/embeddings`; for LM Studio also `GET /api/v0/models` (`state`, `type`, `max_context_length`) | `response_format: {type:"json_schema", json_schema:{name, schema, strict}}` | `/v1/embeddings` | No (LM Studio manages models itself) |
+| `anthropic` | Anthropic Messages API | `POST /v1/messages` (headers `x-api-key`, `anthropic-version: 2023-06-01`), `GET /v1/models` | `output_config.format = {type:"json_schema", schema}` | No | No |
+| `test` | A deterministic provider for automated tests | — | Yes | Yes | — |
 
-**Тестовый провайдер** регистрируется только при `AOS_ENABLE_TEST_PROVIDER=1`. В UI он подписан «Тестовый провайдер (для автоматических тестов)». В обычной работе приложения его нет, поэтому он не может подменить реальный результат.
+**The test provider** is registered only with `AOS_ENABLE_TEST_PROVIDER=1`. In the UI it is labeled "Test provider (for automated tests)". It does not exist in normal use of the application, so it cannot stand in for a real result.
 
-### 1.2. Единый запрос
+### 1.2. One request format
 
 ```ts
 interface ChatRequest {
@@ -38,8 +38,8 @@ interface ChatRequest {
   system?: string;
   messages: { role: 'user' | 'assistant'; content: string }[];
   temperature?: number; maxOutputTokens?: number;
-  jsonSchema?: { name: string; schema: JSONSchema };   // structured output, если модель умеет
-  signal?: AbortSignal; purpose: string;                 // для аудита и бюджета
+  jsonSchema?: { name: string; schema: JSONSchema };   // structured output, if the model supports it
+  signal?: AbortSignal; purpose: string;                 // for audit and budget
 }
 interface ChatResponse {
   text: string; json?: unknown; finishReason: 'stop' | 'length' | 'refusal' | 'error' | 'other';
@@ -48,79 +48,79 @@ interface ChatResponse {
 }
 ```
 
-**Если модель не поддерживает structured output** (или провайдер вернул ошибку на параметр формата), рантайм переключается в режим «JSON по инструкции»: схема включается в системный промпт, JSON извлекается из ответа (первый сбалансированный объект), затем валидируется Ajv. При невалидном JSON выполняется до `repairAttempts` (по умолчанию 2) повторов, в которых модели передаются ошибки валидации.
+**If the model does not support structured output** (or the provider rejects the format parameter), the runtime switches to "JSON by instruction" mode: the schema goes into the system prompt, the JSON is extracted from the answer (the first balanced object) and validated with Ajv. On invalid JSON the runtime makes up to `repairAttempts` (2 by default) retries and passes the validation errors to the model.
 
-**Совместимость схем со строгим режимом.** OpenAI strict требует `additionalProperties: false` и все поля в `required`; у Anthropic есть ограничения (например, `minItems` только 0 или 1). Поэтому для отправки провайдеру схема **упрощается** (`sanitizeSchemaForProvider`): удаляются неподдерживаемые ключевые слова, а **полная проверка всегда выполняется локально** через Ajv. Гарантию корректности даёт наша валидация, а не провайдер.
+**Schema compatibility with strict modes.** OpenAI strict mode requires `additionalProperties: false` and every field in `required`; Anthropic has its own limits (for example `minItems` only 0 or 1). So the schema sent to the provider is **simplified** (`sanitizeSchemaForProvider`): unsupported keywords are removed, and **the full check always runs locally** with Ajv. Correctness is guaranteed by our validation, not by the provider.
 
 ### 1.3. Model Router
 
-Вход: `ModelPolicy` агента (из конфигурации, а не из инструкций) + требования шага (`needsStructured`, `minContext`, `taskType`) + свойства контекста (`containsConfidential`) + глобальный режим (`local` | `cloud` | `hybrid`, флаг `offline`).
+Input: the agent's `ModelPolicy` (from its configuration, not from its instructions) + the step requirements (`needsStructured`, `minContext`, `taskType`) + context properties (`containsConfidential`) + the global mode (`local` | `cloud` | `hybrid`, the `offline` flag).
 
-Правила (в порядке проверки):
-1. `offline = true` → разрешены только провайдеры с `locality = local` и loopback-адресом.
-2. Режим `local` → только локальные провайдеры; автоматическое переключение на облако **запрещено**.
-3. Контекст содержит фрагменты конфиденциального источника → только локальные провайдеры.
-4. Политика агента указывает конкретные провайдер и модель → используются они, если доступны. Если недоступны и `allowFallback = false` → ошибка `MODEL_UNAVAILABLE` с подсказкой.
-5. Режим `hybrid`: облако допускается, только если `cloudPolicy` разрешает этот `taskType` **и** у провайдера есть ключ. Повторная попытка в облаке после неудачи локальной модели **не выполняется автоматически** (п. 22.4), только с флагом политики `escalateToCloudOnFailure` и после подтверждения пользователя.
-6. Иначе — модель по умолчанию для `taskType` из настроек маршрутизации, затем глобальная модель по умолчанию.
+Rules (in the order they are checked):
+1. `offline = true` → only providers with `locality = local` and a loopback address are allowed.
+2. `local` mode → only local providers; an automatic switch to the cloud is **forbidden**.
+3. The context contains fragments of a confidential source → only local providers.
+4. The agent policy names a specific provider and model → they are used if available. If they are not available and `allowFallback = false` → the `MODEL_UNAVAILABLE` error with a hint.
+5. `hybrid` mode: the cloud is allowed only if `cloudPolicy` allows this `taskType` **and** the provider has a key. A retry in the cloud after a local model failed is **not done automatically** (22.4); only with the `escalateToCloudOnFailure` policy flag and after the user confirms.
+6. Otherwise: the default model for the `taskType` from the routing settings, then the global default model.
 
-Результат — `{providerId, model, reason}`. `reason` записывается в журнал шага («почему выбрана эта модель»).
+The result is `{providerId, model, reason}`. `reason` is written to the step log ("why this model was chosen").
 
-### 1.4. Бюджеты и учёт
-- Таблица `ai_usage`: провайдер, модель, агент, запуск, шаг, токены входа и выхода, длительность, стоимость (если для модели задана цена пользователем — USD за 1 млн токенов входа и выхода; иначе `NULL` = «неизвестно»).
-- `BudgetGuard.check(scope)` перед каждым облачным вызовом: лимиты на запуск (вызовы, токены, стоимость) и глобальные (месячный лимит стоимости, запросов). При превышении — `BUDGET_EXCEEDED`, новые облачные запросы не отправляются, полученные результаты сохраняются.
-- Ограничение параллелизма запросов — семафор на провайдера.
+### 1.4. Budgets and accounting
+- The `ai_usage` table: provider, model, agent, run, step, input and output tokens, duration, cost (if the user set a price for the model, in USD per 1 million input and output tokens; otherwise `NULL` = "unknown").
+- `BudgetGuard.check(scope)` before every cloud call: per-run limits (calls, tokens, cost) and global ones (the monthly cost limit, requests). When a limit is exceeded: `BUDGET_EXCEEDED`, no new cloud requests are sent, and the results received so far are kept.
+- Request concurrency is limited by a semaphore per provider.
 
-### 1.5. Секреты
-`SecretStore` — цепочка бэкендов с явным выбором:
+### 1.5. Secrets
+`SecretStore` is a chain of backends with an explicit choice:
 
-| Бэкенд | Когда доступен | Хранение |
+| Backend | When available | Storage |
 |---|---|---|
-| `electron-safe-storage` | Desktop, если `isEncryptionAvailable()` и бэкенд не `basic_text` | Зашифрованный blob в файле `secrets.json` (ключ шифрования — в Keychain/DPAPI/libsecret) |
-| `macos-keychain` | macOS, есть `/usr/bin/security` | Keychain (`security add-generic-password`) |
-| `linux-secret-service` | Linux, есть `secret-tool` и работающий Secret Service | libsecret |
-| `env` | Всегда (только чтение) | `AOS_SECRET_<PROVIDER_ID>` |
-| `session` | Всегда | Память процесса до перезапуска |
+| `electron-safe-storage` | Desktop, if `isEncryptionAvailable()` and the backend is not `basic_text` | An encrypted blob in `secrets.json` (the encryption key is in Keychain/DPAPI/libsecret) |
+| `macos-keychain` | macOS with `/usr/bin/security` | Keychain (`security add-generic-password`) |
+| `linux-secret-service` | Linux with `secret-tool` and a running Secret Service | libsecret |
+| `env` | Always (read only) | `AOS_SECRET_<PROVIDER_ID>` |
+| `session` | Always | Process memory until a restart |
 
-Самодельного шифрования нет (п. 22.7.8). Если постоянного защищённого бэкенда нет, UI предлагает переменную окружения или ключ на сессию и объясняет почему. Ключ никогда не возвращается в UI (только маска `sk-…abcd`), не пишется в логи (redaction по шаблонам и по известным значениям), не попадает в контекст агентов, экспорт пакетов и резервные копии.
+There is no home-made encryption (22.7.8). If no persistent protected backend exists, the UI offers an environment variable or a session-only key and explains why. A key is never returned to the UI (only a mask such as `sk-…abcd`), is never written to logs (redaction by patterns and by known values), and never gets into agent context, package exports or backups.
 
-## 2. Web Research
+## 2. Web research
 
-См. исследование `docs/research/web-research-agents.md`. Модули:
+See the research note `docs/research/web-research-agents.md`. Modules:
 
-| Модуль | Ответственность |
+| Module | Responsibility |
 |---|---|
-| `research/safe-fetch.ts` | HTTPS-загрузка с проверкой DNS/IP, ручными редиректами, лимитами размера и времени, allowlist типов содержимого |
-| `research/extract.ts` | HTML → текст и Markdown (htmlparser2), метаданные (title, published, canonical) |
-| `research/search-providers.ts` | `SearxngProvider`, `BraveProvider`, `GithubSearch` (единый интерфейс `WebSearchProvider`) |
-| `research/grounding.ts` | Проверка цитат по загруженному тексту (R1), группировка утверждений |
-| `research/store.ts` | Таблицы `web_sources`, `facts`; кэш страниц |
-| `tools/web-tools.ts` | Инструменты агентов: `web_search`, `open_url`, `extract_page_content`, `fetch_documentation`, `search_github`, `inspect_repository`, `compare_sources`, `save_research_note`, `create_source_links`, `verify_source_freshness` |
-| `pipelines/research.ts` | Исполняемый workflow «Веб-исследование» |
+| `research/safe-fetch.ts` | HTTPS downloads with DNS/IP checks, manual redirects, size and time limits, an allowlist of content types |
+| `research/extract.ts` | HTML → text and Markdown (htmlparser2), metadata (title, published, canonical) |
+| `research/search-providers.ts` | `SearxngProvider`, `BraveProvider`, `GithubSearch` (one `WebSearchProvider` interface) |
+| `research/grounding.ts` | Verifying quotes against the downloaded text (R1), grouping claims |
+| `research/store.ts` | The `web_sources` and `facts` tables; the page cache |
+| `tools/web-tools.ts` | Agent tools: `web_search`, `open_url`, `extract_page_content`, `fetch_documentation`, `search_github`, `inspect_repository`, `compare_sources`, `save_research_note`, `create_source_links`, `verify_source_freshness` |
+| `pipelines/research.ts` | The executable "Web research" workflow |
 
-Каждый инструмент требует разрешения `network.fetch` (и при необходимости `web.search`) у агента. Домены можно ограничить списком в гранте (`allowedDomains`). Запись заметки — разрешение `documents.create` в папке исследований.
+Every tool requires the `network.fetch` permission (and `web.search` where needed) for the agent. Domains can be limited by a list in the grant (`allowedDomains`). Writing a note requires the `documents.create` permission in the research folder.
 
-## 3. Связь с оркестратором
+## 3. Relation to the orchestrator
 
-Агенты не вызывают провайдеров напрямую: `AgentRuntime` получает `ModelRouter` и `ToolExecutor` через внедрение зависимостей. Модель меняется в конфигурации агента (`agent_configs.model_policy`) без изменения `instructions.md` (п. 22.10).
+Agents do not call providers directly: `AgentRuntime` gets the `ModelRouter` and the `ToolExecutor` through dependency injection. The model is changed in the agent configuration (`agent_configs.model_policy`) without changing `instructions.md` (22.10).
 
-## 4. Офлайн-режим
+## 4. Offline mode
 
 `settings.offline = true` →
-- `NetworkPolicy` отклоняет все не-loopback хосты **до** DNS-резолва (`OFFLINE_MODE`);
-- инструменты веб-исследования недоступны (агенту возвращается структурированная ошибка, workflow помечает шаг `failed` с понятной причиной);
-- локальные провайдеры (`127.0.0.1`/`localhost`) работают;
-- детерминированные функции (индексация, граф, поиск, проверки, валидаторы) работают всегда.
+- `NetworkPolicy` rejects every non-loopback host **before** DNS resolution (`OFFLINE_MODE`);
+- web research tools are unavailable (the agent gets a structured error, and the workflow marks the step `failed` with a clear reason);
+- local providers (`127.0.0.1`/`localhost`) work;
+- deterministic functions (indexing, the graph, search, checks, validators) always work.
 
-## 5. Тесты готовности (п. 22.12)
+## 5. Readiness tests (22.12)
 
-Соответствие сценариев тестам — в `docs/spec/acceptance-matrix.md`.
+A document that maps each scenario to its tests is not written yet; the scenarios are covered in `packages/core/test/ai-agents.test.ts` and `packages/core/test/pipelines.test.ts`.
 
-## 6. Первоисточники API (проверены 2026-10-12)
+## 6. Primary API sources (checked 2026-10-12)
 - Ollama API: `github.com/ollama/ollama/blob/main/docs/api.md`.
 - LM Studio: `lmstudio.ai/docs/developer/openai-compat`, `…/openai-compat/structured-output`, `…/rest/endpoints`.
 - OpenAI Structured Outputs: `developers.openai.com/api/docs/guides/structured-outputs`.
-- Anthropic: `platform.claude.com/docs/en/api/messages/create.md`, `…/build-with-claude/structured-outputs.md` (`output_config.format`; beta-заголовок не требуется, устаревший `output_format` требовал `structured-outputs-2025-11-13`).
+- Anthropic: `platform.claude.com/docs/en/api/messages/create.md`, `…/build-with-claude/structured-outputs.md` (`output_config.format`; no beta header is needed; the deprecated `output_format` required `structured-outputs-2025-11-13`).
 - SearXNG Search API: `docs.searxng.org/dev/search_api.html`.
 - Brave Search API: `brave.com/search/api/`.
 - GitHub REST Search: `docs.github.com/en/rest/search/search`.

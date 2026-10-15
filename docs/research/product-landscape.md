@@ -1,155 +1,155 @@
-# Анализ существующих решений
+# Analysis of existing solutions
 
-Дата исследования: **2026-10-12**. Все утверждения ниже опираются на перечисленные источники; там, где вывод является нашей интерпретацией, это указано явно («вывод»).
+Research date: **2026-10-12**. Every claim below relies on the listed sources; where a conclusion is our interpretation, it is marked explicitly ("conclusion").
 
-> Ограничение исследования: сетевая политика среды разработки блокировала прямой доступ к `help.obsidian.md`, `docs.ollama.com`, `lmstudio.ai` и ряду других доменов. Документация Obsidian изучена по её официальному исходному репозиторию `github.com/obsidianmd/obsidian-help` (коммит `08ef563`, 2026-10-11) — это тот же контент, который публикуется на help.obsidian.md. Документация Ollama — по `docs/api.md` из `github.com/ollama/ollama` (ветка `main`). Остальные страницы получены через сервис веб-скрапинга (Firecrawl) с указанием исходного URL.
+> A limitation of the research: the network policy of the development environment blocked direct access to `help.obsidian.md`, `docs.ollama.com`, `lmstudio.ai` and some other domains. The Obsidian documentation was studied from its official source repository `github.com/obsidianmd/obsidian-help` (commit `08ef563`, 2026-10-11), which is the same content that is published on help.obsidian.md. The Ollama documentation was studied from `docs/api.md` in `github.com/ollama/ollama` (the `main` branch). The other pages were retrieved through a web scraping service (Firecrawl), with the original URL given.
 
-## 1. Сводная таблица
+## 1. Summary table
 
-| Продукт | Тип | Хранение | AI | Чему учимся | Чего избегаем |
+| Product | Type | Storage | AI | What we learn | What we avoid |
 |---|---|---|---|---|---|
-| Obsidian | PKM, desktop | Markdown-файлы в папке-vault, метаданные в кэше | Только через плагины | Vault как обычная папка; wikilinks; backlinks; properties; поиск с операторами; локальный граф; JSON Canvas | Плагины получают полные права приложения |
-| Khoj | AI «second brain», self-hosted | Индекс в собственной БД | Локальные (Ollama, OpenAI-совместимые) и облачные модели | Роутинг между локальными и облачными моделями; клиенты для Obsidian/Emacs | Требует отдельного сервера (Python/FastAPI); AGPL-3.0 |
-| Reor | AI-заметки, desktop | Markdown + LanceDB | Ollama, Transformers.js | Автоматические «связанные заметки» по эмбеддингам | Связи по эмбеддингам не помечаются как гипотезы |
-| Smart Connections | Плагин Obsidian | Эмбеддинги в vault | Локальные эмбеддинги по умолчанию | Локальные эмбеддинги «из коробки» | — |
-| AnythingLLM | RAG-платформа, desktop/self-hosted | Workspaces | Локальные и облачные модели, агенты, MCP | Workspace-изоляция контекста; поддержка MCP | Чат-центричная модель взаимодействия |
-| Aider | AI-ассистент для кода, CLI | Git-репозиторий | Любые модели | «Repo map»: карта символов через tree-sitter, ранжированная по графу ссылок | — |
-| Microsoft GraphRAG | Метод индексации | Граф сущностей + сводки сообществ | LLM-извлечение сущностей | Сводки сообществ для «глобальных» вопросов | ≈75% стоимости индексации — извлечение графа LLM |
-| Letta (MemGPT) | Фреймворк памяти агентов | Core/archival/recall memory | Любые модели | Разделение «оперативной» и «архивной» памяти | — |
-| SearXNG | Метапоисковик, self-hosted | — | — | JSON API для поиска без ключей при собственном инстансе | Публичные инстансы часто отключают JSON |
-| Model Context Protocol | Протокол инструментов | — | — | Стандартизованные tools/resources/prompts, JSON-RPC поверх stdio | Произвольные MCP-серверы = произвольный код |
+| Obsidian | PKM, desktop | Markdown files in a vault folder, metadata in a cache | Only through plugins | The vault as a plain folder; wikilinks; backlinks; properties; search with operators; the local graph; JSON Canvas | Plugins get the full rights of the application |
+| Khoj | AI "second brain", self-hosted | An index in its own database | Local (Ollama, OpenAI-compatible) and cloud models | Routing between local and cloud models; clients for Obsidian/Emacs | Needs a separate server (Python/FastAPI); AGPL-3.0 |
+| Reor | AI notes, desktop | Markdown + LanceDB | Ollama, Transformers.js | Automatic "related notes" from embeddings | Embedding-based links are not marked as hypotheses |
+| Smart Connections | An Obsidian plugin | Embeddings in the vault | Local embeddings by default | Local embeddings out of the box | — |
+| AnythingLLM | A RAG platform, desktop/self-hosted | Workspaces | Local and cloud models, agents, MCP | Context isolation per workspace; MCP support | A chat-centric interaction model |
+| Aider | An AI coding assistant, CLI | A Git repository | Any models | The "repo map": a symbol map through tree-sitter, ranked by the reference graph | — |
+| Microsoft GraphRAG | An indexing method | An entity graph + community summaries | LLM entity extraction | Community summaries for "global" questions | ≈75% of the indexing cost is LLM graph extraction |
+| Letta (MemGPT) | An agent memory framework | Core/archival/recall memory | Any models | Separating "working" and "archival" memory | — |
+| SearXNG | A metasearch engine, self-hosted | — | — | A JSON search API without keys on one's own instance | Public instances often disable JSON |
+| Model Context Protocol | A tool protocol | — | — | Standardized tools/resources/prompts, JSON-RPC over stdio | Arbitrary MCP servers = arbitrary code |
 
-## 2. Obsidian — функциональный ориентир
+## 2. Obsidian: the functional reference
 
-Источник: `github.com/obsidianmd/obsidian-help`, папка `en/` (коммит 2026-10-11).
+Source: `github.com/obsidianmd/obsidian-help`, the `en/` folder (commit of 2026-10-11).
 
-### 2.1. Хранение данных
-- Vault — обычная папка с Markdown-файлами; другие редакторы могут менять файлы, Obsidian «автоматически обновляет vault при внешних изменениях» (`Files and folders/How Obsidian stores data.md`).
-- Настройки vault хранятся в `.obsidian/`; глобальные настройки — в системной папке (`~/.config/obsidian` на Linux).
-- Метаданные (ссылки, заголовки, свойства) хранятся в **кэше метаданных** (IndexedDB); кэш можно перестроить из файлов, если он рассинхронизировался.
+### 2.1. Data storage
+- A vault is a plain folder with Markdown files; other editors can change the files, and Obsidian "automatically refreshes the vault on external changes" (`Files and folders/How Obsidian stores data.md`).
+- Vault settings are stored in `.obsidian/`; global settings in a system folder (`~/.config/obsidian` on Linux).
+- Metadata (links, headings, properties) is stored in a **metadata cache** (IndexedDB); the cache can be rebuilt from the files if it gets out of sync.
 
-**Вывод:** файл — источник истины, индекс — производный и перестраиваемый. Мы принимаем этот принцип: SQLite-индекс всегда можно пересоздать из файлов, а пользовательские данные (заметки) всегда остаются в Markdown.
+**Conclusion:** the file is the source of truth, and the index is derived and rebuildable. We accept this principle: the SQLite index can always be recreated from the files, and user data (notes) always stays in Markdown.
 
-### 2.2. Ссылки (`Linking notes and files/Internal links.md`)
-- Форматы: `[[Note]]`, `[[Note.md]]`, Markdown `[text](Note%20name.md)`; ссылки на папки — путь от корня vault с `/`.
-- Заголовки: `[[Note#Heading]]`, вложенные `[[Note#H1#H2]]`; блоки: `[[Note#^block-id]]`, где `^id` — латиница, цифры, дефисы.
-- Отображаемый текст: `[[Note|Текст]]`; встраивание: `![[Note]]`.
-- Недопустимые символы в целях ссылок: `# | ^ : %% [[ ]]`.
-- Ссылки на несуществующие заметки допустимы (заметка создаётся при переходе).
-- Опция «Automatically update internal links» при переименовании; при отключении — запрос подтверждения.
-- Форматы новых ссылок: «кратчайший путь», «относительный путь», «абсолютный путь в vault» (`User interface/Settings.md`).
+### 2.2. Links (`Linking notes and files/Internal links.md`)
+- Formats: `[[Note]]`, `[[Note.md]]`, Markdown `[text](Note%20name.md)`; links to folders use the path from the vault root with `/`.
+- Headings: `[[Note#Heading]]`, nested `[[Note#H1#H2]]`; blocks: `[[Note#^block-id]]`, where `^id` uses Latin letters, digits and hyphens.
+- Display text: `[[Note|Text]]`; embedding: `![[Note]]`.
+- Characters not allowed in link targets: `# | ^ : %% [[ ]]`.
+- Links to notes that do not exist are allowed (the note is created when the link is followed).
+- The "Automatically update internal links" option on rename; when it is off, a confirmation is requested.
+- Formats of new links: "shortest path", "relative path", "absolute path in the vault" (`User interface/Settings.md`).
 
 ### 2.3. Properties (`Editing and formatting/Properties.md`)
-- YAML frontmatter; типы: Text, List, Number, Checkbox, Date (`2020-08-21`), Date & time (`2020-08-21T10:30:00`), Tags.
-- Тип закреплён за **именем свойства на уровне всего vault**.
-- Свойства по умолчанию: `tags`, `aliases`, `cssclasses`; устаревшие `tag`, `alias`, `cssclass` не поддерживаются с 1.9.
-- Внутренние ссылки в свойствах пишутся в кавычках: `link: "[[Episode IV]]"`.
-- Вложенные свойства и Markdown в свойствах не поддерживаются.
+- YAML frontmatter; types: Text, List, Number, Checkbox, Date (`2020-08-21`), Date & time (`2020-08-21T10:30:00`), Tags.
+- The type is fixed per **property name for the whole vault**.
+- Default properties: `tags`, `aliases`, `cssclasses`; the deprecated `tag`, `alias`, `cssclass` are not supported since 1.9.
+- Internal links in properties are written in quotes: `link: "[[Episode IV]]"`.
+- Nested properties and Markdown in properties are not supported.
 
-### 2.4. Теги (`Editing and formatting/Tags.md`)
-- `#tag` в тексте или `tags:` во frontmatter; вложенные `#a/b`; регистр не учитывается; тег должен содержать хотя бы один нецифровой символ (`#1984` — не тег).
+### 2.4. Tags (`Editing and formatting/Tags.md`)
+- `#tag` in the text or `tags:` in the frontmatter; nested `#a/b`; case-insensitive; a tag must contain at least one non-digit character (`#1984` is not a tag).
 
-### 2.5. Поиск (`Plugins/Search.md`)
-- Слова — AND, `OR`, `-исключение`, скобки, `"точная фраза"`, `/regex/`.
-- Операторы: `file:`, `path:`, `content:`, `tag:`, `line:`, `block:`, `section:`, `task:`, `task-todo:`, `task-done:`, `match-case:`, `ignore-case:`, `[property]`, `[property:value]`, `[property:null]`, сравнения `[duration:<5]`.
-- Встраивание результатов поиска в заметку блоком ` ```query `.
+### 2.5. Search (`Plugins/Search.md`)
+- Words are combined with AND; `OR`, `-exclusion`, parentheses, `"exact phrase"`, `/regex/`.
+- Operators: `file:`, `path:`, `content:`, `tag:`, `line:`, `block:`, `section:`, `task:`, `task-todo:`, `task-done:`, `match-case:`, `ignore-case:`, `[property]`, `[property:value]`, `[property:null]`, comparisons such as `[duration:<5]`.
+- Search results can be embedded in a note with a ` ```query ` block.
 
-### 2.6. Граф (`Plugins/Graph view.md`)
-- Узлы — заметки, рёбра — внутренние ссылки; размер узла растёт с числом входящих ссылок.
-- Фильтры: поиск, теги, вложения, «только существующие файлы», сироты; группы с цветами по поисковому запросу; настройки сил раскладки.
-- Локальный граф с регулируемой глубиной.
-- **Ограничение:** все рёбра — одного типа «ссылка». Типизированных связей нет.
+### 2.6. The graph (`Plugins/Graph view.md`)
+- Nodes are notes, edges are internal links; a node grows with the number of incoming links.
+- Filters: search, tags, attachments, "existing files only", orphans; colored groups by a search query; layout force settings.
+- A local graph with an adjustable depth.
+- **Limitation:** all edges have one type, "link". There are no typed links.
 
 ### 2.7. Backlinks (`Plugins/Backlinks.md`)
-- Linked mentions (явные ссылки) и **Unlinked mentions** (упоминание названия без ссылки), фильтр и сортировка.
+- Linked mentions (explicit links) and **unlinked mentions** (the title mentioned without a link), with filtering and sorting.
 
-### 2.8. Прочее
-- **Templates**: переменные `{{title}}`, `{{date}}`, `{{time}}` с форматами Moment.js; свойства шаблона сливаются со свойствами заметки.
-- **Daily notes**: заметка по дате `YYYY-MM-DD`, папка и шаблон настраиваются.
-- **File recovery**: снапшоты не чаще раза в 5 минут, хранятся 7 дней, вне vault; diff между версиями.
-- **Bases**: представления заметок как таблиц/карточек/списков/канбана по свойствам; фильтры с конъюнкциями «все/любое/ни одно»; сортировки; группировка; формулы. Хранятся в `.base`-файлах.
-- **Canvas**: файлы `.canvas` в открытом формате JSON Canvas 1.0 (узлы `text`/`file`/`link`/`group`, рёбра с `fromNode/toNode`, стороны, стрелки, метки).
-- **Plugin security** (`Extending Obsidian/Plugin security.md`): «Obsidian cannot reliably restrict plugins to specific permissions… plugins will inherit Obsidian's access levels» — плагины имеют доступ к файлам, сети и могут устанавливать программы. Защита — Restricted Mode и ревью плагинов.
+### 2.8. Other features
+- **Templates**: the variables `{{title}}`, `{{date}}`, `{{time}}` with Moment.js formats; template properties are merged with the note properties.
+- **Daily notes**: a note per date `YYYY-MM-DD`; the folder and the template are configurable.
+- **File recovery**: snapshots at most every 5 minutes, kept for 7 days, outside the vault; a diff between versions.
+- **Bases**: views of notes as tables/cards/lists/kanban by properties; filters with "all/any/none" conjunctions; sorting; grouping; formulas. Stored in `.base` files.
+- **Canvas**: `.canvas` files in the open JSON Canvas 1.0 format (`text`/`file`/`link`/`group` nodes, edges with `fromNode/toNode`, sides, arrows, labels).
+- **Plugin security** (`Extending Obsidian/Plugin security.md`): "Obsidian cannot reliably restrict plugins to specific permissions… plugins will inherit Obsidian's access levels". Plugins have access to files and the network and can install programs. The protection is Restricted Mode and plugin reviews.
 
-**Главный вывод для нас:** модель «плагин = код с полными правами» неприемлема для AI-агентов, которые обрабатывают недоверенный контент. Поэтому в нашей системе **пакет агента декларативен** (инструкции, схемы, список запрашиваемых инструментов и разрешений) и **не содержит исполняемого кода**. Все действия выполняются встроенными инструментами через контролируемый исполнитель с проверкой разрешений.
+**The main conclusion for us:** the "plugin = code with full rights" model is unacceptable for AI agents that process untrusted content. So in our system **an agent package is declarative** (instructions, schemas, the list of requested tools and permissions) and **contains no executable code**. Every action is carried out by built-in tools through a controlled executor that checks permissions.
 
-## 3. Локальные AI-приложения
+## 3. Local AI applications
 
 ### 3.1. Khoj
-Источники: `github.com/khoj-ai/khoj`, обзор `promptquorum.com/power-local-llm/khoj-ai-second-brain-review` (2026).
-- Open-source (AGPL-3.0), self-hosted; индексирует Markdown/Obsidian, PDF, Notion; чат с документами; агенты; локальные модели через Ollama, llama-cpp-server или любой OpenAI-совместимый сервер, облачные — OpenAI, Anthropic, Google.
-- **Чему учимся:** единый слой провайдеров с OpenAI-совместимым адаптером покрывает большинство локальных серверов.
-- **Отличие:** Khoj — отдельный сервер (Python), а мы встраиваем AI Core в локальное приложение и делаем акцент на проверяемых конвейерах вместо чата.
+Sources: `github.com/khoj-ai/khoj`, the review `promptquorum.com/power-local-llm/khoj-ai-second-brain-review` (2026).
+- Open source (AGPL-3.0), self-hosted; indexes Markdown/Obsidian, PDF, Notion; chat with documents; agents; local models through Ollama, llama-cpp-server or any OpenAI-compatible server; cloud models from OpenAI, Anthropic, Google.
+- **What we learn:** one provider layer with an OpenAI-compatible adapter covers most local servers.
+- **The difference:** Khoj is a separate server (Python), while we embed the AI Core into a local application and focus on verifiable pipelines instead of chat.
 
 ### 3.2. Reor
-Источник: `github.com/reorproject/reor`.
-- Desktop-приложение для заметок; «автоматически связывает похожие заметки», семантический поиск, вопросы к заметкам; Ollama + Transformers.js + LanceDB локально.
-- **Вывод:** функция «связанные заметки» востребована. Мы делаем её, но связи по сходству эмбеддингов сохраняются как **предложения** (`origin = ai_suggested`, с уверенностью и основанием) и не попадают в граф как факты без подтверждения.
+Source: `github.com/reorproject/reor`.
+- A desktop note-taking application; it "automatically links similar notes", offers semantic search and questions to notes; Ollama + Transformers.js + LanceDB locally.
+- **Conclusion:** the "related notes" feature is in demand. We build it, but similarity links from embeddings are stored as **suggestions** (`origin = ai_suggested`, with a confidence and a reason) and never enter the graph as facts without a confirmation.
 
 ### 3.3. Smart Connections
-Источник: `github.com/brianpetro/obsidian-smart-connections`, `smartconnections.app`.
-- Эмбеддинги создаются локально по умолчанию; связанные заметки в боковой панели или в конце заметки.
-- **Вывод:** локальные эмбеддинги — разумное умолчание; облачные — только по явному согласию.
+Sources: `github.com/brianpetro/obsidian-smart-connections`, `smartconnections.app`.
+- Embeddings are created locally by default; related notes are shown in a side panel or at the end of a note.
+- **Conclusion:** local embeddings are a sensible default; cloud ones only with explicit consent.
 
 ### 3.4. AnythingLLM
-Источник: `github.com/mintplex-labs/anything-llm`, `anythingllm.com`.
-- Desktop и self-hosted; чат с документами (RAG), агенты в workspace (включая веб-браузинг), поддержка MCP.
-- **Вывод:** изоляция контекста по workspace полезна; у нас аналог — **область (scope) запуска**: агент видит только явно выбранные источники.
+Sources: `github.com/mintplex-labs/anything-llm`, `anythingllm.com`.
+- Desktop and self-hosted; chat with documents (RAG), agents in a workspace (including web browsing), MCP support.
+- **Conclusion:** context isolation per workspace is useful; our counterpart is **the run scope**: an agent sees only the explicitly selected sources.
 
-## 4. Работа с кодом и репозиториями
+## 4. Working with code and repositories
 
-### 4.1. Aider repo map
-Источники: `aider.chat/docs/repomap.html`, `aider.chat/2023/10/22/repomap.html`.
-- Карта репозитория: файлы и сигнатуры ключевых символов (классы, функции) с отбором через граф ссылок между символами (PageRank-подобное ранжирование); построена на tree-sitter.
-- **Вывод для v1:** полноценный tree-sitter (нативные или WASM-грамматики) существенно усложняет сборку. В v1 делаем **лёгкую карту проекта**: дерево, манифесты (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`…), точки входа, README, тесты и outline символов, извлекаемый регулярными выражениями для распространённых языков. Ограничение явно документируем. Tree-sitter — кандидат на следующие версии.
+### 4.1. The Aider repo map
+Sources: `aider.chat/docs/repomap.html`, `aider.chat/2023/10/22/repomap.html`.
+- The repository map: files and the signatures of key symbols (classes, functions), selected through the graph of references between symbols (PageRank-like ranking); built on tree-sitter.
+- **Conclusion for v1:** full tree-sitter (native or WASM grammars) complicates the build considerably. In v1 we build a **light project map**: the tree, manifests (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`…), entry points, READMEs, tests and a symbol outline extracted with regular expressions for common languages. The limitation is documented explicitly. Tree-sitter is a candidate for later versions.
 
-## 5. Графы знаний и RAG
+## 5. Knowledge graphs and RAG
 
 ### 5.1. GraphRAG (Microsoft)
-Источники: `microsoft.github.io/graphrag/index/methods/`, arXiv 2404.16130.
-- LLM извлекает сущности и отношения из каждого фрагмента и строит сводки «сообществ» графа. Это сильно помогает с глобальными вопросами по корпусу.
-- Сами авторы оценивают извлечение графа примерно в **75% стоимости индексации**.
-- **Вывод:** для локальных моделей на обычном ноутбуке полная LLM-индексация всего vault слишком дорога. В v1 граф строится **детерминированно** (ссылки, frontmatter, теги, структура проекта, трассировка требований), а LLM-извлечение сущностей применяется **точечно**: к документам, выбранным для конкретного процесса.
+Sources: `microsoft.github.io/graphrag/index/methods/`, arXiv 2404.16130.
+- An LLM extracts entities and relations from every fragment and builds summaries of graph "communities". This helps a lot with global questions about a corpus.
+- The authors themselves estimate graph extraction at about **75% of the indexing cost**.
+- **Conclusion:** for local models on an ordinary laptop, full LLM indexing of the whole vault is too expensive. In v1 the graph is built **deterministically** (links, frontmatter, tags, the project structure, requirement traceability), and LLM entity extraction is applied **in a targeted way**: to the documents selected for a specific workflow.
 
-### 5.2. Гибридный поиск и RRF
-Источники: Cormack, Clarke, Buettcher, *Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods* (SIGIR 2009), через обзоры `blog.serghei.pl/posts/reciprocal-rank-fusion-explained/` и `digitalapplied.com/blog/hybrid-search-bm25-vector-reranking-reference-2026`.
-- RRF объединяет ранжирования по позициям, а не по баллам: `score = Σ 1/(k + rank)`, обычно `k = 60`. Не требует калибровки несопоставимых шкал (BM25 и косинусной близости).
-- Выигрыш есть, только если ранжировщики действительно разные (лексический и векторный).
-- **Вывод:** FTS5 (BM25) + векторный поиск → RRF. Векторная часть опциональна.
+### 5.2. Hybrid search and RRF
+Sources: Cormack, Clarke, Buettcher, *Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods* (SIGIR 2009), through the overviews `blog.serghei.pl/posts/reciprocal-rank-fusion-explained/` and `digitalapplied.com/blog/hybrid-search-bm25-vector-reranking-reference-2026`.
+- RRF combines rankings by position, not by score: `score = Σ 1/(k + rank)`, usually `k = 60`. It needs no calibration of incomparable scales (BM25 and cosine similarity).
+- It helps only when the rankers are really different (lexical and vector).
+- **Conclusion:** FTS5 (BM25) + vector search → RRF. The vector part is optional.
 
 ### 5.3. sqlite-vec
-Источники: `github.com/asg017/sqlite-vec`, `alexgarcia.xyz/blog/2024/sqlite-vec-stable-release/`.
-- Расширение SQLite на чистом C, без зависимостей, MIT/Apache-2.0; виртуальные таблицы `vec0`; пока только brute-force KNN.
-- Есть общественный форк `vlasky/sqlite-vec` из-за замедления поддержки оригинала (Reddit, r/vectordatabase) — **риск поддержки**.
-- **Вывод:** загружаемое нативное расширение усложняет сборку под три ОС. Для объёмов персональной базы (до десятков тысяч фрагментов) brute-force косинусная близость в JS по `Float32Array` из BLOB-колонки даёт ту же асимптотику без нативной зависимости. sqlite-vec оставляем как оптимизацию на будущее за интерфейсом `VectorIndex`.
+Sources: `github.com/asg017/sqlite-vec`, `alexgarcia.xyz/blog/2024/sqlite-vec-stable-release/`.
+- An SQLite extension in pure C without dependencies, MIT/Apache-2.0; `vec0` virtual tables; only brute-force KNN so far.
+- There is a community fork `vlasky/sqlite-vec` because maintenance of the original slowed down (Reddit, r/vectordatabase): a **maintenance risk**.
+- **Conclusion:** a loadable native extension complicates the build for three OSes. For the size of a personal knowledge base (up to tens of thousands of fragments), a brute-force cosine similarity in JS over `Float32Array` from a BLOB column has the same asymptotics without a native dependency. sqlite-vec stays a future optimization behind the `VectorIndex` interface.
 
-## 6. Память агентов
+## 6. Agent memory
 
 ### 6.1. Letta (MemGPT)
-Источники: `letta.com/blog/agent-memory/`, `letta.com/blog/benchmarking-ai-agent-memory/`.
-- Модель памяти: core memory в контексте (аналог RAM) и archival/recall memory во внешнем хранилище (аналог диска), которую агент подгружает по необходимости.
-- Letta также исследует вопрос, «не достаточно ли файловой системы как памяти».
-- **Вывод:** наша «долговременная память» — это сама база знаний (Markdown + граф + индекс) плюс структурированная таблица **подтверждённых фактов** со ссылками на источники и сроком актуальности. Модели передаётся только отобранный контекст (поиск + граф), а не всё хранилище. Подробнее — `ai-memory-and-retrieval.md`.
+Sources: `letta.com/blog/agent-memory/`, `letta.com/blog/benchmarking-ai-agent-memory/`.
+- The memory model: core memory in the context (like RAM) and archival/recall memory in external storage (like a disk), which the agent loads when needed.
+- Letta also explores whether "a file system is enough as memory".
+- **Conclusion:** our "long-term memory" is the knowledge base itself (Markdown + graph + index) plus a structured table of **confirmed facts** with links to sources and a freshness date. The model gets only selected context (search + graph), not the whole vault. See `ai-memory-and-retrieval.md`.
 
-## 7. Протоколы и форматы
+## 7. Protocols and formats
 
 ### 7.1. Model Context Protocol (MCP)
-Источники: `modelcontextprotocol.io/specification/2025-06-18`, `modelcontextprotocol.io/specification/2025-03-26/basic/transports`.
-- Серверы предоставляют Tools (функции для модели), Resources (данные), Prompts; транспорты — stdio и HTTP; сообщения JSON-RPC 2.0 (`tools/list`, `tools/call`).
-- **Вывод:** MCP — естественный путь расширения инструментов. Однако MCP-сервер — это исполняемый процесс, то есть тот же риск, что и у плагинов Obsidian. В v1 MCP **не включаем**. Архитектура инструментов (схема входа и выхода, проверка разрешений в исполнителе) совместима с моделью MCP-tools, поэтому адаптер можно добавить позже. Обязательные условия: явное согласие пользователя и запуск в отдельном процессе с ограниченными правами.
+Sources: `modelcontextprotocol.io/specification/2025-06-18`, `modelcontextprotocol.io/specification/2025-03-26/basic/transports`.
+- Servers provide Tools (functions for the model), Resources (data) and Prompts; the transports are stdio and HTTP; the messages are JSON-RPC 2.0 (`tools/list`, `tools/call`).
+- **Conclusion:** MCP is the natural way to extend the tools. However, an MCP server is an executable process, so it carries the same risk as Obsidian plugins. v1 **does not include** MCP. The tool architecture (input and output schemas, permission checks in the executor) is compatible with the MCP tool model, so an adapter can be added later. Mandatory conditions: an explicit consent of the user and running in a separate process with limited rights.
 
 ### 7.2. JSON Canvas 1.0
-Источник: `github.com/obsidianmd/jsoncanvas/spec/1.0.md` (версия 2024-03-11).
-- Верхний уровень: `nodes[]`, `edges[]`; типы узлов `text`/`file`/`link`/`group`; обязательные `id, type, x, y, width, height`; рёбра `fromNode/toNode`, `fromSide/toSide`, `fromEnd/toEnd` (`none|arrow`), `label`, `color` (hex или пресеты `"1"…"6"`).
-- **Вывод:** если реализуем Canvas, то только в этом открытом формате: совместимость с Obsidian бесплатна и проверяема.
+Source: `github.com/obsidianmd/jsoncanvas/spec/1.0.md` (version of 2024-03-11).
+- Top level: `nodes[]`, `edges[]`; node types `text`/`file`/`link`/`group`; mandatory `id, type, x, y, width, height`; edges `fromNode/toNode`, `fromSide/toSide`, `fromEnd/toEnd` (`none|arrow`), `label`, `color` (hex or the presets `"1"…"6"`).
+- **Conclusion:** if we implement Canvas, then only in this open format: compatibility with Obsidian comes for free and can be verified.
 
-## 8. Итоговые выводы, повлиявшие на архитектуру
+## 8. Final conclusions that shaped the architecture
 
-1. **Файлы — источник истины, индекс производный** (Obsidian) → индекс в SQLite с полной перестройкой из файлов.
-2. **Типизированные связи с происхождением** (то, чего нет в Obsidian) → `edges.relation` + `edges.origin` + `confidence` + `evidence`.
-3. **Декларативные агенты без кода** (урок плагинов Obsidian) → manifest + instructions + schemas; инструменты встроенные.
-4. **OpenAI-совместимый адаптер покрывает большинство локальных серверов** (Khoj, LM Studio) → адаптеры: Ollama native, OpenAI-compatible, Anthropic.
-5. **Связи по эмбеддингам — предложения, а не факты** (Reor, Smart Connections — без маркировки) → статус `suggested` до подтверждения.
-6. **Детерминированный граф + точечное LLM-извлечение** (стоимость GraphRAG).
-7. **Гибридный поиск FTS5 + векторы через RRF** при наличии модели эмбеддингов; без неё — только FTS5.
-8. **MCP — позже и только в изоляции.**
+1. **Files are the source of truth, the index is derived** (Obsidian) → an SQLite index that can be fully rebuilt from the files.
+2. **Typed links with an origin** (what Obsidian lacks) → `edges.relation` + `edges.origin` + `confidence` + `evidence`.
+3. **Declarative agents without code** (the lesson of Obsidian plugins) → manifest + instructions + schemas; the tools are built in.
+4. **An OpenAI-compatible adapter covers most local servers** (Khoj, LM Studio) → adapters: native Ollama, OpenAI-compatible, Anthropic.
+5. **Embedding links are suggestions, not facts** (Reor and Smart Connections do not mark them) → the `suggested` status until confirmed.
+6. **A deterministic graph + targeted LLM extraction** (the cost of GraphRAG).
+7. **Hybrid search: FTS5 + vectors through RRF** when an embedding model exists; without one, FTS5 only.
+8. **MCP later and only in isolation.**

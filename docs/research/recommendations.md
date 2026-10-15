@@ -1,87 +1,87 @@
-# Приоритизированные рекомендации: функции за пределами исходного ТЗ
+# Prioritized recommendations: features beyond the original specification
 
-Дата: 2026-10-12. Каждая функция оценена по критериям п. 24.12 ТЗ. Шкала пользы и сложности — 1 (низкая) … 5 (высокая).
+Date: 2026-10-12. Every feature is assessed by the criteria of specification item 24.12. The scale for benefit and complexity is 1 (low) … 5 (high).
 
-## Сводка
+## Summary
 
-| # | Функция | Польза | Сложность | Локально | Интернет | Платно | Рекомендация |
+| # | Feature | Benefit | Complexity | Local | Internet | Paid | Recommendation |
 |---|---|---|---|---|---|---|---|
-| R1 | Проверка цитат кодом (citation grounding) | 5 | 2 | Да | Нет | Нет | **Сейчас** |
-| R2 | Единый сетевой шлюз (egress guard) + журнал исходящих запросов | 5 | 2 | Да | — | Нет | **Сейчас** |
-| R3 | Трассировка «требование → задача → код/тест» через ID | 5 | 2 | Да | Нет | Нет | **Сейчас** |
-| R4 | Отчёт целостности базы знаний | 4 | 2 | Да | Нет | Нет | **Сейчас** |
-| R5 | Предложения связей с подтверждением (suggested edges) | 4 | 3 | Да (эмбеддинги — локальная модель) | Нет | Нет | **Сейчас** (без модели — по совпадению терминов) |
-| R6 | Профиль чувствительности источника (confidential → только локальные модели) | 5 | 1 | Да | Нет | Нет | **Сейчас** |
-| R7 | Сроки актуальности фактов (`review_after`) и статус `stale` | 4 | 2 | Да | Для перепроверки — да | Нет | **Сейчас** |
-| R8 | «Сухой прогон» workflow с оценкой числа вызовов | 3 | 2 | Да | Нет | Нет | **Сейчас** (оценка числа вызовов, стоимость — если известна цена) |
-| R9 | Дельта-сводка «что изменилось» на Главной | 4 | 1 | Да | Нет | Нет | **Сейчас** (детерминированно) |
-| R10 | Тестовый прогон агента на `tests/test-cases.json` пакета | 4 | 2 | Да | Нет | Нет | **Сейчас** |
-| R11 | MCP-адаптер инструментов в изолированном процессе | 4 | 4 | Да | Зависит от сервера | Нет | **Отложить** |
-| R12 | Tree-sitter карта кода | 4 | 4 | Да | Нет | Нет | **Отложить** |
-| R13 | PDF/DOCX через Docling как внешний процесс | 4 | 3 | Да (Python) | Нет | Нет | **Отложить** |
-| R14 | Canvas (JSON Canvas 1.0) | 3 | 3 | Да | Нет | Нет | **Отложить** |
-| R15 | Полный GraphRAG по всему vault | 2 | 4 | Дорого локально | Нет | Через облако — да | **Отказаться** в v1 (точечное извлечение вместо полного) |
-| R16 | Автоматическое обновление документации после изменения кода | 3 | 4 | Да | Нет | Нет | **Отложить**; только предложение diff |
+| R1 | Quote verification in code (citation grounding) | 5 | 2 | Yes | No | No | **Now** |
+| R2 | One network gateway (egress guard) + a log of outgoing requests | 5 | 2 | Yes | — | No | **Now** |
+| R3 | "Requirement → task → code/test" traceability through IDs | 5 | 2 | Yes | No | No | **Now** |
+| R4 | A knowledge base integrity report | 4 | 2 | Yes | No | No | **Now** |
+| R5 | Link suggestions with confirmation (suggested edges) | 4 | 3 | Yes (embeddings: a local model) | No | No | **Now** (without a model: by term matches) |
+| R6 | A source sensitivity profile (confidential → local models only) | 5 | 1 | Yes | No | No | **Now** |
+| R7 | Freshness dates of facts (`review_after`) and the `stale` status | 4 | 2 | Yes | For re-checks, yes | No | **Now** |
+| R8 | A workflow "dry run" with an estimate of the number of calls | 3 | 2 | Yes | No | No | **Now** (the number of calls; the cost only if the price is known) |
+| R9 | A "what changed" delta summary on the home screen | 4 | 1 | Yes | No | No | **Now** (deterministic) |
+| R10 | A test run of an agent on the `tests/test-cases.json` of its package | 4 | 2 | Yes | No | No | **Now** |
+| R11 | An MCP tool adapter in an isolated process | 4 | 4 | Yes | Depends on the server | No | **Postpone** |
+| R12 | A tree-sitter code map | 4 | 4 | Yes | No | No | **Postpone** |
+| R13 | PDF/DOCX through Docling as an external process | 4 | 3 | Yes (Python) | No | No | **Postpone** |
+| R14 | Canvas (JSON Canvas 1.0) | 3 | 3 | Yes | No | No | **Postpone** |
+| R15 | Full GraphRAG over the whole vault | 2 | 4 | Expensive locally | No | Through the cloud, yes | **Reject** in v1 (targeted extraction instead of a full one) |
+| R16 | Automatic documentation updates after code changes | 3 | 4 | Yes | No | No | **Postpone**; only a proposed diff |
 
-## Подробности по функциям «Сейчас»
+## Details of the "Now" features
 
-### R1. Проверка цитат кодом
-1. **Проблема:** модели выдумывают цитаты, URL и даты.
-2. **Сценарий:** агент-исследователь пишет «Brave даёт $5 кредитов» и прикладывает цитату; система проверяет, что такая цитата есть в загруженной странице.
-3. **Как работает:** нормализация (регистр, пробелы, типографские кавычки и тире) → поиск подстроки; для длинных цитат — допуск по совпадению ≥ 90% токенов в скользящем окне.
-4. **Модули:** `core/research/grounding`, инструмент `compare_sources`, валидатор workflow.
-5. **Исполнитель:** обычный код.
-6–9. Интернет не нужен (проверяется уже загруженный текст), платных сервисов нет, ресурсы минимальны.
-10. **Риски:** перефразированные цитаты не пройдут — это **намеренная** строгость. Модели предписано цитировать дословно.
-11. **Сложность:** 2. 12. **Польза:** 5.
-13. **Критерий приёмки:** утверждение с цитатой, отсутствующей в источнике, получает `not_found_in_source` и не может стать `verified` (юнит-тест).
-14. **Рекомендация:** реализовать сейчас.
+### R1. Quote verification in code
+1. **Problem:** models invent quotes, URLs and dates.
+2. **Scenario:** the research agent writes "Brave gives $5 of credits" and attaches a quote; the system checks that the quote is present in the downloaded page.
+3. **How it works:** normalization (case, spaces, typographic quotes and dashes) → a substring search; for long quotes, a tolerance of a match of ≥ 90% of the tokens in a sliding window.
+4. **Modules:** `core/research/grounding`, the `compare_sources` tool, a workflow validator.
+5. **Executor:** plain code.
+6–9. No internet needed (the already downloaded text is checked), no paid services, minimal resources.
+10. **Risks:** paraphrased quotes will not pass; this strictness is **intentional**. The model is told to quote verbatim.
+11. **Complexity:** 2. 12. **Benefit:** 5.
+13. **Acceptance criterion:** a claim with a quote that is not in the source gets `not_found_in_source` and cannot become `verified` (a unit test).
+14. **Recommendation:** implement now.
 
-### R2. Единый сетевой шлюз
-1. **Проблема:** «незаметные сетевые запросы» в офлайн- и локальном режиме (п. 22.8).
-2. **Сценарий:** пользователь включает «Офлайн» — любые попытки исходящих запросов блокируются и логируются.
-3. **Как работает:** весь исходящий HTTP ядра идёт через `HttpClient`, который до DNS-резолва спрашивает `NetworkPolicy.check({host, purpose})`. Цели: `ai-local`, `ai-cloud`, `web-research`, `model-download`. Тест обходит все провайдеры и инструменты и проверяет отсутствие вызовов к не-loopback хостам в локальном режиме.
-4. **Модули:** `core/net`. 5. **Исполнитель:** код. 6–9. Без интернета и платы.
-10. **Риски:** сторонняя библиотека может сделать запрос в обход шлюза → в ядре нет HTTP-зависимостей, кроме нашего клиента. Правило зафиксировано в архитектуре.
-11. Сложность 2. 12. Польза 5.
-13. **Критерий:** тест «local mode: ни одного не-loopback запроса» проходит.
-14. **Сейчас.**
+### R2. One network gateway
+1. **Problem:** "silent network requests" in offline and local mode (22.8).
+2. **Scenario:** the user turns on "Offline": every attempt at an outgoing request is blocked and logged.
+3. **How it works:** all outgoing HTTP of the core goes through `HttpClient`, which asks `NetworkPolicy.check({host, purpose})` before DNS resolution. Targets: `ai-local`, `ai-cloud`, `web-research`, `model-download`. A test goes through every provider and tool and checks that there are no calls to non-loopback hosts in local mode.
+4. **Modules:** `core/net`. 5. **Executor:** code. 6–9. No internet, no payment.
+10. **Risks:** a third-party library could make a request bypassing the gateway → the core has no HTTP dependencies except our client. The rule is fixed in the architecture.
+11. Complexity 2. 12. Benefit 5.
+13. **Criterion:** the test "local mode: not a single non-loopback request" passes.
+14. **Now.**
 
-### R3. Трассировка требований
-1. **Проблема:** ТЗ отрывается от задач и кода.
-2. **Сценарий:** из задачи — переход к требованию, из требования — к документам-источникам и к тестам, где упомянут его ID.
-3. **Как работает:** устойчивые ID (`REQ-<проект>-001`), рёбра `derived_from`, `implements`, `verifies`; сканер упоминаний ID в коде проекта.
-4. **Модули:** `core/graph`, `core/tasks`, `core/pipeline/spec`. 5. Код. 6–9. Офлайн, бесплатно.
-10. **Риски:** ложные совпадения ID → строгий формат и границы слова.
-11. 2. 12. 5. 13. **Критерий:** из задачи, созданной конвейером, открывается исходное требование, а из него — документы-источники.
-14. **Сейчас.**
+### R3. Requirement traceability
+1. **Problem:** the specification drifts away from the tasks and the code.
+2. **Scenario:** from a task, go to its requirement; from a requirement, go to its source documents and to the tests where its ID is mentioned.
+3. **How it works:** stable IDs (`REQ-<project>-001`), `derived_from`, `implements` and `verifies` edges; a scanner of ID mentions in the project code.
+4. **Modules:** `core/graph`, `core/tasks`, `core/pipeline/spec`. 5. Code. 6–9. Offline, free.
+10. **Risks:** false ID matches → a strict format and word boundaries.
+11. 2. 12. 5. 13. **Criterion:** a task created by the pipeline opens its original requirement, and the requirement opens its source documents.
+14. **Now.**
 
-### R4. Отчёт целостности базы знаний
-Битые ссылки, сироты, точные дубликаты (одинаковый хеш), документы без обязательных свойств своего типа, устаревшие (`review_after`), циклы зависимостей задач, рассинхрон индекса и файлов. Полностью кодом; критерий — каждый класс проблем покрыт тестом на фикстуре. **Сейчас.**
+### R4. A knowledge base integrity report
+Broken links, orphans, exact duplicates (the same hash), documents without the required properties of their type, stale documents (`review_after`), cycles of task dependencies, a mismatch between the index and the files. Fully by code; criterion: each class of problems is covered by a test on a fixture. **Now.**
 
-### R5. Предложения связей
-Кандидаты: (a) упоминание названия или alias документа без ссылки — unlinked mentions, кодом; (b) косинусная близость эмбеддингов > порога — если есть модель. Хранятся как `edges.status = suggested` с `confidence` и `evidence`. Пользователь принимает или отклоняет. Риск — шум; поэтому показываются только топ-N и по умолчанию скрыты в графе. **Сейчас** (a); (b) — при наличии эмбеддингов.
+### R5. Link suggestions
+Candidates: (a) a mention of the title or alias of a document without a link (unlinked mentions), by code; (b) a cosine similarity of embeddings above a threshold, if a model is available. They are stored as `edges.status = suggested` with `confidence` and `evidence`. The user accepts or rejects them. The risk is noise; so only the top-N are shown, and they are hidden in the graph by default. **Now** (a); (b) when embeddings exist.
 
-### R6. Профиль чувствительности источника
-У источника флаг `confidential`. ModelRouter **запрещает** облачные модели для шагов, контекст которых содержит фрагменты из такого источника. Ошибка — `POLICY_CONFIDENTIAL_SOURCE` с объяснением. Код, сложность 1, польза 5. **Сейчас.**
+### R6. A source sensitivity profile
+A source has a `confidential` flag. The ModelRouter **forbids** cloud models for steps whose context contains fragments from such a source. The error is `POLICY_CONFIDENTIAL_SOURCE` with an explanation. Code, complexity 1, benefit 5. **Now.**
 
-### R7. Сроки актуальности
-`review_after` у фактов и документов (свойство frontmatter `review_after: 2027-01-01`); статус `stale` вычисляется; отчёт «Требуют проверки». **Сейчас.**
+### R7. Freshness dates
+`review_after` on facts and documents (the frontmatter property `review_after: 2027-01-01`); the `stale` status is computed; a "Needs review" report. **Now.**
 
-### R8. Сухой прогон workflow
-Перед запуском показывается: число узлов-агентов, максимальное число вызовов модели (с учётом повторов и итераций цикла), какие модели и провайдеры будут использованы, уйдут ли данные в облако. Стоимость — только если для модели задана цена; иначе «неизвестно» (п. 22.9). **Сейчас.**
+### R8. A workflow dry run
+Before the run, the user sees: the number of agent nodes, the maximum number of model calls (including retries and loop iterations), which models and providers will be used, and whether data will go to the cloud. The cost is shown only if a price is set for the model; otherwise "unknown" (22.9). **Now.**
 
-### R9. Дельта-сводка
-Список изменённых документов, новых задач, завершённых запусков и ошибок с момента последнего открытия. Кодом. **Сейчас.**
+### R9. A delta summary
+A list of changed documents, new tasks, finished runs and errors since the last visit. By code. **Now.**
 
-### R10. Тестовый прогон агента
-Из `tests/test-cases.json` пакета: вход → запуск агента на выбранной модели → валидация выхода по `output.schema.json` + ожидаемые проверки (`expect.required_paths`, `expect.min_items`). Результат — в карточке агента («Результаты последних проверок»). **Сейчас.**
+### R10. A test run of an agent
+From the package's `tests/test-cases.json`: input → run the agent on the selected model → validate the output against `output.schema.json` + the expected checks (`expect.required_paths`, `expect.min_items`). The result goes to the agent card ("Results of the latest checks"). **Now.**
 
-## Отложенные и отклонённые
+## Postponed and rejected
 
-- **R11 MCP:** открыть доступ к экосистеме инструментов полезно, но MCP-сервер — это исполняемый код. Нужны изоляция процесса, явное согласие, ограничение сети и ФС. Интерфейс `Tool` в ядре уже совместим по форме (`name`, `description`, `inputSchema`).
-- **R12 Tree-sitter:** заметно улучшит карту кода, но потребует WASM-грамматик для каждого языка. Начнём с regex-outline (честно задокументированного).
-- **R13 Docling:** лучший кандидат для PDF/DOCX (по открытым источникам), но это Python-стек. Вариант — внешний локальный процесс, если Python установлен пользователем.
-- **R14 Canvas:** формат известен (JSON Canvas 1.0); в первой версии приоритет — граф и workflow.
-- **R15 GraphRAG:** ≈75% стоимости индексации уходит на LLM-извлечение (по оценке авторов). Для локальных моделей и персональной базы цена непропорциональна. Используем детерминированный граф и точечное извлечение в рамках процессов.
-- **R16 Автообновление документации:** высокий риск ошибочной записи. Только предложения с diff и ручным применением, в будущих версиях.
+- **R11 MCP:** opening access to the tool ecosystem is useful, but an MCP server is executable code. It needs process isolation, explicit consent, and network and file system restrictions. The `Tool` interface of the core already has a compatible shape (`name`, `description`, `inputSchema`).
+- **R12 Tree-sitter:** would improve the code map a lot, but needs WASM grammars for every language. We start with a regex outline (honestly documented).
+- **R13 Docling:** the best candidate for PDF/DOCX (according to open sources), but it is a Python stack. An option is an external local process if the user has Python installed.
+- **R14 Canvas:** the format is known (JSON Canvas 1.0); in the first version the priorities are the graph and workflows.
+- **R15 GraphRAG:** ≈75% of the indexing cost goes to LLM extraction (according to its authors). For local models and a personal knowledge base the price is disproportionate. We use a deterministic graph and targeted extraction inside workflows.
+- **R16 Automatic documentation updates:** a high risk of wrong writes. Only proposals with a diff and manual application, in future versions.

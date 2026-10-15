@@ -1,249 +1,249 @@
-# Раздел 29 исходного технического задания (первоисточник)
+# Section 29 of the original specification (primary source)
 
-> Текст сохранён без изменений по смыслу (оформление списков приведено к Markdown). Реализация — `docs/architecture/security.md` (разделы «Режимы доступа к проектам», «Рабочие копии», «Резервные копии», «Песочница», «Журнал безопасности»). Соответствие тестам — `docs/spec/acceptance-matrix.md`.
+> An English translation of the original specification; the meaning is unchanged and the lists are formatted as Markdown. Implementation: `docs/architecture/security.md` (the sections on access modes, work copies, backups, the sandbox and the security log). Tests: the numbered scenarios of 29.18 are covered by the tests with the same numbers in `packages/core/test/security.test.ts`.
 
-## 29. Кибербезопасность, защита репозитория и безопасная работа с локальными проектами
+## 29. Cybersecurity, repository protection and safe work with local projects
 
-### 29.1. Главная цель безопасности
+### 29.1. The main security goal
 
-Реализуй в приложении строгую систему кибербезопасности, которая позволяет AI-агентам изучать проекты, анализировать код, работать с файлами, искать информацию и выполнять технические задания, но при этом защищает исходный проект от случайного повреждения, потери данных, несанкционированных изменений и опасных действий.
+Implement a strict cybersecurity system in the application that lets AI agents study projects, analyze code, work with files, search for information and carry out specifications, while protecting the original project from accidental damage, data loss, unauthorized changes and dangerous actions.
 
-Пользователь может не знать, как устроены Git, GitHub, ветки, коммиты, права доступа, файловая система и процессы сборки. Поэтому приложение должно обеспечивать безопасность по умолчанию, а не требовать от пользователя технических знаний.
+The user may not know how Git, GitHub, branches, commits, access rights, the file system and build processes work. So the application must be secure by default instead of requiring technical knowledge from the user.
 
-**Основной принцип: система может изучать проект и готовить изменения, но не должна иметь возможности бесконтрольно переписывать, удалять или разрушать исходный проект.**
+**The main principle: the system can study a project and prepare changes, but must not be able to rewrite, delete or destroy the original project without control.**
 
-При этом не превращай приложение в полностью пассивный просмотрщик. Оно должно уметь выполнять технические задания, создавать файлы, писать код, запускать тесты и предлагать улучшения — но только в пределах чётко заданных разрешений и с надёжным механизмом восстановления.
+At the same time, do not turn the application into a fully passive viewer. It must be able to carry out specifications, create files, write code, run tests and propose improvements, but only within clearly defined permissions and with a reliable recovery mechanism.
 
-Безопасность должна обеспечиваться архитектурой и техническими ограничениями, а не только инструкциями для AI-модели.
+Security must come from the architecture and technical restrictions, not only from instructions to the AI model.
 
-### 29.2. Разделяй просмотр проекта и внесение изменений
+### 29.2. Separate viewing a project from changing it
 
-При подключении локальной папки или скачанного репозитория система должна работать в нескольких режимах.
+When a local folder or a downloaded repository is connected, the system must work in several modes.
 
-**Режим 1. Только чтение.** Это режим по умолчанию для нового или ещё не проверенного проекта.
-Разрешено: читать файлы; анализировать структуру проекта; изучать исходный код; читать документацию; выполнять поиск; строить индекс и граф знаний во внутреннем хранилище приложения; формировать технические задания; предлагать архитектурные решения; готовить план изменений; анализировать потенциальные уязвимости.
-Запрещено: изменять оригинальные файлы проекта; удалять или перемещать файлы; переименовывать каталоги; перезаписывать конфигурации; устанавливать зависимости в исходный проект; запускать скрипты с побочными эффектами; выполнять команды, изменяющие состояние репозитория; отправлять изменения в удалённый репозиторий.
-В этом режиме AI-агенты могут полноценно исследовать проект, но не могут менять его содержимое.
+**Mode 1. Read only.** This is the default mode for a new or not yet checked project.
+Allowed: reading files; analyzing the project structure; studying the source code; reading documentation; searching; building the index and the knowledge graph in the internal storage of the application; writing specifications; proposing architecture decisions; preparing a change plan; analyzing potential vulnerabilities.
+Forbidden: changing the original project files; deleting or moving files; renaming folders; overwriting configurations; installing dependencies into the original project; running scripts with side effects; running commands that change the state of the repository; pushing changes to a remote repository.
+In this mode AI agents can explore the project fully, but cannot change its content.
 
-**Режим 2. Подготовка изменений.** Система может создавать новые версии файлов, патчи, предложения по изменению кода и другие результаты, но сохраняет их отдельно от оригинального проекта. Пользователь получает возможность изучить разницу между исходным и предлагаемым состоянием.
+**Mode 2. Preparing changes.** The system can create new versions of files, patches, proposed code changes and other results, but keeps them separately from the original project. The user can study the difference between the original and the proposed state.
 
-**Режим 3. Безопасное выполнение.** Система может вносить разрешённые изменения в специально выделенную рабочую копию проекта. Оригинальные файлы остаются нетронутыми.
+**Mode 3. Safe execution.** The system can make allowed changes in a dedicated work copy of the project. The original files stay untouched.
 
-**Режим 4. Применение изменений к оригиналу.** Это отдельная привилегированная операция, которая по умолчанию отключена. Применять изменения к исходному проекту можно только через контролируемый процесс с проверкой изменений, резервированием и явным подтверждением пользователя.
+**Mode 4. Applying changes to the original.** This is a separate privileged operation that is off by default. Changes can be applied to the original project only through a controlled process with a review of the changes, a backup and an explicit confirmation by the user.
 
-Не переключай приложение в более привилегированный режим автоматически, даже если AI-агент считает это необходимым для выполнения задачи.
+Do not switch the application to a more privileged mode automatically, even if an AI agent thinks it is needed for the task.
 
-### 29.3. Защита исходного проекта через рабочие копии
+### 29.3. Protecting the original project with work copies
 
-Используй принцип безопасной рабочей копии.
-Когда пользователь подключает существующий проект, система не должна автоматически превращать его в объект, который агенты могут свободно переписывать.
-Рекомендуемый процесс:
-1. Пользователь выбирает локальную папку.
-2. Приложение определяет структуру проекта.
-3. Исходная папка регистрируется как источник.
-4. По умолчанию приложение открывает её в режиме чтения.
-5. При необходимости выполнения изменений создаётся отдельная рабочая копия.
-6. AI-агенты работают только в этой копии.
-7. Изменения проверяются.
-8. Приложение показывает пользователю результат.
-9. Пользователь может применить изменения, экспортировать их или отказаться от них.
+Use the principle of a safe work copy.
+When the user connects an existing project, the system must not automatically turn it into an object that agents can rewrite freely.
+The recommended process:
+1. The user chooses a local folder.
+2. The application determines the project structure.
+3. The original folder is registered as a source.
+4. By default the application opens it in read mode.
+5. When changes are needed, a separate work copy is created.
+6. AI agents work only in this copy.
+7. The changes are checked.
+8. The application shows the result to the user.
+9. The user can apply the changes, export them or reject them.
 
-Рабочая копия должна быть физически отделена от исходного проекта, чтобы случайная команда или ошибка агента не повредила оригинальные файлы.
-Если для больших проектов полное копирование нецелесообразно, допускается использование безопасных альтернатив, например отдельной Git-ветки, Git worktree или другой изолированной рабочей области. Но такой вариант можно использовать только после проверки состояния репозитория и обеспечения возможности восстановления.
-Не считай Git-ветку полноценной защитой от любых повреждений: некоторые операции способны изменять общие файлы, состояние репозитория или данные за пределами рабочей ветки.
-Если безопасную рабочую копию создать не удалось, не разрешай агентам изменять оригинал. Объясни причину и предложи безопасный альтернативный сценарий.
+The work copy must be physically separate from the original project, so that an accidental command or an agent error does not damage the original files.
+If a full copy is not practical for large projects, safe alternatives such as a separate Git branch, a Git worktree or another isolated workspace are acceptable. But such an option may be used only after the state of the repository has been checked and recovery is possible.
+Do not consider a Git branch full protection against all damage: some operations can change shared files, the state of the repository or data outside the working branch.
+If a safe work copy could not be created, do not let agents change the original. Explain the reason and offer a safe alternative scenario.
 
-### 29.4. Защита файлов и критических каталогов
+### 29.4. Protecting files and critical folders
 
-Создай централизованную политику доступа к файловой системе.
-Каждая операция должна проверять: в какой системе выполняется задача; какой проект выбран; какой файл затрагивается; разрешено ли чтение; разрешено ли изменение; разрешено ли удаление; находится ли файл внутри разрешённой рабочей области; не является ли операция опасной; требуется ли дополнительное подтверждение.
-Особенно осторожно обрабатывай: `.git/`; `.env` и аналогичные файлы с секретами; приватные ключи; файлы конфигурации безопасности; файлы сборки и развёртывания; системные каталоги; скрипты установки; скрипты миграции; файлы зависимостей; манифесты пакетов; файлы лицензий; настройки CI/CD; конфигурации публикации; файлы резервных копий.
-Не запрещай чтение всех перечисленных файлов безусловно: часть из них нужна для анализа проекта. Вместо этого разделяй разрешения на чтение, изменение, исполнение и передачу содержимого во внешние сервисы.
-Например, агент может прочитать конфигурацию сборки, чтобы понять архитектуру, но не должен автоматически менять процесс публикации приложения.
-Секреты необходимо распознавать и исключать из логов, отчётов, внешних запросов и контекста агентов, если они не требуются для конкретной разрешённой операции.
+Create a central file system access policy.
+Every operation must check: in which system the task runs; which project is selected; which file is affected; whether reading is allowed; whether changing is allowed; whether deleting is allowed; whether the file is inside the allowed workspace; whether the operation is dangerous; whether an additional confirmation is needed.
+Handle the following with special care: `.git/`; `.env` and similar secret files; private keys; security configuration files; build and deployment files; system folders; installation scripts; migration scripts; dependency files; package manifests; license files; CI/CD settings; publishing configurations; backup files.
+Do not forbid reading all of these files unconditionally: some of them are needed to analyze the project. Instead, separate the permissions to read, change, execute and send content to external services.
+For example, an agent may read the build configuration to understand the architecture, but must not automatically change how the application is published.
+Secrets must be recognized and excluded from logs, reports, external requests and agent context unless they are needed for a specific allowed operation.
 
-### 29.5. Запрет на опасные изменения без подтверждения
+### 29.5. No dangerous changes without confirmation
 
-Реализуй перечень операций, требующих отдельного подтверждения пользователя: массовое удаление файлов; перезапись большого количества файлов; удаление каталогов; изменение файлов безопасности; изменение конфигураций публикации; изменение системы сборки; изменение зависимостей с потенциально опасными последствиями; запуск миграций, изменяющих данные; изменение Git-веток и истории; выполнение потенциально разрушительных команд; отправка изменений в удалённый репозиторий; публикация релиза; удаление системы или базы данных; передача конфиденциальных данных во внешние сервисы.
-Подтверждение должно описывать конкретную операцию понятным языком. Не используй неопределённые сообщения вроде «Разрешить AI?».
-Вместо этого показывай: что именно изменится; какие файлы затрагиваются; что может пойти не так; можно ли отменить действие; есть ли резервная копия; что произойдёт при отказе.
-Не считай общее согласие на выполнение технического задания разрешением на любые разрушительные действия.
-Если действие не входит в согласованный объём работ, запроси отдельное разрешение.
+Implement a list of operations that need a separate confirmation by the user: mass deletion of files; overwriting many files; deleting folders; changing security files; changing publishing configurations; changing the build system; changing dependencies with potentially dangerous consequences; running migrations that change data; changing Git branches and history; running potentially destructive commands; pushing changes to a remote repository; publishing a release; deleting a system or a database; sending confidential data to external services.
+The confirmation must describe the specific operation in plain language. Do not use vague messages such as "Allow AI?".
+Instead show: what exactly will change; which files are affected; what can go wrong; whether the action can be undone; whether there is a backup; what happens if the user refuses.
+Do not treat a general agreement to carry out a specification as a permission for any destructive action.
+If an action is outside the agreed scope of work, ask for a separate permission.
 
-### 29.6. Защита от Git и GitHub
+### 29.6. Protection around Git and GitHub
 
-Пользователь может подключить скачанный с GitHub репозиторий, не понимая внутреннего устройства Git. Поэтому приложение должно объяснять работу с репозиторием простым языком и обеспечивать безопасное поведение по умолчанию.
-При обнаружении Git-репозитория: определи, является ли каталог Git-репозиторием; проверь наличие незакоммиченных изменений; определи текущую ветку, если это возможно; проверь состояние рабочей директории; обнаружь неотслеживаемые файлы; проверь наличие удалённых источников без раскрытия секретов; покажи пользователю краткое описание состояния репозитория.
-Не выполняй автоматически `git reset --hard`, `git clean`, принудительный checkout, переписывание истории или другие потенциально разрушительные команды.
-Не удаляй неотслеживаемые файлы и не сбрасывай существующие изменения пользователя.
-Если рабочая директория уже содержит изменения, сохрани их и предупреди пользователя перед выполнением операций, которые могут с ними конфликтовать.
-Для автоматизированных изменений предпочитай: 1) изолированную рабочую копию; 2) отдельную ветку или worktree, если это безопасно и уместно; 3) проверяемый набор изменений; 4) просмотр diff; 5) тестирование; 6) экспорт патча или контролируемое применение.
-Не выполняй автоматически `git push`, публикацию коммитов или изменение удалённого репозитория.
-По умолчанию взаимодействие с GitHub должно ограничиваться чтением публичной информации, анализом репозиториев и подготовкой изменений.
-Если пользователь явно подключил аккаунт и разрешил определённые действия, применяй минимально необходимые права. Для публикации изменений, создания pull request или изменения настроек удалённого репозитория требуй явного подтверждения соответствующей операции.
-Не запрашивай пароль GitHub или персональный токен в обычном текстовом поле. Используй безопасную авторизацию и храни учётные данные в системном хранилище секретов.
+The user may connect a repository downloaded from GitHub without understanding how Git works inside. So the application must explain work with the repository in plain language and behave safely by default.
+When a Git repository is found: determine whether the folder is a Git repository; check for uncommitted changes; determine the current branch if possible; check the state of the working directory; find untracked files; check for remotes without revealing secrets; show the user a short description of the repository state.
+Do not automatically run `git reset --hard`, `git clean`, a forced checkout, history rewriting or other potentially destructive commands.
+Do not delete untracked files and do not discard the user's existing changes.
+If the working directory already has changes, keep them and warn the user before operations that may conflict with them.
+For automated changes prefer: 1) an isolated work copy; 2) a separate branch or worktree, if it is safe and appropriate; 3) a reviewable change set; 4) viewing the diff; 5) testing; 6) exporting a patch or a controlled application.
+Do not automatically run `git push`, publish commits or change a remote repository.
+By default, interaction with GitHub must be limited to reading public information, analyzing repositories and preparing changes.
+If the user explicitly connected an account and allowed specific actions, use the minimal rights needed. Publishing changes, creating a pull request or changing the settings of a remote repository requires an explicit confirmation of that operation.
+Do not ask for a GitHub password or a personal token in a plain text field. Use secure authorization and keep credentials in the system secret store.
 
-### 29.7. Проверка перед применением изменений
+### 29.7. Review before applying changes
 
-Создай экран проверки изменений. Пользователь должен видеть изменения до того, как они попадут в исходный проект.
-Для каждого файла показывай: путь; тип операции (создание, изменение, удаление или переименование); исходное содержимое, если применимо; предлагаемое содержимое; построчное сравнение; причину изменения; связанную задачу; результаты тестирования.
-Для большого набора изменений показывай сводку: количество файлов, типы операций и потенциально рискованные изменения.
-Предусмотри действия: «Принять все разрешённые изменения»; «Принять выбранные изменения»; «Отклонить выбранные изменения»; «Отклонить все»; «Скачать патч»; «Открыть файл»; «Повторно проверить»; «Показать объяснение».
-Не применяй изменения, которые не были включены в проверенный набор.
-Если после проверки AI-агент изменил файлы повторно, пометь результаты предыдущего согласования как устаревшие и запроси повторную проверку затронутых изменений.
+Create a change review screen. The user must see the changes before they reach the original project.
+For every file show: the path; the type of operation (creation, change, deletion or rename); the original content, if applicable; the proposed content; a line-by-line comparison; the reason for the change; the related task; the test results.
+For a large set of changes show a summary: the number of files, the types of operations and potentially risky changes.
+Provide the actions: "Accept all allowed changes"; "Accept selected changes"; "Reject selected changes"; "Reject all"; "Download patch"; "Open file"; "Check again"; "Show explanation".
+Do not apply changes that were not part of the reviewed set.
+If an AI agent changed the files again after the review, mark the previous approval as outdated and ask for a new review of the affected changes.
 
-### 29.8. Резервные копии и восстановление
+### 29.8. Backups and recovery
 
-Перед применением изменений к оригинальному проекту создавай проверяемую точку восстановления.
-Резервная копия должна позволять восстановить исходное состояние файлов, затронутых операцией.
-Не полагайся только на Git: пользователь может работать с обычной папкой без репозитория, а Git не гарантирует сохранность всех пользовательских данных и неотслеживаемых файлов.
-Реализуй: создание резервной копии перед рискованными изменениями; проверку целостности резервной копии; хранение метаданных операции; связь резервной копии с задачей; возможность просмотра затронутых файлов; восстановление предыдущего состояния; защиту резервных копий от случайной перезаписи; понятную политику хранения и удаления резервных копий.
-Резервная копия не должна находиться внутри каталога, который агент может случайно очистить вместе с рабочими файлами.
-Если приложение не смогло создать и проверить необходимую резервную копию, запрещай соответствующую рискованную операцию.
-Для безопасных операций, не затрагивающих оригинал, не требуй лишних резервных копий.
+Before applying changes to the original project, create a verifiable restore point.
+The backup must allow restoring the original state of the files affected by the operation.
+Do not rely on Git alone: the user may work with a plain folder without a repository, and Git does not guarantee the safety of all user data and untracked files.
+Implement: a backup before risky changes; an integrity check of the backup; storing the metadata of the operation; linking the backup to the task; viewing the affected files; restoring the previous state; protecting backups against accidental overwriting; a clear retention and deletion policy for backups.
+The backup must not be inside a folder that an agent could accidentally clean together with the working files.
+If the application could not create and verify the required backup, forbid the matching risky operation.
+For safe operations that do not touch the original, do not require extra backups.
 
-### 29.9. Песочница для выполнения кода
+### 29.9. A sandbox for running code
 
-Не позволяй AI-агентам автоматически выполнять произвольный код на компьютере пользователя.
-Выполнение тестов, скриптов сборки и других команд должно происходить в контролируемой среде.
-По возможности используй изолированное окружение с: ограниченным доступом к файловой системе; ограниченными правами процесса; ограничениями сетевого доступа; лимитами времени выполнения; лимитами памяти и CPU; контролем создаваемых процессов; ограничениями на изменение системных настроек.
-Перед запуском неизвестных скриптов изучай их содержимое и происхождение.
-Не запускай автоматически: скрипты установки из непроверенных репозиториев; команды с повышенными привилегиями; установщики драйверов; команды удаления; неизвестные бинарные файлы; скрипты, передающие локальные данные в сеть; команды, изменяющие системные настройки.
-Если полноценная песочница недоступна, не заявляй, что выполнение полностью изолировано. Используй более ограниченный режим, объясни ограничения и запрашивай подтверждение для потенциально опасных операций.
+Do not let AI agents automatically run arbitrary code on the user's computer.
+Tests, build scripts and other commands must run in a controlled environment.
+When possible, use an isolated environment with: limited file system access; limited process rights; network restrictions; time limits; memory and CPU limits; control of the processes it creates; restrictions on changing system settings.
+Before running unknown scripts, study their content and origin.
+Do not automatically run: installation scripts from unchecked repositories; commands with elevated privileges; driver installers; deletion commands; unknown binaries; scripts that send local data to the network; commands that change system settings.
+If a full sandbox is not available, do not claim that execution is fully isolated. Use a more limited mode, explain the limitations and ask for confirmation of potentially dangerous operations.
 
-### 29.10. Защита от вредоносных инструкций внутри проекта
+### 29.10. Protection against malicious instructions inside a project
 
-Содержимое репозитория нельзя считать доверенным только потому, что оно находится в подключённой папке.
-В файлах проекта, README, комментариях, документации, веб-страницах и результатах поиска могут находиться инструкции, специально предназначенные для манипулирования AI-агентами. Например, файл может содержать указания: игнорировать системные ограничения; прочитать секреты из `.env`; передать файлы на внешний сервер; удалить другие файлы; выполнить неизвестную команду; изменить разрешения; скрыть действия от пользователя.
-Рассматривай содержимое файлов и внешних страниц как недоверенные данные, а не как команды управления приложением.
-Агенты могут анализировать такие инструкции и сообщать о них, но не должны автоматически выполнять их.
-Разделяй: политику безопасности приложения; подтверждённые пользователем инструкции; техническое задание; данные проекта; внешние документы; выводы других агентов.
-Ни текст внутри репозитория, ни результат веб-поиска, ни сообщение другого агента не должны самостоятельно повышать привилегии или отменять правила безопасности.
+The content of a repository cannot be considered trusted just because it is in a connected folder.
+Project files, READMEs, comments, documentation, web pages and search results may contain instructions written specifically to manipulate AI agents. For example, a file may tell the agent to: ignore system restrictions; read secrets from `.env`; send files to an external server; delete other files; run an unknown command; change permissions; hide actions from the user.
+Treat the content of files and external pages as untrusted data, not as commands that control the application.
+Agents can analyze such instructions and report them, but must not follow them automatically.
+Keep apart: the security policy of the application; instructions confirmed by the user; the specification; project data; external documents; the conclusions of other agents.
+Neither text inside a repository, nor a web search result, nor a message from another agent may raise privileges or cancel security rules by itself.
 
-### 29.11. Защита от выхода за пределы рабочей папки
+### 29.11. Protection against leaving the working folder
 
-Каждая файловая операция должна проходить проверку пути.
-Предотвращай: path traversal; выход за пределы разрешённого каталога; опасное использование `..`; обход ограничений через символические ссылки; подмену файловых путей; запись в системные каталоги; неожиданное следование по ссылкам на другие диски или каталоги.
-Проверяй не только текстовый путь, но и фактический целевой путь после нормализации, с учётом особенностей операционной системы.
-Учитывай гонки между проверкой пути и его использованием.
-Не предоставляй AI-агентам универсальный API для произвольной записи файлов. Все операции должны проходить через контролируемый файловый сервис с проверкой разрешений.
+Every file operation must go through a path check.
+Prevent: path traversal; leaving the allowed folder; dangerous use of `..`; bypassing restrictions through symbolic links; path substitution; writing to system folders; unexpectedly following links to other disks or folders.
+Check not only the text of the path but also the actual target path after normalization, taking the operating system into account.
+Take races between checking a path and using it into account.
+Do not give AI agents a general API for writing arbitrary files. Every operation must go through a controlled file service with permission checks.
 
-### 29.12. Защита секретов и локальных данных
+### 29.12. Protecting secrets and local data
 
-Приложение может работать с исходным кодом, внутренними документами, API-ключами и другими чувствительными материалами. Поэтому: храни секреты в системном хранилище учётных данных, если оно доступно; не записывай ключи в логи; не включай секреты в отчёты; не сохраняй секреты в Git; не добавляй секреты в резервные копии без отдельного обоснования; не отправляй секреты во внешние модели; маскируй чувствительные значения в интерфейсе; проверяй данные перед передачей внешнему провайдеру; используй минимальные права доступа; позволяй отключать внешние сетевые запросы.
-При использовании облачной модели пользователь должен понимать, что содержимое выбранных документов может передаваться внешнему провайдеру.
-По умолчанию не передавай полный репозиторий или всё локальное хранилище в AI-контекст. Передавай только необходимый объём данных в рамках разрешённой операции.
-В режиме полной локальности блокируй сетевую передачу содержимого проектов, а не просто скрывай соответствующий переключатель в интерфейсе.
+The application may work with source code, internal documents, API keys and other sensitive material. So: keep secrets in the system credential store when it is available; do not write keys to logs; do not include secrets in reports; do not store secrets in Git; do not add secrets to backups without a separate justification; do not send secrets to external models; mask sensitive values in the interface; check data before sending it to an external provider; use minimal access rights; let the user turn off external network requests.
+When a cloud model is used, the user must understand that the content of the selected documents may be sent to an external provider.
+By default, do not put the whole repository or the whole local storage into the AI context. Pass only the amount of data needed for the allowed operation.
+In fully local mode, block sending project content over the network instead of just hiding the matching switch in the interface.
 
-### 29.13. Единый движок разрешений
+### 29.13. One permission engine
 
-Реализуй централизованный механизм разрешений, через который проходят все агенты, инструменты, рабочие процессы и операции с файлами.
-Не позволяй каждому агенту самостоятельно определять, какие действия ему разрешены.
-Разделяй разрешения по типам: чтение; запись; удаление; исполнение команд; сетевые запросы; установка зависимостей; доступ к секретам; изменение Git; изменение конфигураций; публикация изменений; межсистемный доступ.
-Привязывай разрешения к конкретным системам, проектам, каталогам и операциям.
-Проверяй разрешение непосредственно перед выполнением действия, а не только в момент запуска задачи.
-Если разрешение отозвано во время работы, запрещай новые действия, требующие этого разрешения, и безопасно останавливай соответствующие процессы.
-Запрещай повышение привилегий через инструкции, конфигурацию агента или импортированный пакет.
+Implement a central permission mechanism that every agent, tool, workflow and file operation goes through.
+Do not let each agent decide by itself which actions are allowed to it.
+Separate permissions by type: reading; writing; deleting; running commands; network requests; installing dependencies; access to secrets; changing Git; changing configurations; publishing changes; cross-system access.
+Bind permissions to specific systems, projects, folders and operations.
+Check a permission right before the action runs, not only when the task starts.
+If a permission is revoked during work, forbid new actions that need it and stop the related processes safely.
+Forbid raising privileges through instructions, agent configuration or an imported package.
 
-### 29.14. Защита от случайных межсистемных изменений
+### 29.14. Protection against accidental cross-system changes
 
-Учитывай мультисистемную архитектуру приложения.
-Каждая задача, рабочая копия, резервная копия, операция и журнал должны иметь явную привязку к системе и проекту.
-Агент, работающий с системой A, не должен изменять файлы системы B только потому, что они доступны на компьютере.
-Для операций с несколькими системами требуй явного выбора соответствующих источников и разрешений.
-Переключение активной системы в интерфейсе не должно изменять контекст уже запущенной фоновой задачи.
-Если система не может подтвердить, что операция выполняется в разрешённом проекте, она должна отказать в операции, а не угадывать нужный путь.
+Take the multi-system architecture of the application into account.
+Every task, work copy, backup, operation and log record must be explicitly bound to a system and a project.
+An agent working with system A must not change the files of system B just because they are available on the computer.
+For operations on several systems, require an explicit choice of the matching sources and permissions.
+Switching the active system in the interface must not change the context of a background task that is already running.
+If the system cannot confirm that an operation runs in an allowed project, it must refuse the operation instead of guessing the right path.
 
-### 29.15. Журнал безопасности
+### 29.15. The security log
 
-Создай отдельный журнал безопасности, в котором фиксируются важные действия: подключение проекта; изменение режима доступа; создание рабочей копии; запрос дополнительного разрешения; подтверждение опасной операции; создание резервной копии; изменение файлов; запуск команд; попытки выхода за разрешённые границы; отказы системы безопасности; применение патча; восстановление данных; операции с Git; сетевые обращения, связанные с задачами; изменение разрешений.
-Записывай время, систему, проект, задачу, тип действия, результат и затронутые ресурсы.
-Не включай в журнал пароли, токены, приватные ключи или полное содержимое секретных файлов.
-Журнал должен быть доступен для просмотра пользователю, но агенты не должны иметь возможности незаметно переписывать историю собственных действий.
+Create a separate security log that records important actions: connecting a project; changing the access mode; creating a work copy; requesting an additional permission; confirming a dangerous operation; creating a backup; changing files; running commands; attempts to leave the allowed boundaries; refusals of the security system; applying a patch; restoring data; Git operations; network requests related to tasks; changing permissions.
+Record the time, the system, the project, the task, the type of action, the result and the affected resources.
+Do not include passwords, tokens, private keys or the full content of secret files in the log.
+The log must be available to the user, but agents must not be able to silently rewrite the history of their own actions.
 
-### 29.16. Безопасный интерфейс для пользователя без технических знаний
+### 29.16. A safe interface for a user without technical knowledge
 
-Не требуй от пользователя разбираться в Git, GitHub, командной строке, правах файловой системы или архитектуре песочниц.
-Используй понятные названия режимов: «Только изучение»; «Подготовить изменения»; «Работать в копии»; «Проверить изменения»; «Применить к исходному проекту».
-Не показывай опасные системные команды как обычные быстрые действия.
-Если необходимо объяснить Git, используй простое описание:
-- **Исходный проект** — папка с текущими файлами пользователя.
-- **Рабочая копия** — отдельное место, где приложение может безопасно готовить изменения.
-- **Предложенные изменения** — результат работы AI, который ещё не применён к оригиналу.
-- **Резервная копия** — сохранённое состояние, к которому можно вернуться.
-- **Git-ветка** — отдельная линия изменений внутри Git-репозитория; сама по себе не заменяет резервную копию.
-- **Применить изменения** — перенести выбранные и проверенные изменения в исходный проект.
+Do not require the user to understand Git, GitHub, the command line, file system permissions or sandbox architecture.
+Use clear mode names: "Read only"; "Prepare changes"; "Work in a copy"; "Review changes"; "Apply to the original project".
+Do not show dangerous system commands as ordinary quick actions.
+If Git needs to be explained, use simple descriptions:
+- **Original project:** the folder with the user's current files.
+- **Work copy:** a separate place where the application can prepare changes safely.
+- **Proposed changes:** the result of the AI work that is not applied to the original yet.
+- **Backup:** a saved state you can return to.
+- **Git branch:** a separate line of changes inside a Git repository; by itself it does not replace a backup.
+- **Apply changes:** move the selected and reviewed changes into the original project.
 
-Показывай понятные статусы безопасности и объясняй, что именно разрешено в текущем режиме.
+Show clear security statuses and explain what exactly is allowed in the current mode.
 
-### 29.17. Реакция на ошибки и подозрительные действия
+### 29.17. Reacting to errors and suspicious actions
 
-Если система обнаружила потенциально опасную операцию:
-1. Останови конкретную операцию до выполнения.
-2. Не прерывай без необходимости безопасные независимые задачи.
-3. Зафиксируй причину отказа.
-4. Покажи пользователю понятное сообщение.
-5. Предложи безопасный альтернативный путь.
-6. Сохрани уже полученные результаты.
-7. Не удаляй автоматически рабочие файлы и журналы.
+If the system finds a potentially dangerous operation:
+1. Stop that operation before it runs.
+2. Do not interrupt safe independent tasks without need.
+3. Record the reason for the refusal.
+4. Show the user a clear message.
+5. Offer a safe alternative.
+6. Keep the results obtained so far.
+7. Do not automatically delete working files and logs.
 
-Если обнаружена попытка выполнить подозрительную команду или отправить секреты во внешнюю сеть, запрети действие и сообщи пользователю, какие данные или файлы могли быть затронуты.
-Если возникла ошибка записи, не пытайся автоматически восстановить состояние разрушительными командами. Сначала установи фактическое состояние файлов, затем предложи безопасный способ восстановления.
+If an attempt to run a suspicious command or to send secrets to an external network is found, forbid the action and tell the user which data or files may have been affected.
+If a write error happens, do not try to restore the state automatically with destructive commands. First establish the actual state of the files, then offer a safe way to recover.
 
-### 29.18. Тестирование кибербезопасности
+### 29.18. Security testing
 
-Создай автоматические тесты, которые проверяют не только функциональность, но и устойчивость системы к опасным сценариям.
-Обязательные тесты:
-1. AI-агент не может изменять проект в режиме «Только чтение».
-2. Изменения в рабочей копии не затрагивают оригинал.
-3. Отмена задачи не приводит к случайному удалению файлов.
-4. Агент не может записать файл за пределами разрешённой папки.
-5. Символические ссылки не позволяют обходить ограничения.
-6. Агент не может изменить другой проект без разрешения.
-7. Агент не может изменить другую систему после переключения интерфейса.
-8. Файлы `.git/` защищены от неразрешённых операций.
-9. Неотслеживаемые файлы Git сохраняются.
-10. Приложение не выполняет автоматически разрушительные Git-команды.
-11. Применение патча невозможно без прохождения необходимых проверок.
-12. Изменение файлов после согласования инвалидирует соответствующее подтверждение.
-13. Ошибка создания резервной копии блокирует рискованную операцию.
-14. Секреты не попадают в журналы.
-15. Внешний контент не может отменить системные политики безопасности.
-16. Импортированный агент не может самовольно повысить разрешения.
-17. Неизвестные скрипты не выполняются автоматически.
-18. Сетевая передача локальных данных блокируется в локальном режиме.
-19. Отзыв разрешения останавливает последующие запрещённые операции.
-20. Ошибки одной задачи не приводят к повреждению других проектов.
-21. Прерывание приложения не оставляет систему в незаметном частично изменённом состоянии.
-22. Восстановление возвращает затронутые файлы в ожидаемое состояние.
+Create automated tests that check not only functionality but also resistance to dangerous scenarios.
+Required tests:
+1. An AI agent cannot change a project in "Read only" mode.
+2. Changes in a work copy do not affect the original.
+3. Cancelling a task does not delete files accidentally.
+4. An agent cannot write a file outside the allowed folder.
+5. Symbolic links do not allow bypassing restrictions.
+6. An agent cannot change another project without permission.
+7. An agent cannot change another system after the interface is switched.
+8. `.git/` files are protected from operations that are not allowed.
+9. Untracked Git files are kept.
+10. The application does not automatically run destructive Git commands.
+11. A patch cannot be applied without passing the required checks.
+12. Changing files after an approval invalidates that approval.
+13. A failure to create a backup blocks the risky operation.
+14. Secrets do not get into logs.
+15. External content cannot cancel the security policies of the system.
+16. An imported agent cannot raise its permissions on its own.
+17. Unknown scripts are not run automatically.
+18. Sending local data over the network is blocked in local mode.
+19. Revoking a permission stops the later forbidden operations.
+20. Errors in one task do not damage other projects.
+21. An interrupted application does not leave the system in a silently half-changed state.
+22. A restore returns the affected files to the expected state.
 
-Проводи тестирование в специально подготовленных тестовых репозиториях, а не на реальных пользовательских данных.
+Test with specially prepared test repositories, not with real user data.
 
-### 29.19. Критерии приёмки
+### 29.19. Acceptance criteria
 
-Функциональность считается готовой, когда:
-- Подключённый проект изначально защищён от изменений.
-- Система умеет исследовать проект без записи в его исходную папку.
-- Изменения можно подготавливать в отдельной рабочей копии.
-- Пользователь видит все предлагаемые изменения до применения.
-- Изменения к оригиналу не применяются бесконтрольно.
-- Резервное копирование и восстановление протестированы.
-- Разрешения проверяются на уровне backend и файловых сервисов.
-- Git-операции не уничтожают пользовательские изменения.
-- Подозрительные команды и инструкции из файлов блокируются.
-- Секреты защищены.
-- Агент не может произвольно выйти за пределы разрешённой области.
-- В мультисистемном режиме данные разных проектов изолированы.
-- Пользователь понимает, что именно произойдёт перед опасной операцией.
-- Все критические действия отражаются в журнале.
-- При ошибках система сохраняет данные и предлагает безопасное восстановление.
+The functionality is done when:
+- A connected project is protected from changes from the start.
+- The system can explore a project without writing to its original folder.
+- Changes can be prepared in a separate work copy.
+- The user sees every proposed change before it is applied.
+- Changes are not applied to the original without control.
+- Backup and restore are tested.
+- Permissions are checked at the backend and in the file services.
+- Git operations do not destroy the user's changes.
+- Suspicious commands and instructions from files are blocked.
+- Secrets are protected.
+- An agent cannot leave the allowed scope at will.
+- In multi-system mode the data of different projects is isolated.
+- The user understands what exactly will happen before a dangerous operation.
+- Every critical action is reflected in the log.
+- On errors the system keeps the data and offers a safe recovery.
 
-### 29.20. Итоговый принцип безопасности
+### 29.20. The final security principle
 
-**По умолчанию приложение изучает, анализирует и предлагает. Для выполнения изменений оно использует изолированную рабочую копию. В исходный проект изменения попадают только через контролируемую и проверяемую процедуру.**
+**By default the application studies, analyzes and proposes. To make changes it uses an isolated work copy. Changes reach the original project only through a controlled and verifiable procedure.**
 
-Ни один AI-агент, внешний документ, импортированный плагин или рабочий процесс не должен иметь возможности самостоятельно отключить эту защиту.
+No AI agent, external document, imported plugin or workflow may turn this protection off by itself.
 
-Безопасность должна быть встроена в архитектуру продукта: в доступ к файловой системе, работу с Git, запуск команд, систему разрешений, выполнение задач, мультисистемное управление, обработку секретов и восстановление данных.
+Security must be built into the architecture of the product: into file system access, work with Git, running commands, the permission system, task execution, multi-system management, handling secrets and data recovery.
 
-Не обещай абсолютную неуязвимость. Вместо этого реализуй эшелонированную защиту, минимальные привилегии, безопасные значения по умолчанию, проверяемые ограничения и возможность восстановления после ошибок.
+Do not promise absolute invulnerability. Instead, implement defense in depth, least privilege, safe defaults, verifiable restrictions and recovery after errors.

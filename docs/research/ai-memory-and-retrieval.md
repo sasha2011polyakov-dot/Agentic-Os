@@ -1,60 +1,60 @@
-# Память агентов, индексация и извлечение контекста
+# Agent memory, indexing and context retrieval
 
-Дата: 2026-10-12. Источники: Letta/MemGPT, GraphRAG, RRF, sqlite-vec — см. `product-landscape.md`.
+Date: 2026-10-12. Sources: Letta/MemGPT, GraphRAG, RRF, sqlite-vec; see `product-landscape.md`.
 
-## 1. Проблема
+## 1. The problem
 
-Нельзя передавать модели всё хранилище: окно контекста локальных моделей — обычно 4–32 тыс. токенов (поле `max_context_length` в LM Studio REST API, `<arch>.context_length` в `ollama /api/show`). Агентам нужна память о проекте, решениях и подтверждённых фактах — без накопления мусора и без смешения фактов с догадками.
+The whole vault cannot be passed to a model: the context window of local models is usually 4–32 thousand tokens (the `max_context_length` field in the LM Studio REST API, `<arch>.context_length` in `ollama /api/show`). Agents need memory of the project, decisions and confirmed facts, without piling up junk and without mixing facts with guesses.
 
-## 2. Уровни памяти
+## 2. Memory levels
 
-| Уровень | Что хранит | Где | Кто пишет | Срок жизни |
+| Level | What it holds | Where | Who writes | Lifetime |
 |---|---|---|---|---|
-| **Контекст шага** | Вход шага, отобранные фрагменты, результаты инструментов | В памяти процесса + `run_steps.input/output` | Оркестратор | Шаг |
-| **Контекст запуска** | Результаты предыдущих шагов (типизированные), журнал | `workflow_runs`, `run_steps` | Оркестратор | Запуск (сохраняется для аудита) |
-| **Контекст проекта** | Карта проекта, ключевые файлы, outline | `project_profiles` (кэш инвентаризации, инвалидируется по хешам файлов) | Инвентаризатор (код) | До изменения файлов |
-| **Долговременные знания** | Заметки, требования, решения, исследования | **Markdown в vault** + индекс + граф | Пользователь; агенты — только через подтверждение | Постоянно |
-| **Подтверждённые факты** | Атомарный факт + источник + цитата + даты + статус | Таблица `facts` (+ ссылка на документ-источник) | Агенты с `status=proposed` → пользователь/валидатор → `verified` | До истечения `review_after` или замены |
+| **Step context** | The step input, selected fragments, tool results | Process memory + `run_steps.input/output` | The orchestrator | One step |
+| **Run context** | Results of the previous steps (typed), the log | `workflow_runs`, `run_steps` | The orchestrator | One run (kept for audit) |
+| **Project context** | The project map, key files, outline | `project_profiles` (an inventory cache, invalidated by file hashes) | The inventory (code) | Until the files change |
+| **Long-term knowledge** | Notes, requirements, decisions, research | **Markdown in the vault** + index + graph | The user; agents only after a confirmation | Permanent |
+| **Confirmed facts** | An atomic fact + source + quote + dates + status | The `facts` table (+ a link to the source document) | Agents with `status=proposed` → the user/a validator → `verified` | Until `review_after` expires or it is replaced |
 
-**Принцип:** долговременная память — это сама база знаний. Мы не заводим «скрытую память агента», которую пользователь не видит: всё, что агент «помнит» между запусками, является документом или записью `facts`, видимой в UI и снабжённой источником.
+**Principle:** long-term memory is the knowledge base itself. There is no "hidden agent memory" the user cannot see: everything an agent "remembers" between runs is a document or a `facts` record, visible in the UI and backed by a source.
 
-## 3. Где что хранить
+## 3. Where things are stored
 
-| Данные | Markdown | SQLite | Индекс / граф |
+| Data | Markdown | SQLite | Index / graph |
 |---|---|---|---|
-| Заметки, ТЗ, требования, отчёты исследований | **Да** (источник истины) | Метаданные, хеш, история версий | FTS, рёбра |
-| Свойства документов | Frontmatter | Нормализованная таблица `properties` | Фильтры |
-| Связи | Ссылки в тексте / frontmatter | `edges` с типом и происхождением | Граф |
-| Предложенные ИИ связи | Нет (пока не подтверждены) | `edges` со `status=suggested` | Фильтр «показать предложения» |
-| Факты из исследований | Секция «Источники» в заметке | `facts` | Узлы `source` |
-| Запуски, этапы, токены, стоимость | Нет | `workflow_runs`, `run_steps`, `ai_usage` | — |
-| Эмбеддинги | Нет | `chunks` + `embeddings` (BLOB Float32) | Векторный поиск |
-| Секреты | **Никогда** | **Никогда** (только ссылка на ключ в системном хранилище) | — |
+| Notes, specifications, requirements, research reports | **Yes** (the source of truth) | Metadata, hash, version history | FTS, edges |
+| Document properties | Frontmatter | The normalized `properties` table | Filters |
+| Links | Links in the text / frontmatter | `edges` with a type and an origin | Graph |
+| AI-suggested links | No (until confirmed) | `edges` with `status=suggested` | The "show suggestions" filter |
+| Facts from research | The "Sources" section of a note | `facts` | `source` nodes |
+| Runs, stages, tokens, cost | No | `workflow_runs`, `run_steps`, `ai_usage` | — |
+| Embeddings | No | `chunks` + `embeddings` (Float32 BLOB) | Vector search |
+| Secrets | **Never** | **Never** (only a reference to the key in the OS secret store) | — |
 
-## 4. Отбор контекста для агента (retrieval)
+## 4. Selecting context for an agent (retrieval)
 
-1. **Область (scope)** задаёт пользователь: источники, папки, документы. Всё вне области недоступно инструментам — это проверяет PermissionGuard, а не промпт.
-2. **Кандидаты:** FTS5 (BM25) по формулировке задачи + (опционально) векторный поиск → **RRF (k=60)**.
-3. **Расширение по графу:** соседи top-N документов глубиной 1 по рёбрам `references`, `implements`, `depends_on`, `part_of` — то, что ищется через связи, а не по словам.
-4. **Бюджет контекста:** фрагменты добавляются по убыванию ранга, пока не достигнут лимит токенов шага (оценка ≈ `символы/3.5` для кириллицы и латиницы; если провайдер сообщает фактический расход, оценка корректируется).
-5. **Маркировка:** каждый фрагмент передаётся с `source_id`, путём и диапазоном строк; ответ модели обязан ссылаться на эти ID. Валидатор проверяет, что все ссылки существуют.
+1. **The scope** is set by the user: sources, folders, documents. Everything outside the scope is unavailable to tools; PermissionGuard checks this, not the prompt.
+2. **Candidates:** FTS5 (BM25) on the wording of the task + (optionally) vector search → **RRF (k=60)**.
+3. **Graph expansion:** neighbours of the top-N documents at depth 1 over the `references`, `implements`, `depends_on`, `part_of` edges: what is found through links rather than by words.
+4. **Context budget:** fragments are added in order of rank until the token limit of the step is reached (an estimate of ≈ `characters/3.5`; if the provider reports the actual usage, the estimate is corrected).
+5. **Labels:** every fragment is passed with its `source_id`, path and line range; the model answer must refer to these IDs. A validator checks that every reference exists.
 
-## 5. Фрагментация (chunking)
+## 5. Chunking
 
-- Markdown — по заголовкам (секциям), длинные секции — окнами ≈ 1200 символов с перекрытием 150.
-- Код — по найденным символам (outline), иначе окнами по строкам.
-- У каждого фрагмента есть `doc_id`, `heading_path`, `start_line`, `end_line`, `hash`. При изменении документа перевычисляются только фрагменты с изменившимся хешем.
+- Markdown: by headings (sections); long sections in windows of ≈ 1200 characters with a 150-character overlap.
+- Code: by the symbols found (outline), otherwise in windows of lines.
+- Every fragment has `doc_id`, `heading_path`, `start_line`, `end_line`, `hash`. When a document changes, only the fragments with a changed hash are recomputed.
 
-## 6. Защита от «мусорной» памяти
+## 6. Protection against "junk" memory
 
-- Факты от агентов создаются со статусом `proposed`; в контекст следующих запусков попадают только `verified` (или `proposed` — с явной пометкой «не проверено»).
-- У каждого факта есть `review_after`; по истечении срока он становится `stale` и не используется как подтверждённый.
-- Противоречие нового факта старому (одинаковый `subject` + разные значения, решает модель-проверяющий) → оба помечаются `conflicted` и выносятся пользователю, а не перезаписываются.
-- Дубликаты фактов отсекаются по нормализованному тексту и `subject`.
+- Facts from agents are created with the `proposed` status; only `verified` facts (or `proposed` ones, explicitly marked "not verified") get into the context of later runs.
+- Every fact has `review_after`; after that date it becomes `stale` and is not used as confirmed.
+- A new fact that contradicts an old one (the same `subject` with different values, decided by a reviewer model) → both are marked `conflicted` and shown to the user instead of being overwritten.
+- Duplicate facts are dropped by their normalized text and `subject`.
 
-## 7. Векторный индекс: решение
+## 7. The vector index: decision
 
-- Хранение: `embeddings(chunk_id, model, dim, vector BLOB)`; поиск — brute-force косинус в JS по `Float32Array`.
-- **Обоснование:** персональная база — до ~10⁵ фрагментов. Прямой проход по 10⁵ векторам размерности 768 — около 77 млн умножений-сложений; на современном CPU это порядка десятков–сотен мс (оценка, не измерение; бенчмарк — задача следующего этапа). Нативное расширение sqlite-vec даёт ту же асимптотику (brute-force), но усложняет кросс-платформенную сборку.
-- **Абстракция:** интерфейс `VectorIndex` позволяет заменить реализацию (sqlite-vec, HNSW) без изменения поиска.
-- Эмбеддинги разных моделей не смешиваются: при смене модели индекс перестраивается.
+- Storage: `embeddings(chunk_id, model, dim, vector BLOB)`; search is a brute-force cosine in JS over `Float32Array`.
+- **Rationale:** a personal knowledge base has up to ~10⁵ fragments. A direct pass over 10⁵ vectors of dimension 768 is about 77 million multiply-adds; on a modern CPU this takes tens to hundreds of milliseconds (an estimate, not a measurement; a benchmark is a task for the next stage). The native sqlite-vec extension has the same asymptotics (brute force) but complicates the cross-platform build.
+- **Abstraction:** the `VectorIndex` interface allows replacing the implementation (sqlite-vec, HNSW) without changing search.
+- Embeddings of different models are never mixed: when the model changes, the index is rebuilt.

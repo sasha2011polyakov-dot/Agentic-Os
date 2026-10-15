@@ -1,102 +1,102 @@
-# Мультисистемность (раздел 27 ТЗ)
+# Multiple knowledge systems (specification section 27)
 
-Статус: принято · Дата: 2026-10-12
+Status: accepted · Date: 2026-10-12
 
-**Система** — самостоятельное пространство данных: документы, подключённые проекты, граф, задачи, агенты и их настройки, процессы и результаты, индексы, история, журнал, настройки. Главный инвариант: **операция над системой X не изменяет данные никакой другой системы**, кроме явно подтверждённых межсистемных операций.
+A **system** is an independent data space: documents, connected projects, the graph, tasks, agents and their settings, workflows and their results, indexes, history, the log and settings. The main invariant: **an operation on system X does not change the data of any other system**, except for explicitly approved cross-system operations.
 
-## 1. Физическая модель
+## 1. Physical model
 
 ```
-<каталог данных приложения>/            (~/.local/share/agentic-os, ~/Library/Application Support/Agentic OS, %APPDATA%\Agentic OS; переопределяется AOS_DATA_DIR)
-  registry.db          реестр систем, настройки приложения, общие AI-провайдеры, учёт AI-вызовов, журнал операций реестра
-  agents/              общие пакеты агентов (уровень приложения)
-  backups/<system_id>/ резервные копии систем (*.aosys)
-  logs/app.log         журнал приложения (JSONL, с маскированием секретов; каждая запись содержит system_id, если относится к системе)
+<application data folder>/              (~/.local/share/agentic-os, ~/Library/Application Support/Agentic OS, %APPDATA%\Agentic OS; overridden by AOS_DATA_DIR)
+  registry.db          system registry, application settings, shared AI providers, AI call accounting, registry operations log
+  agents/              shared agent packages (application level)
+  backups/<system_id>/ system backups (*.aosys)
+  logs/app.log         application log (JSONL, with secrets masked; every record that concerns a system contains its system_id)
 
-<storage_path системы>/                 (любое место, выбранное пользователем)
-  *.md, папки          документы системы (корень = основное хранилище знаний, как vault в Obsidian)
-  Templates/           пользовательские шаблоны системы
-  .trash/              корзина системы
+<storage_path of the system>/           (any place the user chooses)
+  *.md, folders        documents of the system (the root is the main knowledge vault, like an Obsidian vault)
+  Templates/           user templates of the system
+  .trash/              trash of the system
   .aos/
-    system.json        паспорт: { format, formatVersion, systemId, name, createdAt }
-    system.db          ВСЕ данные системы: источники, индекс, FTS, граф, задачи, агенты (конфиги и гранты), процессы и запуски, история версий, журнал аудита, настройки системы
-    agents/            пакеты агентов уровня системы
-    migration-backups/ копии system.db перед миграциями схемы
+    system.json        manifest: { format, formatVersion, systemId, name, createdAt }
+    system.db          ALL data of the system: sources, index, FTS, graph, tasks, agents (configs and grants), workflows and runs, version history, audit log, system settings
+    agents/            system-level agent packages
+    migration-backups/ copies of system.db made before schema migrations
 ```
 
-**Почему отдельная SQLite-база на систему, а не общая база с `system_id`:**
-- изоляция по построению: SQL-запрос одной системы физически не может прочитать или изменить строки другой (ошибка в `WHERE` не приводит к утечке);
-- резервная копия, экспорт и перенос — это копия одной папки и одной базы;
-- повреждение одной базы не затрагивает остальные;
-- удаление системы — удаление её папки, а не каскадное удаление строк в общей базе.
+**Why a separate SQLite database per system instead of one shared database with `system_id`:**
+- isolation by construction: an SQL query of one system physically cannot read or change the rows of another (a mistake in a `WHERE` clause does not leak data);
+- a backup, an export or a move is a copy of one folder and one database;
+- damage to one database does not affect the others;
+- deleting a system means deleting its folder, not cascading deletes of rows in a shared database.
 
-Общая база — только **реестр** (`registry.db`). Каждая её запись, относящаяся к системе, содержит `system_id`.
+The only shared database is the **registry** (`registry.db`). Every record in it that concerns a system contains `system_id`.
 
-## 2. Идентификаторы
-- `system_id` = `sys_<ULID>`: генерируется при создании, записывается в `system.json` и в таблицу `meta` в `system.db`, **никогда не меняется** (переименование меняет только `name`).
-- Идентификаторы объектов (документы, задачи, узлы графа) уникальны внутри системы. Глобальная ссылка на объект — пара `(system_id, object_id)` (в API и UI — `systemId` + `id`). Межсистемные ссылки хранят обе пары.
-- Совпадение названий, путей или содержимого документов разных систем **никогда** не приводит к их объединению: результаты глобального поиска различаются по `(system_id, doc_id)`.
+## 2. Identifiers
+- `system_id` = `sys_<ULID>`: generated at creation, written to `system.json` and to the `meta` table of `system.db`, and **never changes** (renaming changes only `name`).
+- Object identifiers (documents, tasks, graph nodes) are unique within a system. A global reference to an object is the pair `(system_id, object_id)` (`systemId` + `id` in the API and the UI). Cross-system links store both pairs.
+- Equal titles, paths or contents of documents in different systems **never** merge them: global search results are told apart by `(system_id, doc_id)`.
 
-## 3. Компоненты
+## 3. Components
 
-| Компонент | Ответственность |
+| Component | Responsibility |
 |---|---|
-| `SystemRegistry` (`core/systems/registry.ts`) | CRUD записей реестра, проверка доступности хранилищ, проверка целостности реестра |
-| `SystemManager` (`core/systems/manager.ts`) | Создание, подключение существующей, отключение, повторное подключение, переименование, смена пути (relocate), удаление из списка, удаление данных; держит открытые `SystemRuntime` |
-| `SystemRuntime` (`core/systems/runtime.ts`) | Все сервисы **одной** системы, жёстко привязанные к её `Db` и путям: источники, индексатор, наблюдатель, поиск, граф, документы, задачи, агенты, процессы, история, аудит. Фоновые задачи получают runtime, а не «текущую систему» |
-| `SystemSearch` (`core/systems/global-search.ts`) | Поиск в одной системе или во множестве выбранных; объединение через RRF; каждый результат помечен системой |
-| `SystemGraph` | Граф системы (`core/graph`); обзор нескольких систем — объединение графов с префиксом `system_id` в ID узлов |
-| `SystemBackup` / `SystemImportExport` (`core/systems/archive.ts`) | Архив `.aosys`: снимок `system.db` (`VACUUM INTO`), файлы документов, пакеты агентов, манифест с контрольными суммами |
-| `CrossSystemAccessPolicy` (`core/systems/cross-access.ts`) | Разрешение межсистемного чтения для запуска процесса |
-| `SettingsService` (`core/settings`) | Двухуровневые настройки с наследованием: по умолчанию → приложение → система; API возвращает значение **и его источник** |
+| `SystemRegistry` (`core/systems/registry.ts`) | CRUD of registry records, availability checks of the storage folders, registry integrity checks |
+| `SystemManager` (`core/systems/manager.ts`) | Create, connect an existing one, disconnect, reconnect, rename, change the path (relocate), remove from the list, delete data; keeps the open `SystemRuntime` objects |
+| `SystemRuntime` (`core/systems/runtime.ts`) | All services of **one** system, bound to its `Db` and paths: sources, indexer, watcher, search, graph, documents, tasks, agents, workflows, history, audit. Background jobs get a runtime, never "the current system" |
+| `SystemSearch` (`core/systems/global-search.ts`) | Search in one system or in several selected ones; results are merged with RRF; every result is labeled with its system |
+| `SystemGraph` | The graph of a system (`core/graph`); an overview of several systems merges the graphs with a `system_id` prefix in the node IDs |
+| `SystemBackup` / `SystemImportExport` (`core/systems/archive.ts`) | The `.aosys` archive: a snapshot of `system.db` (`VACUUM INTO`), the document files, the agent packages, a manifest with checksums |
+| `CrossSystemAccessPolicy` (`core/systems/cross-access.ts`) | Permission for cross-system reading during a workflow run |
+| `SettingsService` (`core/settings`) | Two-level settings with inheritance: default → application → system; the API returns the value **and where it comes from** |
 
-## 4. Жизненный цикл и статусы
+## 4. Lifecycle and statuses
 
-Статусы в реестре: `connected` (подключена, доступна), `disconnected` (отключена пользователем, данные и регистрация сохранены), `unavailable` (папка не найдена или не читается — выставляется автоматически при проверке, **система не удаляется**), `error` (база не открывается или паспорт не совпадает).
+Registry statuses: `connected` (connected and available), `disconnected` (disconnected by the user; the data and the registration are kept), `unavailable` (the folder was not found or cannot be read; set automatically by a check, **the system is not deleted**), `error` (the database does not open or the manifest does not match).
 
-| Операция | Что делает | Чего не делает никогда |
+| Operation | What it does | What it never does |
 |---|---|---|
-| Создать | Новая папка (или пустая выбранная) → `.aos/system.json` + `system.db` → запись в реестре | Не трогает другие системы и их записи |
-| Подключить существующую | Читает `.aos/system.json`; при конфликте ID — выбор: открыть существующую / зарегистрировать копию под новым ID / отмена | Не перезаписывает зарегистрированную систему |
-| Переключиться | Меняет активный контекст UI (`app_settings.ui.activeSystemId`), обновляет `last_opened_at` | Не закрывает и не очищает другие системы |
-| Отключить | Останавливает наблюдатели и индексацию; активные процессы — предупреждение и выбор (дождаться / приостановить / отменить) → статус `disconnected` | Не удаляет файлы и регистрацию |
-| Подключить повторно | `disconnected` → `connected`, переоткрытие базы, догоняющая индексация | Не создаёт дубликат |
-| Переименовать | Меняет `name` в реестре и `system.json` | Не меняет `system_id` |
-| Сменить путь (relocate) | Пользователь указывает новую папку → проверка `system.json.systemId` → подтверждение → обновление `storage_path` | Не принимает папку с другим ID |
-| Удалить из списка | Удаляет запись реестра | Не удаляет файлы |
-| Удалить данные | Отдельная процедура: имя, путь, состав удаляемого, предложение бэкапа, ввод названия для подтверждения; варианты — «только служебные данные (.aos)» или «всю папку системы»; шаги фиксируются в `operations` | Не сообщает об успехе до фактического завершения; не удаляет, если паспорт в папке не совпадает с `system_id` |
+| Create | A new folder (or a chosen empty one) → `.aos/system.json` + `system.db` → a registry record | Does not touch other systems or their records |
+| Connect existing | Reads `.aos/system.json`; on an ID conflict the user chooses: open the existing one / register a copy under a new ID / cancel | Does not overwrite a registered system |
+| Switch | Changes the active UI context (`app_settings.ui.activeSystemId`), updates `last_opened_at` | Does not close or clear other systems |
+| Disconnect | Stops the watchers and indexing; for active workflows it warns and lets the user choose (wait / pause / cancel) → status `disconnected` | Does not delete files or the registration |
+| Reconnect | `disconnected` → `connected`, reopens the database, catches up with indexing | Does not create a duplicate |
+| Rename | Changes `name` in the registry and in `system.json` | Does not change `system_id` |
+| Change the path (relocate) | The user chooses a new folder → `system.json.systemId` is checked → confirmation → `storage_path` is updated | Does not accept a folder with another ID |
+| Remove from the list | Removes the registry record | Does not delete files |
+| Delete data | A separate procedure: name, path, what will be deleted, an offer to make a backup, typing the name to confirm; options: "service data only (.aos)" or "the whole system folder"; the steps are recorded in `operations` | Does not report success before it actually finishes; does not delete if the manifest in the folder does not match the `system_id` |
 
-## 5. Межсистемные операции
-- **Агент системы** — пакет в `.aos/agents/` системы; виден только в ней.
-- **Общий агент приложения** — пакет в `<data>/agents/`; виден во всех системах, но включение, конфигурация модели и разрешения хранятся **в каждой системе отдельно** (`agent_configs`, `agent_grants` в `system.db`). Без включения в конкретной системе агент там не запускается.
-- **Межсистемный процесс** — запуск в «домашней» системе с явным списком дополнительных систем `scope.extraSystems`. Каждая дополнительная система требует (1) явного выбора пользователем при запуске и (2) гранта `systems.read` у агента в домашней системе. В v1 запись в чужие системы не поддерживается: результат сохраняется в домашней системе, происхождение данных — `(system_id, doc_id)` в фактах и рёбрах.
-- **Межсистемная связь** — таблица `cross_links` в системе-источнике: `(src_node, target_system_id, target_object_id, target_label, relation)`. Если целевая система удалена или недоступна, ссылка отображается как недоступная, а граф источника не повреждается.
+## 5. Cross-system operations
+- **A system agent** is a package in the `.aos/agents/` folder of the system; it is visible only there.
+- **A shared application agent** is a package in `<data>/agents/`; it is visible in every system, but enabling it, its model configuration and its permissions are stored **separately in each system** (`agent_configs`, `agent_grants` in `system.db`). An agent that is not enabled in a system does not run there.
+- **A cross-system workflow** runs in its "home" system with an explicit list of additional systems, `scope.extraSystems`. Every additional system needs (1) an explicit choice by the user when the run starts and (2) the `systems.read` grant for the agent in the home system. v1 does not support writing to other systems: the result is saved in the home system, and the origin of the data is `(system_id, doc_id)` in facts and edges.
+- **A cross-system link** is stored in the `cross_links` table of the source system: `(src_node, target_system_id, target_object_id, target_label, relation)`. If the target system is deleted or unavailable, the link is shown as unavailable, and the graph of the source is not damaged.
 
-## 6. Настройки
+## 6. Settings
 
-| Уровень | Где хранится | Примеры |
+| Level | Where it is stored | Examples |
 |---|---|---|
-| Приложение | `registry.db: app_settings` | Тема, горячие клавиши, офлайн-режим, общие провайдеры AI, режим AI по умолчанию, журналирование, бюджет на месяц |
-| Система | `system.db: settings` | Исключения и параметры индексации, граф, шаблоны, правила документов, поиск, бэкапы, разрешения агентов, **переопределения**: режим AI, модель по умолчанию, политика облака |
+| Application | `registry.db: app_settings` | Theme, keyboard shortcuts, offline mode, shared AI providers, the default AI mode, logging, the monthly budget |
+| System | `system.db: settings` | Indexing exclusions and parameters, the graph, templates, document rules, search, backups, agent permissions, **overrides**: the AI mode, the default model, the cloud policy |
 
-Наследование: `default → app → system`. UI показывает рядом со значением, откуда оно взято («по умолчанию», «из настроек приложения», «переопределено в системе»), и кнопку «Сбросить к унаследованному». Офлайн-режим — настройка приложения: система не может разрешить сеть, если приложение офлайн. Переопределение не может ослабить глобальный запрет.
+Inheritance: `default → app → system`. Next to each value the UI shows where it comes from ("default", "from the application settings", "overridden in the system") and a "Reset to inherited" button. Offline mode is an application setting: a system cannot allow the network when the application is offline. An override cannot weaken a global restriction.
 
-## 7. Защита от потери данных
-- Все изменяющие API-вызовы адресуют систему явно (`/api/systems/:systemId/...`). Сервер проверяет, что объект принадлежит этой системе: поиск идёт **в базе этой системы**, поэтому чужой ID вернёт `NOT_FOUND`.
-- Фоновые задачи (индексация, workflow, наблюдатель) создаются внутри `SystemRuntime` и держат ссылку на него; записи событий и аудита содержат `system_id`.
-- Миграции схемы `system.db`: перед применением — `VACUUM INTO .aos/migration-backups/system-v<from>-<ts>.db`; миграция выполняется в транзакции; при ошибке база остаётся на прежней версии, система получает статус `error` с подсказкой. Остальные системы открываются как обычно.
-- Аварийное завершение: SQLite WAL гарантирует атомарность транзакций; запись файлов атомарная (tmp + rename); незавершённые запуски процессов восстанавливаются при старте (`running` → повторное выполнение этапа с увеличенным счётчиком попыток); незавершённые операции реестра (`operations.status = running`) показываются пользователю.
-- Ни одна операция обычных сценариев не выполняет «очистить все данные», «пересоздать базу» или «заменить хранилище».
+## 7. Protection against data loss
+- Every API call that changes data names the system explicitly (`/api/systems/:systemId/...`). The server checks that the object belongs to that system: the lookup runs **in the database of that system**, so a foreign ID returns `NOT_FOUND`.
+- Background jobs (indexing, workflows, the watcher) are created inside a `SystemRuntime` and keep a reference to it; event and audit records contain `system_id`.
+- `system.db` schema migrations: before a migration, `VACUUM INTO .aos/migration-backups/system-v<from>-<ts>.db`; the migration runs in a transaction; on an error the database stays at the previous version and the system gets the `error` status with a hint. Other systems open as usual.
+- Crashes: SQLite WAL makes transactions atomic; file writes are atomic (tmp + rename); unfinished workflow runs are recovered at startup (`running` → the stage runs again with an increased attempt counter); unfinished registry operations (`operations.status = running`) are shown to the user.
+- No operation of the normal scenarios "clears all data", "recreates the database" or "replaces the storage".
 
-## 8. Формат архива `.aosys` (экспорт, бэкап)
+## 8. The `.aosys` archive format (export, backup)
 
-Zip-архив:
+A zip archive:
 ```
 manifest.json      { format: "agentic-os-system-archive", formatVersion: 1, systemId, name, description, createdAt, exportedAt, appVersion, schemaVersion, includesHistory, files: { "<path>": "<sha256>" } }
-system.db          снимок базы (VACUUM INTO); если история не включена — таблицы версий очищены в копии
-files/**           документы системы (без .aos и .trash)
-agents/**          пакеты агентов уровня системы
+system.db          a database snapshot (VACUUM INTO); if history is not included, the version tables are cleared in the copy
+files/**           documents of the system (without .aos and .trash)
+agents/**          system-level agent packages
 ```
-Секретов в архиве нет по построению: в `system.db` хранятся только ссылки на ключи, сами ключи — в системном хранилище секретов. Подключённые внешние проекты экспортируются как конфигурация (пути), но не их файлы: при импорте пути проверяются, недоступные источники получают статус `unavailable`.
+The archive contains no secrets by construction: `system.db` stores only references to keys, and the keys themselves live in the OS secret store. Connected external projects are exported as configuration (paths), not as files: on import the paths are checked, and unavailable sources get the `unavailable` status.
 
-Импорт: проверка манифеста, версии формата, контрольных сумм → распаковка во временную папку рядом с целевой → проверка открытия базы → атомарное переименование в целевую папку → регистрация. Конфликт ID → выбор пользователя (открыть существующую / импортировать как копию с новым ID / отмена). При любой ошибке временная папка удаляется, существующие системы не затрагиваются.
+Import: the manifest, the format version and the checksums are checked → unpacking into a temporary folder next to the target → a check that the database opens → an atomic rename into the target folder → registration. On an ID conflict the user chooses (open the existing one / import as a copy with a new ID / cancel). On any error the temporary folder is deleted and existing systems are not touched.

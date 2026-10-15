@@ -1,364 +1,364 @@
-# Раздел 28 исходного технического задания (первоисточник)
+# Section 28 of the original specification (primary source)
 
-> Текст раздела сохранён без изменений, как его сформулировал заказчик. Реализация описана в `docs/architecture/missions.md`. Соответствие сценариям приёмки 28.17 и тестам — в `docs/spec/acceptance-matrix.md`.
+> An English translation of the section as the client wrote it. The implementation is described in `docs/architecture/missions.md`. The 15 acceptance scenarios of 28.17 are covered by the tests with the same numbers in `packages/core/test/missions.test.ts`.
 
-## 28. Выполнение технических заданий на естественном языке: интеллектуальная система действий, исследований и решения задач
+## 28. Carrying out natural-language specifications: an intelligent system of actions, research and problem solving
 
-### 28.1. Основная концепция
+### 28.1. The main concept
 
-Реализуй в продукте полноценную систему выполнения технических заданий, в которой пользователь может описать своими словами, что он хочет получить, а приложение самостоятельно исследует контекст, выбирает подходящий способ решения, при необходимости разрабатывает новый подход, выполняет работу и проверяет результат.
+Implement in the product a full system for carrying out specifications, where the user can describe in their own words what they want to get, and the application explores the context by itself, chooses a suitable way to solve the task, designs a new approach when needed, does the work and verifies the result.
 
-Пользователь не должен быть обязан заранее знать:
-- Какой агент нужен для задачи.
-- Какие инструменты использовать.
-- Какие этапы выполнения необходимы.
-- Существует ли готовое решение.
-- Где искать информацию.
-- Какую архитектуру выбрать.
-- Как разбить задачу на подзадачи.
-- Какие файлы нужно создать или изменить.
-- Как проверить корректность результата.
+The user must not be required to know in advance:
+- Which agent the task needs.
+- Which tools to use.
+- Which execution stages are needed.
+- Whether a ready solution exists.
+- Where to look for information.
+- Which architecture to choose.
+- How to split the task into subtasks.
+- Which files to create or change.
+- How to check that the result is correct.
 
-Всё это должна определять система на основе поставленной задачи, доступного контекста, изучения проекта, доступных инструментов и критериев качества.
+The system must determine all of this from the task, the available context, studying the project, the available tools and the quality criteria.
 
-Например, пользователь пишет:
+For example, the user writes:
 
-«Изучи мой проект, найди хороший способ организовать работу с несколькими системами знаний, предложи архитектуру, реализуй её и проверь, чтобы существующие данные не терялись».
+"Study my project, find a good way to organize work with several knowledge systems, propose an architecture, implement it and check that existing data is not lost."
 
-Система должна самостоятельно:
-1. Разобраться, что именно требуется.
-2. Изучить подключённый проект и имеющуюся архитектуру.
-3. Определить, каких сведений не хватает.
-4. Найти подходящие существующие решения и библиотеки.
-5. Сравнить альтернативы.
-6. Определить, подходит ли существующее решение или необходимо разработать собственное.
-7. Составить план выполнения.
-8. Выполнить необходимые действия с помощью подходящих агентов и инструментов.
-9. Проверить полученный результат.
-10. Исправить обнаруженные ошибки.
-11. Предоставить пользователю готовый результат, отчёт и сведения о проверках.
+The system must by itself:
+1. Understand what exactly is required.
+2. Study the connected project and the existing architecture.
+3. Determine which information is missing.
+4. Find suitable existing solutions and libraries.
+5. Compare the alternatives.
+6. Decide whether an existing solution fits or an own one has to be developed.
+7. Make an execution plan.
+8. Carry out the necessary actions with suitable agents and tools.
+9. Verify the result.
+10. Fix the errors it finds.
+11. Give the user the finished result, a report and information about the checks.
 
-Это не просто поиск информации, не генератор рекомендаций и не интерфейс для общения с AI. Это **система, которая превращает естественно-языковое техническое задание в проверяемый результат**.
+This is not just information search, not a recommendation generator and not an interface for chatting with AI. It is **a system that turns a natural-language specification into a verifiable result**.
 
-### 28.2. Диалоговая функциональность без интерфейса обычного чата
+### 28.2. Conversational features without an ordinary chat interface
 
-Предусмотри возможность ставить задачи на естественном языке, уточнять требования, обсуждать варианты решения и корректировать ход выполнения.
+Provide a way to set tasks in natural language, clarify requirements, discuss solution options and adjust the course of execution.
 
-При этом не превращай основной интерфейс продукта в обычный мессенджер с пузырями сообщений, аватарами и бесконечной лентой переписки.
+But do not turn the main interface of the product into an ordinary messenger with message bubbles, avatars and an endless feed.
 
-Вместо этого создай полноценное рабочее пространство задач.
+Instead, create a full task workspace.
 
-Примерная структура:
+A sample structure:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
-│ Новая задача                                                       │
+│ New task                                                           │
 ├────────────────────────────────────────────────────────────────────┤
 │                                                                    │
-│ Что необходимо сделать?                                            │
+│ What needs to be done?                                             │
 │                                                                    │
-│ [ Изучи проект и реализуй безопасную систему управления           │
-│   несколькими независимыми хранилищами знаний.                 ]   │
+│ [ Study the project and implement a safe system for managing      │
+│   several independent knowledge stores.                        ]   │
 │                                                                    │
-│ Контекст: [Текущий проект ▾]                                        │
+│ Context: [Current project ▾]                                       │
 │                                                                    │
-│ Вложения: файлы, документы, ссылки, репозитории                    │
+│ Attachments: files, documents, links, repositories                 │
 │                                                                    │
-│ [Исследовать варианты] [Выполнить задачу]                          │
+│ [Research options] [Execute the task]                              │
 ├────────────────────────────────────────────────────────────────────┤
-│ План выполнения                                                    │
-│ ✓ Анализ задачи                                                    │
-│ ✓ Изучение проекта                                                 │
-│ ● Исследование вариантов                                           │
-│ ○ Выбор архитектуры                                                │
-│ ○ Реализация                                                       │
-│ ○ Проверка результата                                              │
+│ Execution plan                                                     │
+│ ✓ Task analysis                                                    │
+│ ✓ Project study                                                    │
+│ ● Research of options                                              │
+│ ○ Architecture choice                                              │
+│ ○ Implementation                                                   │
+│ ○ Result verification                                              │
 ├────────────────────────────────────────────────────────────────────┤
-│ Результаты | Артефакты | Проверки | Журнал | Обсуждение             │
+│ Results | Artifacts | Checks | Log | Discussion                    │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Это пример компоновки, а не обязательный фиксированный макет.
-Основная идея: пользователь задаёт задачу обычным текстом, а дальше видит структурированный процесс работы, его результаты, найденные материалы, решения, артефакты и проверки.
+This is a sample layout, not a mandatory fixed mockup.
+The main idea: the user sets a task in plain text and then sees a structured work process, its results, the materials found, the decisions, the artifacts and the checks.
 
-### 28.3. Естественный язык как основной способ постановки задач
+### 28.3. Natural language as the main way to set tasks
 
-Пользователь должен иметь возможность формулировать задания свободно, без необходимости заполнять сложные формы.
-Поддерживай запросы вроде:
+The user must be able to formulate tasks freely, without filling in complex forms.
+Support requests such as:
 
-* «Изучи этот репозиторий и объясни, как он устроен».
-* «Найди хороший способ реализовать локальный поиск по документам».
-* «Сравни несколько подходов и выбери наиболее подходящий для моего проекта».
-* «Разработай архитектуру системы агентов».
-* «Реализуй эту функциональность в коде».
-* «Найди ошибки и исправь их».
-* «Улучши производительность, не ломая существующую функциональность».
-* «Изучи документацию и реализуй интеграцию».
-* «Проверь, какие функции отсутствуют, и предложи план развития».
-* «Найди подходящую библиотеку, оцени её и интегрируй, если она действительно подходит».
-* «Если готового решения нет, разработай собственное».
-* «Выполни техническое задание целиком и сообщи, что получилось».
+* "Study this repository and explain how it works."
+* "Find a good way to implement local search over documents."
+* "Compare several approaches and choose the one that fits my project best."
+* "Design the architecture of an agent system."
+* "Implement this functionality in code."
+* "Find the bugs and fix them."
+* "Improve performance without breaking existing functionality."
+* "Study the documentation and implement the integration."
+* "Check which features are missing and propose a development plan."
+* "Find a suitable library, evaluate it and integrate it if it really fits."
+* "If there is no ready solution, develop your own."
+* "Carry out the whole specification and tell me what came out."
 
-Пользователь может приложить документы, исходный код, ссылки, изображения, таблицы, спецификации или указать подключённую систему знаний.
-Система должна извлекать требования из этих материалов и учитывать их при выполнении.
-Не требуй от пользователя заранее определять последовательность операций, если её можно обоснованно вывести из задания.
+The user may attach documents, source code, links, images, tables, specifications or point to a connected knowledge system.
+The system must extract the requirements from these materials and take them into account.
+Do not require the user to define the sequence of operations in advance if it can reasonably be derived from the task.
 
-### 28.4. Система должна не только находить, но и изобретать решения
+### 28.4. The system must not only find but also invent solutions
 
-Один из важнейших принципов: отсутствие готового решения не должно приводить к остановке работы.
-Если пользователь просит реализовать определённую возможность, система должна рассматривать несколько сценариев:
+One of the most important principles: the absence of a ready solution must not stop the work.
+If the user asks to implement a capability, the system must consider several scenarios:
 
-1. Подходящее готовое решение уже существует в проекте.
-2. В проекте есть библиотека или компонент, который можно расширить.
-3. Существует подходящая внешняя библиотека или открытый проект.
-4. Есть несколько вариантов, которые нужно сравнить и адаптировать.
-5. Ни один готовый вариант не удовлетворяет требованиям.
-6. Необходимо спроектировать и реализовать собственное решение.
-7. Задача требует сочетания готовых компонентов и собственной разработки.
+1. A suitable ready solution already exists in the project.
+2. The project has a library or component that can be extended.
+3. A suitable external library or open project exists.
+4. There are several options that need to be compared and adapted.
+5. No ready option meets the requirements.
+6. An own solution has to be designed and implemented.
+7. The task needs a combination of ready components and own development.
 
-Система должна уметь переходить от исследования к самостоятельному проектированию и реализации.
-Не ограничивайся рекомендацией «можно использовать библиотеку X». Если задача предполагает реализацию, а инструментам предоставлены необходимые разрешения, система должна установить, настроить, интегрировать или реализовать выбранный вариант, а затем проверить результат.
-При этом она не должна бездумно создавать собственное решение, если качественное, совместимое и поддерживаемое готовое решение уже существует.
-Выбор между использованием существующего инструмента и разработкой нового должен основываться на сравнении:
+The system must be able to move from research to independent design and implementation.
+Do not stop at a recommendation such as "you can use library X". If the task implies implementation and the tools have the necessary permissions, the system must install, configure, integrate or implement the chosen option and then verify the result.
+At the same time, it must not thoughtlessly create its own solution when a good, compatible and maintained ready solution already exists.
+The choice between using an existing tool and developing a new one must be based on a comparison of:
 
-* Соответствия требованиям.
-* Совместимости с текущей архитектурой.
-* Надёжности.
-* Безопасности.
-* Производительности.
-* Сопровождаемости.
-* Лицензии.
-* Зависимостей.
-* Стоимости эксплуатации.
-* Ограничений локального режима.
-* Возможности работы без внешних API.
-* Сложности дальнейшего развития.
+* Fit to the requirements.
+* Compatibility with the current architecture.
+* Reliability.
+* Security.
+* Performance.
+* Maintainability.
+* License.
+* Dependencies.
+* Running cost.
+* Limitations of the local mode.
+* The ability to work without external APIs.
+* The complexity of further development.
 
-Если готовое решение частично подходит, исследуй возможность адаптации вместо автоматического отказа от него.
+If a ready solution fits partially, explore adapting it instead of rejecting it automatically.
 
-### 28.5. Универсальный алгоритм выполнения технического задания
+### 28.5. A universal algorithm for carrying out a specification
 
-Создай центральный механизм Task Execution Engine, который управляет полным жизненным циклом задачи.
-Каждая задача должна проходить подходящие ей этапы. Не запускай все возможные процессы без необходимости: глубина исследования, количество агентов и объём проверок должны зависеть от сложности и риска задачи.
+Create a central Task Execution Engine that manages the full lifecycle of a task.
+Every task must go through the stages that suit it. Do not run every possible process without need: the depth of research, the number of agents and the amount of checking must depend on the complexity and the risk of the task.
 
-**Этап 1. Разбор запроса.** Система анализирует текст пользователя и определяет: желаемый результат; проблему, которую нужно решить; обязательные требования; ограничения; контекст и исходные материалы; предполагаемые критерии готовности; риски; необходимость уточнений; какие действия действительно нужны.
-Преобразуй свободный запрос в структурированное внутреннее техническое задание.
-Не показывай пользователю сложную форму вместо его исходного запроса. Структурирование выполняется внутри системы, а понятное краткое резюме можно показать в интерфейсе для подтверждения.
-Если запрос достаточно ясен, переходи к выполнению без лишних вопросов.
-Если отсутствует критически важная информация, которую нельзя безопасно вывести из контекста, задай конкретный вопрос.
-Если недостающие детали не блокируют работу, зафиксируй разумные предположения и продолжай.
+**Stage 1. Request analysis.** The system analyzes the user's text and determines: the desired result; the problem to solve; the mandatory requirements; the constraints; the context and the source materials; the expected acceptance criteria; the risks; whether clarification is needed; which actions are really needed.
+Turn the free-form request into a structured internal specification.
+Do not show the user a complex form instead of their original request. The structuring happens inside the system, and a clear short summary can be shown in the interface for confirmation.
+If the request is clear enough, move on to execution without extra questions.
+If critical information is missing and cannot be safely derived from the context, ask a specific question.
+If the missing details do not block the work, record reasonable assumptions and continue.
 
-**Этап 2. Изучение контекста.** Перед принятием решений система изучает доступную информацию: подключённые проекты; структуру репозитория; исходный код; существующие технические задания; документацию; архитектуру приложения; тесты; зависимости; конфигурации; базу знаний; историю предыдущих решений; подходящие внешние источники.
-Исследуй только те источники, которые относятся к задаче и доступны согласно разрешениям.
-Не делай вывод о том, что решение отсутствует, только потому, что оно не найдено в первом документе или первой поисковой выдаче.
-При необходимости углубляй исследование, проверяй связанные файлы и сопоставляй информацию из нескольких источников.
+**Stage 2. Studying the context.** Before making decisions, the system studies the available information: connected projects; the repository structure; the source code; existing specifications; documentation; the application architecture; tests; dependencies; configurations; the knowledge base; the history of earlier decisions; suitable external sources.
+Explore only the sources that relate to the task and are available under the permissions.
+Do not conclude that a solution does not exist just because it was not found in the first document or the first search results.
+When needed, go deeper, check related files and compare information from several sources.
 
-**Этап 3. Исследование способов решения.** Система самостоятельно формирует несколько реалистичных вариантов решения, когда это полезно.
-Для каждого варианта оцени: как он работает; какие требования покрывает; какие ограничения имеет; какие ресурсы потребует; какие риски создаёт; как интегрируется в существующую систему; как его тестировать; почему он лучше или хуже альтернатив.
-Если задача простая и очевидная, не создавай искусственно множество вариантов.
-Если задача сложная, архитектурная или неоднозначная, проведи более глубокое исследование.
-Внешние источники используй для получения доказательств, а не для безусловного копирования чужих решений.
+**Stage 3. Researching ways to solve the task.** The system forms several realistic solution options by itself when that is useful.
+For each option, assess: how it works; which requirements it covers; what limitations it has; what resources it needs; what risks it creates; how it integrates into the existing system; how to test it; why it is better or worse than the alternatives.
+If the task is simple and obvious, do not create many options artificially.
+If the task is complex, architectural or ambiguous, research it more deeply.
+Use external sources to get evidence, not to copy other people's solutions unconditionally.
 
-**Этап 4. Выбор стратегии.** На основании собранных данных выбери наиболее подходящий способ решения.
-Система должна уметь самостоятельно выбирать между: использованием уже существующей функциональности; настройкой готового инструмента; интеграцией библиотеки; изменением существующей архитектуры; разработкой нового компонента; созданием полностью нового механизма; комбинированным решением.
-Зафиксируй причины выбора и важные компромиссы.
-Для рискованных или существенно влияющих на архитектуру решений покажи пользователю план и запроси подтверждение перед изменениями, если это требуется заданной политикой разрешений.
-Для обычных безопасных действий не создавай лишних точек ожидания.
+**Stage 4. Choosing a strategy.** Based on the collected data, choose the most suitable way to solve the task.
+The system must be able to choose by itself between: using existing functionality; configuring a ready tool; integrating a library; changing the existing architecture; developing a new component; creating a completely new mechanism; a combined solution.
+Record the reasons for the choice and the important trade-offs.
+For risky decisions or decisions that significantly affect the architecture, show the user the plan and ask for confirmation before making changes, if the permission policy requires it.
+For ordinary safe actions, do not create extra waiting points.
 
-**Этап 5. Планирование выполнения.** Преобразуй задачу в последовательность конкретных действий.
-Для каждой подзадачи определи: уникальный ID; цель; входные данные; ожидаемый результат; зависимости; исполнителя или агента; необходимые инструменты; критерии готовности; способ проверки; возможные риски.
-Учитывай зависимости между действиями.
-Независимые исследовательские задачи можно выполнять параллельно. Изменения одного и того же файла или общей структуры выполняй согласованно, чтобы избежать конфликтов.
+**Stage 5. Execution planning.** Turn the task into a sequence of concrete actions.
+For each subtask define: a unique ID; the goal; the inputs; the expected result; the dependencies; the executor or agent; the tools needed; the acceptance criteria; the verification method; possible risks.
+Take the dependencies between actions into account.
+Independent research tasks can run in parallel. Changes to the same file or shared structure must be coordinated to avoid conflicts.
 
-**Этап 6. Выполнение.** Система должна действительно выполнять запланированные действия в рамках предоставленных разрешений.
-В зависимости от задачи это может включать: чтение и анализ файлов; поиск информации; изучение документации; исследование GitHub и других открытых источников; создание документов; изменение существующих файлов; написание кода; создание тестов; запуск доступных проверок; обновление конфигураций; интеграцию библиотек; создание новых агентов; создание workflow; индексацию документов; обновление графа знаний; формирование отчётов; подготовку архитектурных решений.
-Если операция требует разрешения, которого у системы нет, она должна сообщить об ограничении и предложить следующий шаг.
-Не имитируй выполнение. Если файл не изменён, тест не запущен или внешний источник недоступен, не утверждай обратное.
+**Stage 6. Execution.** The system must really carry out the planned actions within the granted permissions.
+Depending on the task this may include: reading and analyzing files; searching for information; studying documentation; exploring GitHub and other open sources; creating documents; changing existing files; writing code; creating tests; running the available checks; updating configurations; integrating libraries; creating new agents; creating workflows; indexing documents; updating the knowledge graph; writing reports; preparing architecture decisions.
+If an operation requires a permission the system does not have, it must report the limitation and propose the next step.
+Do not imitate execution. If a file was not changed, a test was not run or an external source is unavailable, do not claim otherwise.
 
-**Этап 7. Проверка результата.** После выполнения система проверяет, соответствует ли результат исходному заданию.
-В зависимости от типа задачи используй: проверку структуры файлов; проверку схем и форматов; автоматические тесты; интеграционные тесты; проверку сборки; статический анализ; проверку ссылок; сверку требований; проверку отсутствия нежелательных изменений; проверку безопасности; сравнение фактического результата с ожидаемым.
-Для исследовательских задач проверяй достоверность выводов и качество источников.
-Для архитектурных задач проверяй полноту требований, согласованность компонентов и описание компромиссов.
-Для задач по программированию проверяй код и выполняй доступные тесты.
+**Stage 7. Verifying the result.** After execution the system checks whether the result matches the original task.
+Depending on the type of task, use: checks of the file structure; checks of schemas and formats; automated tests; integration tests; build checks; static analysis; link checks; comparison with the requirements; checks for unwanted changes; security checks; comparison of the actual result with the expected one.
+For research tasks, check the reliability of the conclusions and the quality of the sources.
+For architecture tasks, check the completeness of the requirements, the consistency of the components and the description of the trade-offs.
+For programming tasks, check the code and run the available tests.
 
-**Этап 8. Исправление проблем.** Если проверка выявила ошибки, система должна определить их причину и исправить их, если это входит в задачу и разрешено.
-После исправлений повторно запусти соответствующие проверки.
-Используй ограниченные циклы исправления, чтобы не тратить ресурсы бесконечно и не допускать бесконтрольных изменений.
-Если проблема не устранена, зафиксируй: что не работает; что уже было предпринято; почему исправление не удалось; какие ограничения мешают; что требуется для продолжения.
-Не объявляй задачу выполненной только потому, что завершилась генерация ответа.
+**Stage 8. Fixing problems.** If verification found errors, the system must find their cause and fix them, if this is part of the task and allowed.
+After the fixes, run the related checks again.
+Use bounded fix loops, so as not to spend resources endlessly and not to allow uncontrolled changes.
+If the problem is not fixed, record: what does not work; what was already tried; why the fix failed; which limitations get in the way; what is needed to continue.
+Do not declare the task done just because the answer generation finished.
 
-**Этап 9. Итог и сохранение результатов.** После завершения сформируй понятный итог: что требовалось; что было изучено; какой подход выбран; что фактически сделано; какие файлы созданы или изменены; какие проверки выполнены; какие проверки не удалось выполнить; какие ограничения остались; где находятся результаты; какие следующие действия рекомендуются.
-Сохраняй результаты в подходящей системе знаний или репозитории, если это входит в задачу и разрешено.
-Не создавай множество бесполезных отчётов. Сохраняй только материалы, которые полезны для дальнейшей работы.
+**Stage 9. Summary and saving the results.** When finished, write a clear summary: what was required; what was studied; which approach was chosen; what was actually done; which files were created or changed; which checks were run; which checks could not be run; which limitations remain; where the results are; which next actions are recommended.
+Save the results in a suitable knowledge system or repository if this is part of the task and allowed.
+Do not create many useless reports. Save only materials that are useful for further work.
 
-### 28.6. Мультиагентное выполнение
+### 28.6. Multi-agent execution
 
-Task Execution Engine должен использовать специализированных агентов, когда это повышает качество, скорость или надёжность.
-Не создавай фиксированную цепочку из десятков агентов для каждой задачи.
-Сначала определи необходимый набор ролей.
-Возможные роли:
+The Task Execution Engine must use specialized agents when this improves quality, speed or reliability.
+Do not create a fixed chain of dozens of agents for every task.
+First determine the set of roles needed.
+Possible roles:
 
-* Task Planner — разбирает запрос и формирует план.
-* Project Explorer — изучает проект и его архитектуру.
-* Research Agent — ищет решения и проверяет источники.
-* Solution Architect — сравнивает варианты и выбирает архитектуру.
-* Requirements Analyst — проверяет полноту требований.
-* Implementation Agent — выполняет изменения.
-* Testing Agent — проверяет результат.
-* Security Reviewer — оценивает риски безопасности.
-* Documentation Agent — обновляет документацию.
-* Independent Reviewer — независимо проверяет итог.
-* Coordinator — управляет выполнением и собирает результаты.
+* Task Planner: analyzes the request and builds the plan.
+* Project Explorer: studies the project and its architecture.
+* Research Agent: looks for solutions and checks sources.
+* Solution Architect: compares options and chooses the architecture.
+* Requirements Analyst: checks that the requirements are complete.
+* Implementation Agent: makes the changes.
+* Testing Agent: verifies the result.
+* Security Reviewer: assesses security risks.
+* Documentation Agent: updates the documentation.
+* Independent Reviewer: reviews the outcome independently.
+* Coordinator: manages execution and collects the results.
 
-Для простой задачи может быть достаточно одного агента.
-Для сложной задачи Coordinator формирует команду из подходящих специалистов.
-Агенты должны получать ограниченные и релевантные контексты, а не автоматически всю базу знаний.
-Каждый агент возвращает структурированный результат с доказательствами, ссылками на источники, выполненными действиями, проблемами и рекомендациями.
-Coordinator объединяет результаты, разрешает противоречия и следит за соблюдением исходных требований.
-Не считай ответы нескольких агентов независимым подтверждением, если все они опираются на один и тот же неподтверждённый источник.
+For a simple task one agent may be enough.
+For a complex task the Coordinator forms a team of suitable specialists.
+Agents must get limited and relevant contexts, not the whole knowledge base automatically.
+Every agent returns a structured result with evidence, references to sources, the actions performed, problems and recommendations.
+The Coordinator combines the results, resolves contradictions and makes sure the original requirements are kept.
+Do not treat the answers of several agents as independent confirmation if they all rely on the same unconfirmed source.
 
-### 28.7. Поддержка задач разного типа
+### 28.7. Support for different types of tasks
 
-Система должна определять тип задачи и адаптировать процесс выполнения.
+The system must determine the type of task and adapt the execution process.
 
-* **Исследование:** изучить вопрос; найти источники; сравнить сведения; подготовить выводы с подтверждениями; сохранить полезные материалы.
-* **Проектирование:** изучить контекст; сформировать требования; сравнить архитектурные варианты; выбрать подход; подготовить спецификацию.
-* **Разработка:** изучить репозиторий; составить план изменений; реализовать функциональность; написать или обновить тесты; проверить результат.
-* **Исправление ошибки:** воспроизвести проблему, если возможно; найти причину; разработать исправление; добавить регрессионную проверку; убедиться, что исправление работает.
-* **Улучшение существующей системы:** изучить текущее состояние; найти узкие места; сравнить варианты улучшения; определить риски; реализовать согласованные изменения; сравнить состояние до и после.
-* **Создание информационного материала:** исследовать тему; изучить существующие знания; сформировать структуру; подготовить материал; проверить полноту и источники; сохранить результат.
-* **Комплексное техническое задание:** выполнить полный цикл от анализа до проверки; координировать подзадачи; отслеживать критерии готовности; подготовить итоговый отчёт.
+* **Research:** study the question; find sources; compare the information; prepare conclusions with evidence; save useful materials.
+* **Design:** study the context; formulate the requirements; compare architecture options; choose an approach; prepare a specification.
+* **Development:** study the repository; make a change plan; implement the functionality; write or update tests; verify the result.
+* **Bug fixing:** reproduce the problem if possible; find the cause; develop a fix; add a regression check; make sure the fix works.
+* **Improving an existing system:** study the current state; find bottlenecks; compare improvement options; identify the risks; implement the agreed changes; compare the state before and after.
+* **Creating informational material:** research the topic; study existing knowledge; build a structure; prepare the material; check completeness and sources; save the result.
+* **A complex specification:** run the full cycle from analysis to verification; coordinate the subtasks; track the acceptance criteria; prepare the final report.
 
-Тип задачи должен определять процесс, но не ограничивать систему только заранее предусмотренными сценариями. Если появляется новый тип запроса, система должна уметь сформировать подходящий план из доступных инструментов и безопасных операций.
+The type of task must shape the process but must not limit the system to predefined scenarios. If a new type of request appears, the system must be able to build a suitable plan from the available tools and safe operations.
 
-### 28.8. Работа с неопределённостью и новыми задачами
+### 28.8. Working with uncertainty and new tasks
 
-Не предполагай, что для любой задачи уже существует готовый агент, библиотека, инструкция или шаблон.
-Если подходящего агента нет, система должна иметь возможность:
+Do not assume that a ready agent, library, instruction or template already exists for every task.
+If there is no suitable agent, the system must be able to:
 
-1. Определить необходимые компетенции.
-2. Выбрать существующие инструменты.
-3. Сформировать временный план работы.
-4. При необходимости создать специализированного агента или workflow.
-5. Проверить его конфигурацию.
-6. Выполнить задачу.
-7. Сохранить созданного агента только тогда, когда он действительно пригодится в дальнейшем и это разрешено.
+1. Determine the competences needed.
+2. Choose existing tools.
+3. Build a temporary work plan.
+4. Create a specialized agent or workflow when needed.
+5. Check its configuration.
+6. Carry out the task.
+7. Keep the created agent only if it will really be useful later and this is allowed.
 
-Если задача выходит за пределы возможностей доступных моделей, инструментов или разрешений, система должна честно обозначить ограничение.
-Не подменяй отсутствие возможности общими рассуждениями, которые выглядят как выполненная работа.
+If a task goes beyond the capabilities of the available models, tools or permissions, the system must state the limitation honestly.
+Do not replace a missing capability with general reasoning that looks like finished work.
 
-### 28.9. Планирование и выполнение — разные режимы
+### 28.9. Planning and execution are different modes
 
-Предусмотри два основных режима.
+Provide two main modes.
 
-**Режим «Исследовать и спланировать».** Система изучает задачу, исследует варианты и выдаёт план. Она не вносит изменения, выходящие за рамки разрешённых действий этого режима.
+**"Research and plan" mode.** The system studies the task, researches the options and delivers a plan. It makes no changes beyond the actions allowed in this mode.
 
-**Режим «Выполнить задачу».** Система проходит полный цикл: исследование, планирование, выполнение, проверка и подготовка результата.
+**"Execute the task" mode.** The system goes through the full cycle: research, planning, execution, verification and preparing the result.
 
-Пользователь должен понимать, какой режим активен.
-Если задача предполагает разрушительные, необратимые, внешне значимые или потенциально опасные действия, система должна запрашивать подтверждение согласно политике безопасности.
-К таким действиям могут относиться удаление данных, массовая перезапись файлов, публикация изменений, выполнение непроверенных скриптов или отправка информации во внешние сервисы.
-Для обычных обратимых операций не нужно постоянно спрашивать разрешение на каждый небольшой шаг, если они уже разрешены пользователем.
+The user must understand which mode is active.
+If a task implies destructive, irreversible, externally significant or potentially dangerous actions, the system must ask for confirmation according to the security policy.
+Such actions may include deleting data, mass overwriting of files, publishing changes, running unchecked scripts or sending information to external services.
+For ordinary reversible operations, do not ask for permission for every small step if the user has already allowed them.
 
-### 28.10. Структурированная модель задачи
+### 28.10. A structured task model
 
-Храни внутреннее представление задачи в структурированном виде.
-Предусмотри как минимум: `task_id`, `title`, `original_request`, `normalized_requirements`, `system_id`, `project_id` (если применимо), `status`, `priority`, `assumptions`, `constraints`, `acceptance_criteria`, `plan`, `subtasks`, `dependencies`, `selected_strategy`, `artifacts`, `source_references`, `verification_results`, `approval_requests`, `execution_log`, `errors`, `created_at`, `updated_at`, `completed_at` (если задача завершена).
-Определи типизированные схемы для планов, подзадач, результатов и проверок.
-Сохраняй исходный запрос пользователя отдельно от нормализованных требований, чтобы можно было проверить, не исказила ли система первоначальный смысл.
-Не делай внутреннюю структуру задачи обязательной сложной формой для пользователя. Это модель исполнения, а не дополнительная бюрократия.
+Store the internal representation of a task in a structured form.
+Provide at least: `task_id`, `title`, `original_request`, `normalized_requirements`, `system_id`, `project_id` (if applicable), `status`, `priority`, `assumptions`, `constraints`, `acceptance_criteria`, `plan`, `subtasks`, `dependencies`, `selected_strategy`, `artifacts`, `source_references`, `verification_results`, `approval_requests`, `execution_log`, `errors`, `created_at`, `updated_at`, `completed_at` (if the task is finished).
+Define typed schemas for plans, subtasks, results and checks.
+Store the user's original request separately from the normalized requirements, so that it can be checked whether the system distorted the original meaning.
+Do not make the internal task structure a mandatory complex form for the user. It is an execution model, not extra bureaucracy.
 
-### 28.11. Статусы и жизненный цикл задачи
+### 28.11. Task statuses and lifecycle
 
-Реализуй прозрачную машину состояний: черновик; анализ; исследование; планирование; ожидание подтверждения; готова к выполнению; выполняется; приостановлена; требуется вмешательство; проверяется; требуется исправление; выполнена; выполнена частично; не выполнена; отменена.
-Переходы между статусами должны быть явными и валидируемыми.
-Если приложение закрывается во время выполнения, сохраняй состояние задачи, журнал и доступные результаты. После повторного запуска предложи безопасное продолжение или восстановление, если это возможно.
-Не запускай повторно необратимые действия только потому, что задача была восстановлена после сбоя.
-Используй идемпотентность там, где это необходимо, и фиксируй выполненные шаги.
+Implement a transparent state machine: draft; analyzing; researching; planning; awaiting approval; ready to run; running; paused; needs input; verifying; needs fixes; completed; partially completed; failed; cancelled.
+Transitions between statuses must be explicit and validated.
+If the application closes during execution, keep the task state, the log and the available results. After a restart, offer a safe continuation or recovery if possible.
+Do not repeat irreversible actions just because the task was recovered after a crash.
+Use idempotency where needed and record the steps that were done.
 
-### 28.12. Интерфейс выполнения задачи
+### 28.12. The task execution interface
 
-Создай специализированный экран задачи, который позволяет понять не только, что система делает, но и к чему она пришла.
-Основные области:
-1. **Описание задачи** — исходный запрос, уточнённые требования, предположения и критерии готовности.
-2. **План выполнения** — последовательность этапов, зависимости, текущий этап и прогресс.
-3. **Исследование** — найденные решения, источники, альтернативы и причины выбора.
-4. **Результаты** — созданные документы, изменённые файлы, код, спецификации, отчёты и другие артефакты.
-5. **Проверки** — список проверок, фактические результаты, ошибки и ограничения.
-6. **Журнал действий** — что было сделано, каким агентом, когда, в каком контексте и с каким результатом.
-7. **Обсуждение задачи** — возможность уточнить требования, попросить объяснить выбор, изменить приоритеты или дать дополнительную инструкцию.
+Create a dedicated task screen that lets the user understand not only what the system is doing but also what it arrived at.
+Main areas:
+1. **Task description:** the original request, the refined requirements, the assumptions and the acceptance criteria.
+2. **Execution plan:** the sequence of stages, the dependencies, the current stage and the progress.
+3. **Research:** the solutions found, the sources, the alternatives and the reasons for the choice.
+4. **Results:** created documents, changed files, code, specifications, reports and other artifacts.
+5. **Checks:** the list of checks, the actual results, errors and limitations.
+6. **Action log:** what was done, by which agent, when, in which context and with which result.
+7. **Task discussion:** a way to clarify requirements, ask to explain a choice, change priorities or give an additional instruction.
 
-Обсуждение должно быть связано с конкретной задачей и её контекстом. Это не отдельный мессенджер и не замена структурированному процессу исполнения.
+The discussion must be tied to the specific task and its context. It is not a separate messenger and not a replacement for the structured execution process.
 
-### 28.13. Возможность вмешиваться в процесс
+### 28.13. The ability to intervene in the process
 
-Пользователь должен сохранять контроль над выполнением.
-Предусмотри действия: приостановить; продолжить; отменить; изменить план; добавить требование; уточнить критерии готовности; попросить исследовать дополнительный вариант; запретить определённый инструмент; выбрать другой способ решения; посмотреть текущие результаты; повторить неудачный этап; проверить изменения перед применением.
-Если пользователь изменяет исходные требования во время выполнения, система должна определить, какие части плана устарели, и пересчитать зависимости.
-Не сбрасывай выполненные этапы без необходимости.
-Если новое требование конфликтует с предыдущим, объясни конфликт и предложи вариант разрешения.
+The user must stay in control of the execution.
+Provide the actions: pause; resume; cancel; change the plan; add a requirement; refine the acceptance criteria; ask to research an additional option; forbid a specific tool; choose another way to solve the task; view the current results; retry a failed stage; review changes before applying them.
+If the user changes the original requirements during execution, the system must determine which parts of the plan are outdated and recalculate the dependencies.
+Do not discard completed stages without need.
+If a new requirement conflicts with an earlier one, explain the conflict and propose a resolution.
 
-### 28.14. Выполнение задач в нескольких системах
+### 28.14. Carrying out tasks across several systems
 
-Интегрируй механизм исполнения с мультисистемной архитектурой продукта.
-Каждая задача должна иметь явную область действия: текущая система; выбранный проект; несколько явно выбранных систем; только общедоступные источники без доступа к локальным данным.
-При постановке задачи интерфейс должен показывать, где она будет выполняться.
-Если пользователь пишет «изучи все мои проекты», система должна предложить доступные подключённые проекты или использовать все системы, к которым у неё есть разрешение и которые соответствуют запросу.
-Не объединяй данные разных систем без необходимости.
-При межсистемном исследовании сохраняй ссылки на оригинальные источники и принадлежность каждого результата.
-По умолчанию сохраняй результат в системе, в которой была создана задача, если пользователь не выбрал другое место.
-Если задача предполагает изменение файлов в нескольких репозиториях, перечисли их и соблюдай разрешения каждого.
+Integrate the execution mechanism with the multi-system architecture of the product.
+Every task must have an explicit scope: the current system; a selected project; several explicitly selected systems; public sources only, without access to local data.
+When a task is set, the interface must show where it will run.
+If the user writes "study all my projects", the system must offer the available connected projects or use every system it has permission for that matches the request.
+Do not merge the data of different systems without need.
+In cross-system research, keep references to the original sources and the origin of every result.
+By default, save the result in the system where the task was created, unless the user chose another place.
+If a task implies changing files in several repositories, list them and respect the permissions of each.
 
-### 28.15. Локальный AI и выполнение без API-ключей
+### 28.15. Local AI and execution without API keys
 
-Механизм выполнения задач должен работать с локальными моделями без обязательного подключения платного внешнего API.
-Поддерживай доступные локальные модели через выбранный архитектурой адаптер, например Ollama или LM Studio, и предусматривай расширяемый интерфейс для других движков.
-Перед выполнением оцени доступность моделей и необходимых инструментов.
-Если локальная модель не может справиться с конкретным этапом:
+The task execution mechanism must work with local models without a mandatory paid external API.
+Support the available local models through the adapter chosen by the architecture, for example Ollama or LM Studio, and provide an extensible interface for other engines.
+Before execution, assess the availability of the models and the required tools.
+If a local model cannot handle a specific stage:
 
-* Попробуй другой доступный локальный вариант, если он подходит.
-* Уменьши задачу на более простые проверяемые этапы, если это допустимо.
-* Предложи подключить внешний провайдер как необязательный вариант, если это разрешено.
-* Сообщи о реальном ограничении, если продолжение невозможно.
+* Try another available local option, if it fits.
+* Split the task into simpler verifiable stages, if that is acceptable.
+* Offer to connect an external provider as an optional choice, if allowed.
+* Report the real limitation if it is impossible to continue.
 
-В локальном режиме не отправляй данные внешним сервисам и не выполняй автоматическое переключение на облачную модель.
-Не утверждай, что задача полностью выполнена, если часть этапов не была исполнена из-за отсутствия модели, инструмента или доступа.
+In local mode, do not send data to external services and do not switch to a cloud model automatically.
+Do not claim that a task is fully done if some stages did not run for lack of a model, a tool or access.
 
-### 28.16. Контроль качества и критерии завершения
+### 28.16. Quality control and completion criteria
 
-Не считай задачу выполненной только потому, что агент вернул ответ.
-Перед завершением сопоставь фактический результат с критериями готовности.
-Для каждого критерия сохраняй статус: выполнен; выполнен частично; не выполнен; не удалось проверить; не применим.
-Для технических задач дополнительно проверяй: соответствие архитектуре проекта; корректность изменённых файлов; наличие необходимых тестов; отсутствие очевидных регрессий; корректность документации; сохранность существующих данных; соблюдение разрешений.
-Для исследовательских задач проверяй: качество источников; подтверждение ключевых выводов; разделение фактов и предположений; наличие альтернатив; актуальность сведений, когда она важна; отсутствие вымышленных источников и утверждений.
-Если критерии выполнены не полностью, покажи частичный результат и конкретные причины. Не скрывай неудачные проверки за общим сообщением об успехе.
+Do not consider a task done just because an agent returned an answer.
+Before finishing, compare the actual result with the acceptance criteria.
+For every criterion keep a status: met; partially met; not met; could not be verified; not applicable.
+For technical tasks also check: consistency with the project architecture; correctness of the changed files; the presence of the required tests; the absence of obvious regressions; correctness of the documentation; the safety of existing data; compliance with the permissions.
+For research tasks check: the quality of the sources; confirmation of the key conclusions; separation of facts and assumptions; the presence of alternatives; the freshness of information when it matters; the absence of invented sources and claims.
+If the criteria are not fully met, show the partial result and the specific reasons. Do not hide failed checks behind a general success message.
 
-### 28.17. Критерии приёмки
+### 28.17. Acceptance criteria
 
-Функциональность считается готовой, когда пользователь может написать техническое задание обычным языком и получить полноценный управляемый процесс его выполнения.
-Проверь следующие сценарии:
+The functionality is done when the user can write a specification in plain language and get a full, controllable process of carrying it out.
+Check the following scenarios:
 
-1. Пользователь просит исследовать вопрос и подготовить отчёт.
-2. Пользователь просит найти существующее решение и сравнить альтернативы.
-3. Пользователь просит реализовать функцию в подключённом репозитории.
-4. Пользователь просит исправить ошибку.
-5. Пользователь просит создать новую функцию, для которой в проекте нет готового компонента.
-6. Пользователь просит улучшить существующую архитектуру.
-7. Пользователь задаёт неоднозначную задачу, для которой нужно уточнение.
-8. Пользователь ставит задачу, требующую нескольких агентов.
-9. Пользователь приостанавливает выполнение и продолжает его позже.
-10. Пользователь изменяет требования в процессе выполнения.
-11. Одна из проверок не проходит, и система пытается исправить проблему.
-12. Необходимый инструмент недоступен.
-13. Локальная AI-модель доступна, но внешнего API-ключа нет.
-14. Задача использует данные нескольких систем.
-15. Приложение закрывается во время выполнения и восстанавливает состояние задачи.
+1. The user asks to research a question and prepare a report.
+2. The user asks to find an existing solution and compare alternatives.
+3. The user asks to implement a feature in a connected repository.
+4. The user asks to fix a bug.
+5. The user asks to create a new feature for which the project has no ready component.
+6. The user asks to improve the existing architecture.
+7. The user sets an ambiguous task that needs clarification.
+8. The user sets a task that needs several agents.
+9. The user pauses the execution and resumes it later.
+10. The user changes the requirements during execution.
+11. One of the checks fails, and the system tries to fix the problem.
+12. A required tool is unavailable.
+13. A local AI model is available, but there is no external API key.
+14. The task uses data from several systems.
+15. The application closes during execution and restores the state of the task.
 
-Во всех сценариях система должна честно показывать фактический статус выполнения, сохранять результаты и не сообщать об успешном завершении без достаточных оснований.
+In every scenario the system must honestly show the actual execution status, keep the results and never report successful completion without sufficient grounds.
 
-### 28.18. Итоговый принцип
+### 28.18. The final principle
 
-Пользователь формулирует желаемый результат. Система самостоятельно исследует контекст, выбирает стратегию, планирует действия, использует подходящих агентов и инструменты, выполняет работу, проверяет результат и объясняет, что получилось.
-Система должна уметь находить готовые решения, адаптировать существующие подходы и создавать новые, если подходящего варианта нет.
-Главная цель — не просто отвечать на вопросы пользователя, а качественно выполнять его задачи.
-Интерфейс при этом должен оставаться рабочей средой управления задачами и результатами, а не превращаться в обычный чат. Естественный язык — это удобный способ поставить задачу и управлять процессом, а не единственная форма взаимодействия с продуктом.
+The user formulates the desired result. The system explores the context by itself, chooses a strategy, plans the actions, uses suitable agents and tools, does the work, verifies the result and explains what came out.
+The system must be able to find ready solutions, adapt existing approaches and create new ones if no suitable option exists.
+The main goal is not just to answer the user's questions but to carry out their tasks well.
+The interface must stay a working environment for managing tasks and results and must not turn into an ordinary chat. Natural language is a convenient way to set a task and manage the process, not the only form of interaction with the product.

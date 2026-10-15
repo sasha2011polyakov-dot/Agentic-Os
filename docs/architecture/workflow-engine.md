@@ -1,19 +1,19 @@
-# Движок процессов (workflow engine)
+# Workflow engine
 
-Статус: реализовано · Код: `packages/core/src/workflows/*`, `spec/*`, `research/functions.ts`, `tasks/tasks.ts`
+Status: implemented · Code: `packages/core/src/workflows/*`, `spec/*`, `research/functions.ts`, `tasks/tasks.ts`
 
-## 1. Назначение
-Процесс — это декларативный граф шагов: агенты, детерминированные функции платформы, решения пользователя и циклы. Через него работают встроенные конвейеры «Техническое задание» и «Веб-исследование», а также процессы пользователя из визуального редактора.
+## 1. Purpose
+A workflow is a declarative graph of steps: agents, deterministic platform functions, user decisions and loops. The built-in "Specification" and "Web research" pipelines run on it, and so do the user's workflows from the visual editor.
 
-Движок отвечает за пять вещей. Состояние **переживает перезапуск**. Пользователь видит **каждое решение**. **Повторы и лимиты** соблюдаются автоматически. **Действия с побочными эффектами** не повторяются молча. **Ошибки** сообщаются честно.
+The engine is responsible for five things. The state **survives a restart**. The user sees **every decision**. **Retries and limits** are enforced automatically. **Actions with side effects** are never repeated silently. **Errors** are reported honestly.
 
-## 2. Определение процесса
+## 2. Workflow definition
 ```jsonc
 {
   "id": "spec-pipeline", "name": "…", "version": 1,
-  "inputSchema": { /* JSON Schema формы запуска */ },
+  "inputSchema": { /* JSON Schema of the start form */ },
   "nodes": [
-    { "id": "coordinator", "type": "agent", "agent": "coordinator", "title": "Анализ задачи",
+    { "id": "coordinator", "type": "agent", "agent": "coordinator", "title": "Task analysis",
       "dependsOn": ["context"], "input": { "goal": { "$path": "input.goal" } }, "retries": 1 },
     { "id": "ground", "type": "function", "fn": "spec.ground_evidence", "input": { … } },
     { "id": "clarify", "type": "approval", "when": { "path": "…missing_information", "some": { "field": "blocking", "equals": true } },
@@ -24,85 +24,85 @@
 }
 ```
 
-| Тип узла | Что делает |
+| Node type | What it does |
 |---|---|
-| `agent` | Запускает агента системы через `AgentRuntime`: разрешения, бюджет, тайм-аут шага, повторы при временных ошибках |
-| `function` | Детерминированная функция платформы: валидаторы, сборка документа, сохранение. Пакеты и пользователи **не могут** добавлять функции — исполняемого кода в определениях нет |
-| `approval` | Решение пользователя: `approve`, `reject` или `revise` с комментарием; ответы на вопросы; выбор вариантов |
-| `loop` | Повторяет тело, пока не выполнится `until` или не будет достигнут `maxIterations`. `extendWhen` даёт дополнительные итерации по решению пользователя (не больше +5). Вложенные циклы не поддерживаются |
+| `agent` | Runs an agent of the system through `AgentRuntime`: permissions, budget, step timeout, retries on temporary errors |
+| `function` | A deterministic platform function: validators, document assembly, saving. Packages and users **cannot** add functions: definitions contain no executable code |
+| `approval` | A user decision: `approve`, `reject` or `revise` with a comment; answers to questions; a choice of options |
+| `loop` | Repeats its body until `until` holds or `maxIterations` is reached. `extendWhen` gives extra iterations by the user's decision (at most +5). Nested loops are not supported |
 
-**Связка данных** — безопасный язык выражений без `eval` (`workflows/expr.ts`): `$path`, `$concat`, `$pluck`, `$count`, `$template`, `$literal`. Условия: `equals`, `in`, `some`, `empty`, `notEmpty`, `exists`, `all`, `any`, `not`. Пути читают только собственные свойства объектов, прототипы недоступны.
+**Data binding** uses a safe expression language without `eval` (`workflows/expr.ts`): `$path`, `$concat`, `$pluck`, `$count`, `$template`, `$literal`. Conditions: `equals`, `in`, `some`, `empty`, `notEmpty`, `exists`, `all`, `any`, `not`. Paths read only own properties of objects; prototypes are not reachable.
 
-**Контекст выражений:** `input`, `limits`, `scope`, `run`, `loop.{iteration, number, isLast, max}`, `nodes.<id>.{status, iteration, output}`. Поле `status` берётся из последнего завершённого выполнения узла, `output` — из последнего успешного. Поэтому пропуск шага на очередной итерации не стирает его данные.
+**Expression context:** `input`, `limits`, `scope`, `run`, `loop.{iteration, number, isLast, max}`, `nodes.<id>.{status, iteration, output}`. `status` comes from the last finished execution of the node, `output` from the last successful one. So skipping a step in a later iteration does not erase its data.
 
-**Проверка определения** (`checkDefinition`): уникальность ID, существование зависимостей, функций и узлов, на которые ссылаются выражения; отсутствие циклических зависимостей (для повторов служит `loop`); запрет зависимостей «внутрь» цикла; лимит итераций у каждого цикла. Редактор показывает ошибки у конкретных узлов.
+**Definition check** (`checkDefinition`): unique IDs; existing dependencies, functions and nodes referred to by expressions; no circular dependencies (`loop` is the tool for repetitions); no dependencies "into" a loop; an iteration limit on every loop. The editor shows the errors on the specific nodes.
 
-## 3. Состояния
-Запуск: `pending → running ⇄ waiting_for_approval`, `running → paused → running`, итог — `completed | failed | cancelled`.
-Шаг: `pending → running → completed | failed | cancelled`, `pending → skipped` (условие `when` ложно), `pending → waiting_for_approval → completed`.
+## 3. States
+Run: `pending → running ⇄ waiting_for_approval`, `running → paused → running`, final: `completed | failed | cancelled`.
+Step: `pending → running → completed | failed | cancelled`, `pending → skipped` (the `when` condition is false), `pending → waiting_for_approval → completed`.
 
-| Ситуация | Поведение |
+| Situation | Behaviour |
 |---|---|
-| Временная ошибка модели (`PROVIDER_*`, `TIMEOUT`, `STRUCTURED_OUTPUT_FAILED`) | Повтор шага с задержкой (`retries`, по умолчанию 1). Во время ожидания шаг остаётся `running`, поэтому не запустится дважды |
-| Ошибка, которую исправляет пользователь (нет модели, агент выключен, бюджет, офлайн, политика облака, ключ) | Запуск **приостанавливается** с понятной причиной и подсказкой. Готовые результаты сохраняются. «Продолжить» повторяет только упавший шаг |
-| Прочая ошибка | Шаг `failed`, параллельные шаги отменяются, запуск `failed`. Шаги с `optional: true` не роняют запуск |
-| Пауза | Новые шаги не начинаются, выполняющиеся завершаются. Ответить на запрос решения можно и во время паузы |
-| Отмена | Выполняющиеся шаги прерываются через `AbortSignal`, незавершённые получают `cancelled`. Результаты сохраняются. Продолжить отменённый запуск нельзя |
-| Тупик (шаги с невыполнимыми зависимостями) | Запуск `failed` с объяснением. Итоговое состояние оценивается только в такте, где ничего не изменилось |
+| A temporary model error (`PROVIDER_*`, `TIMEOUT`, `STRUCTURED_OUTPUT_FAILED`) | The step is retried after a delay (`retries`, 1 by default). While waiting, the step stays `running`, so it cannot start twice |
+| An error the user fixes (no model, the agent is disabled, budget, offline, cloud policy, key) | The run is **paused** with a clear reason and a hint. Finished results are kept. "Resume" repeats only the failed step |
+| Any other error | The step is `failed`, parallel steps are cancelled, the run is `failed`. Steps with `optional: true` do not fail the run |
+| Pause | New steps do not start; running ones finish. A pending decision can be answered during the pause too |
+| Cancel | Running steps are interrupted through an `AbortSignal`; unfinished ones become `cancelled`. Results are kept. A cancelled run cannot be resumed |
+| Deadlock (steps whose dependencies cannot be met) | The run is `failed` with an explanation. The final state is evaluated only in a tick where nothing changed |
 
-## 4. Устойчивость и восстановление
-- Каждое изменение состояния сначала пишется в `system.db` (`workflow_runs`, `run_steps`, `run_events`). Определение процесса хранится в запуске снимком, поэтому редактирование процесса не меняет начатые запуски.
-- **Закрытие системы или приложения:** выполняющиеся шаги прерываются и возвращаются в `pending`, запуск становится `paused` с причиной «прервано закрытием».
-- **Сбой:** при открытии системы (`WorkflowEngine.start`) запуски `running`/`pending` переводятся в `paused` с причиной «Восстановлено после перезапуска», шаги `running` — в `pending`. **Ничего не продолжается без пользователя.**
-- **Побочные эффекты идемпотентны:** `spec.save` один раз записывает план (номера требований и имена файлов) в журнал запуска и отмечает каждую созданную задачу. Повторный вызов создаёт только недостающее. `research.save` находит уже сохранённый отчёт по `workflow_run`.
+## 4. Durability and recovery
+- Every state change is written to `system.db` first (`workflow_runs`, `run_steps`, `run_events`). The run stores a snapshot of the workflow definition, so editing the workflow does not change runs that have started.
+- **Closing the system or the application:** running steps are interrupted and return to `pending`; the run becomes `paused` with the reason "interrupted because the system was closed".
+- **Crash:** when a system opens (`WorkflowEngine.start`), `running`/`pending` runs become `paused` with the reason "Recovered after an application restart", and `running` steps become `pending`. **Nothing continues without the user.**
+- **Side effects are idempotent:** `spec.save` writes its plan (requirement numbers and file names) to the run log once and marks every task it creates. Calling it again creates only what is missing. `research.save` finds an already saved report by `workflow_run`.
 
-## 5. Лимиты и бюджет
-`workflow.defaultLimits` (настройка системы) + `limits` определения + лимиты конкретного запуска: `maxModelCalls`, `maxTokens`, `maxCostUsd`, `maxReviewIterations`, `stepTimeoutMs`, `maxParallel`. Расход ведётся в `workflow_runs.totals` (вызовы, токены, стоимость, вызовы без известной цены). Когда лимит исчерпан, запуск приостанавливается. Пользователь может поднять лимит (`PATCH /runs/:id/limits`) и продолжить.
+## 5. Limits and budget
+`workflow.defaultLimits` (a system setting) + the `limits` of the definition + the limits of a specific run: `maxModelCalls`, `maxTokens`, `maxCostUsd`, `maxReviewIterations`, `stepTimeoutMs`, `maxParallel`. Consumption is tracked in `workflow_runs.totals` (calls, tokens, cost, calls without a known price). When a limit is exhausted, the run pauses. The user can raise the limit (`PATCH /runs/:id/limits`) and resume.
 
-**Предварительная проверка** (рекомендация R8, `preflight`) до запуска показывает:
-- какие агенты не установлены или выключены, каких разрешений им не хватает;
-- какая модель обслужит каждый шаг и почему;
-- оценку числа вызовов модели (минимум и худший случай);
-- предупреждения о конфиденциальных источниках, облачных шагах и отсутствии веб-доступа.
+**The preflight check** (recommendation R8, `preflight`) shows before the run:
+- which agents are not installed or are disabled, and which permissions they lack;
+- which model will serve each step and why;
+- an estimate of the number of model calls (minimum and worst case);
+- warnings about confidential sources, cloud steps and missing web access.
 
-`setupAgents` устанавливает встроенных агентов процесса. Это явное действие пользователя: выдаются только разрешения, которые запрашивает пакет.
+`setupAgents` installs the built-in agents of the workflow. It is an explicit user action: only the permissions the package requests are granted.
 
-## 6. Конвейер ТЗ
+## 6. The specification pipeline
 `context → coordinator → [clarify] → inventory → researcher → ground → loop(requirements → req_check → contradictions → [resolve] → decompose → task_check → write → render → review → [final]) → save`
 
-- **Проверка цитат** (`spec.ground_evidence`): каждая цитата `fact` ищется в тексте документа или файла проекта. Источник вне области запуска или ненайденная цитата отмечаются, и такие свидетельства не считаются подтверждёнными.
-- **Валидаторы** (`spec/validators.ts`): дубли ID, битые ссылки, циклы требований и задач, расплывчатые формулировки без измеримого критерия, требования без опоры на свидетельства или только на непроверенные цитаты, требования без критериев, задачи без требований, непокрытые обязательные требования, почти-дубли.
-- **Документ** (`spec/render.ts`) собирается программно: таблицы требований, декомпозиция, матрица трассировки, свидетельства с отметкой проверки, решения противоречий, метрики и замечания валидаторов. Модель пишет только повествовательные разделы.
-- **Ревью и утверждение:** если ревьюер не принял документ, следует автоматическая доработка с его замечаниями. На последней итерации или после принятия ревью решение принимает пользователь: утвердить, отклонить или отправить на доработку с комментарием.
-- **Сохранение:**
-  - номера требований перенумеровываются в сквозные по системе (`REQ-NNN` после уже существующих);
-  - создаются документы требований с типизированными связями `part_of`, `depends_on`, `derived_from` и документ ТЗ со ссылками;
-  - задачи попадают в трекер (`origin = agent`, ссылка на запуск, зависимости);
-  - в граф добавляются связи `implements` (задача → требование) и `derived_from` (ТЗ → источники).
+- **Quote verification** (`spec.ground_evidence`): every `fact` quote is looked up in the text of the document or the project file. A source outside the run scope or a quote that was not found is flagged, and such evidence does not count as confirmed.
+- **Validators** (`spec/validators.ts`): duplicate IDs, broken references, cycles of requirements and tasks, vague wording without a measurable criterion, requirements not backed by evidence or backed only by unverified quotes, requirements without criteria, tasks without requirements, uncovered must-have requirements, near-duplicates.
+- **The document** (`spec/render.ts`) is assembled by code: requirement tables, the decomposition, the traceability matrix, evidence with its verification status, decisions on contradictions, metrics and validator findings. The model writes only the narrative sections.
+- **Review and approval:** if the reviewer does not accept the document, an automatic revision with the reviewer's comments follows. On the last iteration, or after the review passes, the user decides: approve, reject or send for revision with a comment.
+- **Saving:**
+  - requirement numbers are renumbered to be unique across the system (`REQ-NNN` after the existing ones);
+  - requirement documents are created with typed `part_of`, `depends_on` and `derived_from` links, plus the specification document with links;
+  - tasks go to the tracker (`origin = agent`, a link to the run, dependencies);
+  - the graph gets `implements` links (task → requirement) and `derived_from` links (specification → sources).
 
-## 7. Конвейер веб-исследования
-`local (что уже известно) → research-planner → web-researcher (SafeFetcher, разрешения network.fetch / web.search, домены из гранта) → research.ground_claims → loop(write ⇄ review) → [approve] → research.save`
+## 7. The web research pipeline
+`local (what is already known) → research-planner → web-researcher (SafeFetcher, the network.fetch / web.search permissions, domains from the grant) → research.ground_claims → loop(write ⇄ review) → [approve] → research.save`
 
-- Отчёт содержит таблицу утверждений со статусом цитаты, источники с датами публикации и получения, ограничения и открытые вопросы.
-- Факты сохраняются только для подтверждённых цитат (`facts`, `review_after` через 90 дней).
-- В граф добавляются связи `uses_source`.
-- Без веб-разрешения для запуска инструменты загрузки отклоняются и записываются в журнал. Отчёт честно показывает, что цитаты не подтверждены.
+- The report contains a table of claims with the quote status, sources with publication and retrieval dates, limitations and open questions.
+- Facts are saved only for confirmed quotes (`facts`, `review_after` in 90 days).
+- The graph gets `uses_source` links.
+- Without web permission for the run, download tools are denied and logged. The report honestly shows that the quotes are not confirmed.
 
-## 8. Задачи
+## 8. Tasks
 `tasks/tasks.ts`:
-- ключи `T-NNN`; статусы `backlog / todo / in_progress / review / blocked / done / cancelled`;
-- зависимости с защитой от циклов и от вложения задачи в собственную подзадачу;
-- в работу и в «готово» нельзя перевести задачу с незавершёнными зависимостями;
-- **«Готово» требует подтверждения** (что проверено и где результат) или явного подтверждения пользователя; агент может закрыть задачу только с подтверждением;
-- комментарии, ссылки (документ, URL, требование), канбан-доска;
-- экспорт MD / JSON / CSV, в CSV нейтрализуются формулы;
-- зеркалирование в граф: `task → requirement: implements`, `depends_on`, `part_of`, `derived_from`.
+- keys `T-NNN`; statuses `backlog / todo / in_progress / review / blocked / done / cancelled`;
+- dependencies with protection against cycles and against nesting a task in its own subtask;
+- a task with unfinished dependencies cannot be moved to in progress or done;
+- **"Done" requires a confirmation** (what was checked and where the result is) or an explicit confirmation by the user; an agent can close a task only with a confirmation;
+- comments, links (document, URL, requirement), a kanban board;
+- MD / JSON / CSV export; formulas are neutralized in CSV;
+- mirrored in the graph: `task → requirement: implements`, `depends_on`, `part_of`, `derived_from`.
 
 ## 9. API
-`/api/systems/:id/workflows` (список, определение, сохранение, проверка, копия, удаление, preflight, setup-agents, запуск), `/api/systems/:id/runs` (список, состояние, события, pause, resume, cancel, limits, решение по шагу), `/api/systems/:id/tasks` (CRUD, статус, зависимости, комментарии, ссылки, доска, экспорт), `/api/workflows/functions` (палитра функций для редактора).
+`/api/systems/:id/workflows` (list, definition, save, check, copy, delete, preflight, setup-agents, start), `/api/systems/:id/runs` (list, state, events, pause, resume, cancel, limits, a step decision), `/api/systems/:id/tasks` (CRUD, status, dependencies, comments, links, board, export), `/api/workflows/functions` (the function palette for the editor).
 
-## 10. Ограничения версии
-- Вложенные циклы и подпроцессы не поддерживаются.
-- Ветвление выражается условиями `when` и `optional`; узла `switch` нет.
-- Шаги выполняются внутри процесса приложения. Распределённого исполнения нет: процессы одной системы обслуживает один движок.
-- Оценка стоимости в preflight показывается, только если для модели задана цена.
+## 10. Limitations of this version
+- Nested loops and sub-workflows are not supported.
+- Branching is expressed with `when` and `optional`; there is no `switch` node.
+- Steps run inside the application process. There is no distributed execution: the workflows of one system are served by one engine.
+- The preflight cost estimate is shown only when a price is set for the model.

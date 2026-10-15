@@ -1,162 +1,162 @@
-# Расширения: защищённое ядро и безопасное расширение возможностей (раздел 30 ТЗ)
+# Extensions: a protected core and safe extensibility (specification section 30)
 
-Статус: реализовано · Обновлено: 2026-10-14
-Код: `packages/core/src/extensions/*`, `packages/core/plugin-runtime/*`
-Тесты: `packages/core/test/extensions.test.ts` (12 сценариев приёмки 30.10), `packages/core/test/examples.test.ts`
-Примеры пакетов: [`examples/extensions/`](../../examples/extensions/)
+Status: implemented · Updated: 2026-10-14
+Code: `packages/core/src/extensions/*`, `packages/core/plugin-runtime/*`
+Tests: `packages/core/test/extensions.test.ts` (the 12 acceptance scenarios of 30.10), `packages/core/test/examples.test.ts`
+Example packages: [`examples/extensions/`](../../examples/extensions/)
 
-## 1. Принцип
+## 1. Principle
 
-Пользователь может добавлять роли агентов, шаблоны, процессы, темы и инструменты. Но расширение **не может**:
+The user can add agent roles, templates, workflows, themes and tools. But an extension **cannot**:
 
-- менять ядро;
-- отключать защиту;
-- выдавать себе разрешения;
-- получать доступ к данным в обход проверок.
+- change the core;
+- turn off protections;
+- grant itself permissions;
+- access data bypassing the checks.
 
-Любой внешний пакет считается недоверенным, даже если у него хорошее описание или подпись. Полномочия определяет механизм безопасности приложения, а не текст расширения или роли агента.
+Every external package is considered untrusted, even if it has a good description or a signature. Powers are defined by the security mechanism of the application, not by the text of an extension or an agent role.
 
-Корпоративной модели ролей («владелец — администратор — оператор») нет — это прямое требование 30.1. Для всех пользователей действует одна модель:
+There is no corporate role model ("owner — administrator — operator"): this is a direct requirement of 30.1. One model applies to every user:
 
-- расширение получает только то, что пользователь явно разрешил;
-- разрешения проверяются в момент каждого действия.
+- an extension gets only what the user explicitly allowed;
+- permissions are checked at the moment of every action.
 
-## 2. Ядро и расширяемая часть
+## 2. The core and the extensible part
 
-| Защищённое ядро (расширения не меняют) | Точки расширения |
+| Protected core (extensions do not change it) | Extension points |
 |---|---|
-| Разрешения и область запуска агентов, работа с файлами, защита проектов, запуск команд, модели и ключи, журналы, установка расширений, резервные копии, системы знаний, настройки безопасности | Роли агентов (`content`), шаблоны и процессы (`content`), темы оформления (`theme`), инструменты-плагины (`tools`) |
+| Agent permissions and run scope, file operations, project protection, running commands, models and keys, logs, extension installation, backups, knowledge systems, security settings | Agent roles (`content`), templates and workflows (`content`), themes (`theme`), tool plugins (`tools`) |
 
-Файлы расширений лежат в `<папка данных>/extensions/<id>/<версия>/`, отдельно от файлов приложения. Они записываются с защитой от перезаписи и только в пределах этой папки.
+Extension files live in `<data folder>/extensions/<id>/<version>/`, separately from the application files. They are written with protection against overwriting and only inside this folder.
 
-## 3. Виды расширений
+## 3. Kinds of extensions
 
-Виды разделены намеренно, чтобы установка темы никогда не давала привилегий плагина (30.6).
+The kinds are separated on purpose, so that installing a theme never gives the privileges of a plugin (30.6).
 
-| Вид | Содержимое | Код | Разрешения расширения |
+| Kind | Content | Code | Extension permissions |
 |---|---|---|---|
-| `theme` | дизайн-токены и CSS | запрещён (JS, HTML, SVG отклоняются) | запрещены |
-| `content` | роли агентов, шаблоны, процессы | запрещён | запрещены. Права агента выдаёт пользователь при установке агента в систему |
-| `tools` | инструменты `tools/**/*.mjs` | разрешён, только в ограниченном процессе | только из поддерживаемого списка, с областью действия |
+| `theme` | design tokens and CSS | not allowed (JS, HTML, SVG are rejected) | not allowed |
+| `content` | agent roles, templates, workflows | not allowed | not allowed. The user grants agent rights when installing the agent into a system |
+| `tools` | tools in `tools/**/*.mjs` | allowed, only in a restricted process | only from the supported list, with a scope |
 
-## 4. Установка (30.5)
+## 4. Installation (30.5)
 
-1. **Структура.** Проверяются:
-   - пути: никаких `..`, абсолютных, скрытых путей и символических ссылок;
-   - лимиты: до 300 файлов, до 5 МБ всего, до 2 МБ на файл;
-   - допустимые файлы для вида расширения;
-   - бинарные файлы (ELF, PE, Mach-O, `#!`-скрипты).
-2. **Манифест.**
-   - Идентификатор не может быть зарезервированным: `aos.`, `core.`, `builtin.`, `system.`, `app.` — расширение не может выдавать себя за ядро.
-   - Версия задаётся в формате semver. Совместимость с версией приложения проверяется.
-   - Роль агента с идентификатором встроенного агента отклоняется: подменить встроенного агента нельзя.
-3. **Разрешения.**
-   - Поддерживаются `documents.read`, `search.use`, `network.fetch` (только с перечнем доменов) и `documents.create` (только с перечнем папок).
-   - Опасные привилегии отклоняются вместе со всем пакетом, с объяснением причины. Это файлы, команды, секреты, настройки, управление разрешениями, управление агентами, неограниченная сеть и изменение ядра.
-4. **Код.**
-   - Статический анализ находит опасные операции: процессы, прямую сеть, запись файлов, `eval`, внутренние модули.
-   - Это информация для пользователя. Блокирует такие операции среда выполнения (раздел 6).
-5. **Описание для пользователя.** Возможности расширения простым языком, запрошенные разрешения с уровнем риска, найденные опасные операции и предупреждения. Подпись пакета не проверяется: инфраструктуры для этого нет, и подпись не считается гарантией.
-6. **Решение пользователя.** После установки расширение **выключено**. Включить его можно сразу или позже. Выдаются только подтверждённые пользователем разрешения, в пределах запрошенной области.
-7. **Учёт.**
-   - В реестре записываются версия, предыдущая версия, выданные разрешения и хеши всех файлов.
-   - Событие пишется в журнал безопасности приложения (с цепочкой хешей).
+1. **Structure.** Checked:
+   - paths: no `..`, absolute or hidden paths, no symbolic links;
+   - limits: up to 300 files, up to 5 MB in total, up to 2 MB per file;
+   - the files allowed for the kind of extension;
+   - binary files (ELF, PE, Mach-O, `#!` scripts).
+2. **Manifest.**
+   - The identifier cannot be reserved: `aos.`, `core.`, `builtin.`, `system.`, `app.` — an extension cannot pose as the core.
+   - The version uses semver. Compatibility with the application version is checked.
+   - An agent role with the identifier of a built-in agent is rejected: a built-in agent cannot be replaced.
+3. **Permissions.**
+   - Supported: `documents.read`, `search.use`, `network.fetch` (only with a list of domains) and `documents.create` (only with a list of folders).
+   - Dangerous privileges are rejected together with the whole package, with the reason explained. These are files, commands, secrets, settings, permission management, agent management, unrestricted network access and changing the core.
+4. **Code.**
+   - Static analysis finds dangerous operations: processes, direct network access, file writes, `eval`, internal modules.
+   - This is information for the user. The runtime blocks such operations (section 6).
+5. **A description for the user.** The capabilities of the extension in plain language, the requested permissions with their risk level, the dangerous operations found and warnings. The package signature is not verified: there is no infrastructure for that, and a signature is not considered a guarantee.
+6. **The user's decision.** After installation the extension is **disabled**. It can be enabled right away or later. Only the permissions the user confirmed are granted, within the requested scope.
+7. **Accounting.**
+   - The registry records the version, the previous version, the granted permissions and the hashes of all files.
+   - An event is written to the application security log (with a hash chain).
 
-**Обновление.**
-- Принимается только более новая версия.
-- Новые запрошенные разрешения **не наследуются**: на карточке видно, что они не выданы.
-- Старые разрешения сохраняются, только если новая версия их по-прежнему запрашивает, и только в пределах новой области.
+**Updates.**
+- Only a newer version is accepted.
+- Newly requested permissions are **not inherited**: the card shows that they are not granted.
+- Old permissions are kept only if the new version still requests them, and only within the new scope.
 
-## 5. Целостность
+## 5. Integrity
 
-- **Проверка.** Перед включением, перед каждым запуском инструмента и при выдаче CSS темы файлы сверяются с хешами, записанными при установке.
-- **Блокировка.** Если файл изменён, удалён или добавлен, расширение переходит в статус `broken` и больше не запускается, а в журнал безопасности пишется запись.
-- **Что не покрывается.** Человек с полными правами на компьютере может изменить и само приложение. Цель — исключить несанкционированные изменения через штатный интерфейс, агентов, расширения и подключённое содержимое (30.9).
+- **Check.** Before enabling, before every tool run and when the CSS of a theme is served, the files are compared with the hashes recorded at installation.
+- **Blocking.** If a file was changed, deleted or added, the extension gets the `broken` status and no longer runs, and a record is written to the security log.
+- **What is not covered.** A person with full rights on the computer can change the application itself too. The goal is to rule out unauthorized changes through the normal interface, agents, extensions and connected content (30.9).
 
-## 6. Изоляция плагинов
+## 6. Plugin isolation
 
-Плагин запускается в **отдельном процессе Node.js**. Ограничения в сумме такие:
+A plugin runs in a **separate Node.js process**. Together, the restrictions are:
 
-| Механизм | Что ограничивает |
+| Mechanism | What it restricts |
 |---|---|
-| Модель разрешений Node (`--permission`) | Чтение файлов только в папке расширения и файлах среды выполнения. Запрещены: запись файлов, дочерние процессы, воркеры, нативные модули, WASI, `process.binding` |
-| `guard.mjs` (загружается через `--import` до кода плагина) | Удаляет `fetch` и `WebSocket`. Запрещает модули `net`, `http(s)`, `http2`, `tls`, `dgram`, `dns`, `child_process`, `worker_threads`, `vm`, `module`, `sqlite`, `v8` — включая `import('data:…')` и `process.getBuiltinModule`. Запрет на `module` не даёт плагину подменить загрузчик своими хуками |
-| `--disallow-code-generation-from-strings` | Запрещает `eval` и `new Function` |
-| Окружение | Только `LANG`: переменные с ключами и токенами в процесс не попадают |
-| Лимиты | Тайм-аут (по умолчанию 30 с, не больше 120), память 128 МБ, вывод до 4 МБ, не больше 200 обращений к API |
-| bubblewrap (Linux, если доступен) | Дополнительно: пустое сетевое пространство имён, файловая система только на чтение |
+| The Node permission model (`--permission`) | Reading files only in the extension folder and the runtime files. Forbidden: writing files, child processes, workers, native modules, WASI, `process.binding` |
+| `guard.mjs` (loaded with `--import` before the plugin code) | Removes `fetch` and `WebSocket`. Blocks the modules `net`, `http(s)`, `http2`, `tls`, `dgram`, `dns`, `child_process`, `worker_threads`, `vm`, `module`, `sqlite`, `v8`, including `import('data:…')` and `process.getBuiltinModule`. Blocking `module` keeps a plugin from replacing the loader with its own hooks |
+| `--disallow-code-generation-from-strings` | Blocks `eval` and `new Function` |
+| Environment | Only `LANG`: variables with keys and tokens never reach the process |
+| Limits | Timeout (30 s by default, at most 120), 128 MB of memory, up to 4 MB of output, at most 200 API calls |
+| bubblewrap (Linux, if available) | In addition: an empty network namespace, a read-only file system |
 
-**API плагина** — единственный путь к данным:
+**The plugin API** is the only way to data:
 - `readDocument`, `search`, `fetch`, `createDocument`, `log`;
-- разрешения проверяются **при каждом вызове** по текущему состоянию реестра, поэтому отзыв или выключение срабатывает со следующего же вызова;
-- любой другой метод отклоняется: у API нет функций для разрешений, настроек, агентов, файлов и секретов;
-- все отказы попадают в журнал безопасности приложения и системы.
+- permissions are checked **on every call** against the current state of the registry, so a revocation or disabling takes effect from the very next call;
+- any other method is rejected: the API has no functions for permissions, settings, agents, files or secrets;
+- every denial goes to the security log of the application and of the system.
 
-Для `fetch` действуют три правила:
-- допускаются только разрешённые домены, причём и для конечного адреса после перенаправлений;
-- загрузка идёт через защищённый загрузчик: локальные и внутренние адреса запрещены, учитывается офлайн-режим;
-- веб-доступ должен быть разрешён для запуска.
+Three rules apply to `fetch`:
+- only allowed domains are accepted, including the final address after redirects;
+- downloads go through the protected fetcher: local and internal addresses are blocked, and offline mode is respected;
+- web access must be allowed for the run.
 
-**Агенты** вызывают инструменты плагинов через инструмент `run_extension_tool`:
-- нужно отдельное разрешение агента `extensions.use`;
-- плагин ограничен своими разрешениями **и** областью запуска агента;
-- результат плагина считается недоверенными данными и проверяется на внедрённые инструкции.
+**Agents** call plugin tools through the `run_extension_tool` tool:
+- the agent needs the separate `extensions.use` permission;
+- the plugin is limited by its own permissions **and** the run scope of the agent;
+- the plugin result is treated as untrusted data and checked for injected instructions.
 
-**Честное ограничение.** Без bubblewrap прямой доступ плагина к сети закрыт средствами среды выполнения Node.js (модель разрешений и перехват модулей), а не операционной системой. Об этом сообщается в результате каждого запуска (`isolation.level = restricted`) и в [SECURITY.md](../../SECURITY.md).
+**An honest limitation.** Without bubblewrap, direct network access of a plugin is closed by the Node.js runtime (the permission model and module interception), not by the operating system. Every run reports this in its result (`isolation.level = restricted`), and so does [SECURITY.md](../../SECURITY.md).
 
-## 7. Темы оформления
+## 7. Themes
 
-- **Токены.** Допускаются только имена `--aos-color-*`, `--aos-font-*` и другие из поддерживаемого набора. Значения состоят из безопасного набора символов. Запрещены `url()`, выражения, `var()`, `attr()`, `@` и экранирование.
-- **CSS.** Пропускается через фильтр-белый список:
-  - **удаляются:** `@import`, `@font-face` и прочие правила, загружающие ресурсы; селекторы атрибутов (защита от чтения данных страницы через CSS); `!important`;
-  - **удаляются свойства, которые могут скрыть или подменить интерфейс:** `display`, `position`, `z-index`, `content`, `transform`, `width` и т. п.;
-  - **удаляются также:** прозрачный цвет текста, прозрачность ниже 0.6, слишком мелкий шрифт.
-- **Область действия.** Каждое правило ограничено контейнерами `.aos-themable` выбранной темы. Окна подтверждений и предупреждений находятся вне этой области и не перекрашиваются.
-- **Анимации** ссылаются только на ключевые кадры своей темы.
-- **Сброс.** Возврат к стандартной теме — `resetTheme()`. Сброс всех настроек приложения — `resetAppSettings()`.
+- **Tokens.** Only names such as `--aos-color-*`, `--aos-font-*` and others from the supported set are allowed. Values consist of a safe set of characters. `url()`, expressions, `var()`, `attr()`, `@` and escapes are not allowed.
+- **CSS** goes through an allowlist filter:
+  - **removed:** `@import`, `@font-face` and other rules that load resources; attribute selectors (protection against reading page data through CSS); `!important`;
+  - **removed properties that can hide or replace the interface:** `display`, `position`, `z-index`, `content`, `transform`, `width` and the like;
+  - **also removed:** a transparent text color, opacity below 0.6, a font that is too small.
+- **Scope.** Every rule is limited to the `.aos-themable` containers of the selected theme. Confirmation and warning dialogs are outside this scope and are never restyled.
+- **Animations** may refer only to the keyframes of their own theme.
+- **Reset.** Returning to the standard theme is `resetTheme()`. Resetting all application settings is `resetAppSettings()`.
 
-## 8. Роли, шаблоны, процессы
+## 8. Roles, templates, workflows
 
-- Роли агентов включённого расширения попадают в каталог (`extension_agent_packages`). При выключении или удалении расширения они пропадают из каталога.
-- Установка роли в систему и выдача ей прав — отдельное действие пользователя (30.4). Текст роли вроде «у тебя полный доступ к диску» никаких прав не даёт (тест 4).
-- Шаблоны и процессы копируются в систему только по команде пользователя. После этого это данные пользователя: удаление расширения их не трогает. Процесс выполняется обычным движком со всеми его проверками.
+- The agent roles of an enabled extension go into the catalog (`extension_agent_packages`). When the extension is disabled or removed, they leave the catalog.
+- Installing a role into a system and granting it rights is a separate user action (30.4). Role text such as "you have full access to the disk" grants no rights (test 4).
+- Templates and workflows are copied into a system only by the user's command. After that they are the user's data: removing the extension does not touch them. A workflow runs on the normal engine with all its checks.
 
-## 9. Отключение и удаление (30.9)
+## 9. Disabling and removal (30.9)
 
-| Действие | Что происходит |
+| Action | What happens |
 |---|---|
-| Выключить | Роли уходят из каталога. Если тема была активна, включается стандартная. Плагин больше не запускается |
-| Удалить | Удаляется только папка расширения (с проверкой, что путь внутри каталога расширений) и его запись в реестре |
-| Отозвать разрешения | Действует со следующей операции |
+| Disable | The roles leave the catalog. If the theme was active, the standard one is enabled. The plugin no longer runs |
+| Remove | Only the extension folder (after a check that the path is inside the extensions directory) and its registry record are removed |
+| Revoke permissions | Takes effect from the next operation |
 
-Что сохраняется:
-- агенты, установленные из удалённой роли, остаются с понятным статусом ошибки и не ломают приложение;
-- документы и процессы, импортированные пользователем, остаются;
-- другие расширения, проекты и системы знаний не затрагиваются (тест 12 сравнивает файлы и базы до и после).
+What is kept:
+- agents installed from a removed role stay, with a clear error status, and do not break the application;
+- documents and workflows the user imported stay;
+- other extensions, projects and knowledge systems are not touched (test 12 compares the files and databases before and after).
 
-Обновление приложения происходит отдельно от обновления расширений. Механизма самообновления приложения пока нет.
+Application updates are separate from extension updates. The application has no self-update mechanism yet.
 
-## 10. Подключённые репозитории
+## 10. Connected repositories
 
-Файлы проекта — это данные, а не конфигурация приложения (30.7):
+Project files are data, not application configuration (30.7):
 
-- `aos.config.json`, `.aos/settings.json`, папки с «расширениями» внутри проекта и инструкции в README **не загружаются и не применяются** (тест 8);
-- режим доступа к проекту меняет только пользователь;
-- новый проект по умолчанию подключается в режиме «только чтение».
+- `aos.config.json`, `.aos/settings.json`, "extension" folders inside the project and instructions in a README are **never loaded or applied** (test 8);
+- only the user changes the project access mode;
+- a new project is connected in "Read only" mode by default.
 
-## 11. Соответствие критериям 30.10
+## 11. Mapping to the 30.10 criteria
 
-Каждый из 12 критериев проверяется одноимённым тестом в `packages/core/test/extensions.test.ts`:
+Each of the 12 criteria is checked by the test with the same name in `packages/core/test/extensions.test.ts`:
 
-1. Новая роль агента устанавливается и настраивается без изменения ядра.
-2. Тема добавляется без доступа к файлам.
-3. Плагин не может повысить собственные разрешения.
-4. Изменение инструкции агента не обходит ограничения файловой системы.
-5. Недоверенный плагин не получает секреты.
-6. Выключение или удаление расширения не повреждает приложение.
-7. Расширение не может незаметно изменить проект.
-8. Подключённый репозиторий не переопределяет правила безопасности.
-9. Сетевые и файловые операции плагинов ограничены выданными разрешениями.
-10. Отзыв разрешения блокирует следующие операции.
-11. Обновление не подменяет ядро и не расширяет разрешения; подмена файлов обнаруживается.
-12. Документы, проекты и другие системы сохраняют целостность.
+1. A new agent role is installed and configured without changing the core.
+2. A theme is added without access to files.
+3. A plugin cannot raise its own permissions.
+4. Changing an agent instruction does not bypass the file system restrictions.
+5. An untrusted plugin does not get secrets.
+6. Disabling or removing an extension does not damage the application.
+7. An extension cannot change a project silently.
+8. A connected repository does not override the security rules.
+9. The network and file operations of plugins are limited by the granted permissions.
+10. Revoking a permission blocks the next operations.
+11. An update does not replace the core or widen permissions; replaced files are detected.
+12. Documents, projects and other systems keep their integrity.

@@ -1,43 +1,42 @@
-# Карта функций: Obsidian → Agentic OS
+# Feature map: Obsidian → Agentic OS
 
-Источник поведения Obsidian — официальная документация (`obsidianmd/obsidian-help`, коммит 2026-10-11), см. `docs/research/product-landscape.md`.
+The source of Obsidian behaviour is the official documentation (`obsidianmd/obsidian-help`, commit of 2026-10-11); see `docs/research/product-landscape.md`.
 
-**Важно:** Agentic OS **не заявляет полной совместимости с Obsidian**. Совместимость обеспечивается только на уровне формата: Markdown-файлы, wikilinks, YAML frontmatter, теги. Она проверяется тестами `packages/core/test/markdown.test.ts` и `packages/core/test/links.test.ts`. Хранилище Obsidian можно открыть как vault Agentic OS — файлы будут прочитаны. Однако папка `.obsidian/`, плагины Obsidian, `.base`-файлы и `.canvas`-файлы v1 не интерпретирует.
+**Important:** Agentic OS **does not claim full compatibility with Obsidian**. Compatibility exists only at the format level: Markdown files, wikilinks, YAML frontmatter, tags. It is checked by `packages/core/test/markdown.test.ts` and `packages/core/test/knowledge.test.ts`. An Obsidian vault can be opened as an Agentic OS vault, and its files will be read. But v1 does not interpret the `.obsidian/` folder, Obsidian plugins, `.base` files or `.canvas` files.
 
-Статусы: **✅ реализовано и покрыто тестами** · **🟡 частично** · **⏳ запланировано**. Статусы обновляются по факту реализации — см. раздел «Состояние» в README.
+Statuses: **✅ implemented and covered by tests** · **🟡 partial** · **⏳ planned**. The statuses follow the actual implementation; see the "Status" part of the README.
 
-## 1. Таблица соответствия
+## 1. Mapping table
 
-| Возможность | Что решает / сценарий | Требуемое поведение в Agentic OS | Модуль реализации | Критерий готовности |
+| Capability | What it solves / scenario | Required behaviour in Agentic OS | Implementation module | Done when |
 |---|---|---|---|---|
-| Vault | Хранить знания как обычные файлы, без привязки к приложению | Пользователь создаёт или открывает папку-vault; все заметки — `.md` в этой папке; внешние изменения подхватываются | `core/vault`, `core/index` | Создание vault → файл появляется на диске; внешнее изменение файла отражается в индексе без перезапуска |
-| Markdown | Переносимость | CommonMark + GFM (таблицы, задачи, зачёркивание) + wikilinks, `==highlight==`, `%%comment%%` в парсере ссылок | `core/markdown`, `ui/markdown` | Документ, созданный в приложении, открывается в любом редакторе без потерь |
-| Внутренние ссылки | Связывать заметки | `[[Note]]`, `[[Note\|alias]]`, `[[Note#Heading]]`, `[[Note#^block]]`, `![[embed]]`, `[text](Note.md)`; разрешение: точный путь → кратчайший путь (имя файла) → `aliases`; регистр не учитывается | `core/markdown/links`, `core/index/resolver` | Тесты разрешения ссылок; клик по ссылке открывает документ |
-| Неразрешённые ссылки | Видеть «пробелы» базы | Ссылка на несуществующий документ = узел `unresolved`; по клику — предложение создать документ | `core/graph` | Неразрешённая ссылка видна в графе и в панели ссылок |
-| Обновление ссылок при переименовании | Не ломать связи | Перед переименованием — **план изменений** (какие файлы и строки изменятся) → подтверждение → применение с резервной копией | `core/vault/rename` | Тест: переименование обновляет `[[Old]]` → `[[New]]` во всех ссылающихся файлах; план показывается до применения |
-| Backlinks | Кто ссылается на документ | Панель «Входящие» (linked) + «Упоминания без ссылки» (unlinked mentions по названию и aliases) | `core/index`, `ui/knowledge` | Тест: B ссылается на A → A показывает B во входящих |
-| Graph View | Обзор связей | Интерактивный граф: зум, панорамирование, поиск узла, фильтры, клик → открыть | `core/graph`, `ui/graph` | Граф строится из реальных ссылок; обновляется при изменении файла |
-| Local Graph | Контекст документа | Соседи на глубину 1–3 вокруг выбранного документа | `core/graph.local()` | Тест BFS по глубине |
-| Properties | Структурированные метаданные | YAML frontmatter; типы text/list/number/checkbox/date/datetime/tags; тип выводится и закрепляется за именем свойства; редактор свойств в UI | `core/markdown/frontmatter`, `core/index/properties` | Свойства доступны в фильтрах поиска и в табличном представлении |
-| Templates | Единообразие документов | Встроенные шаблоны + пользовательские (`Templates/` в vault); переменные `{{title}}`, `{{date}}`, `{{time}}`, `{{date:FORMAT}}` | `core/vault/templates` | Создание документа из шаблона подставляет переменные |
-| Search | Найти нужное быстро | FTS5 (BM25) + операторы: `"фраза"`, `OR`, `-слово`, `tag:`, `path:`, `file:`, `type:`, `project:`, `[prop]`, `[prop:value]`; сниппеты с подсветкой; переход к совпадению | `core/search` | Тесты парсера запросов и выдачи |
-| Tags | Тематическая классификация | `#tag` в тексте и `tags:` во frontmatter; вложенные `a/b`; регистр не учитывается; `#1984` не тег | `core/markdown/tags` | Тесты извлечения тегов |
-| Canvas | Пространственное мышление | Формат JSON Canvas 1.0 | — | ⏳ Позже (см. раздел 2) |
-| Bases | Таблицы по свойствам | Табличное представление документов с колонками-свойствами, фильтрами и сортировкой (без формул и `.base`-файлов) | `ui/knowledge/table` | Фильтр по свойству сужает таблицу |
-| Daily Notes | Журнал, ежедневный контекст | Команда «Ежедневная заметка» открывает или создаёт `Daily/YYYY-MM-DD.md` по шаблону | `core/vault/daily` | Повторный вызов открывает ту же заметку |
-| Command Palette | Всё с клавиатуры | `Ctrl/Cmd+K`: команды и переход к документам, разделам, действиям | `ui/command-palette` | Все основные действия доступны из палитры |
-| Plugins | Расширение | Разделение: пакеты агентов (декларативные), инструменты (встроенные), парсеры, адаптеры моделей, шаблоны, workflow. Исполняемые UI-плагины — позже, только в изоляции | `core/agents`, `core/tools`, `core/parsers`, `core/ai/providers` | Импорт и экспорт пакета агента без повреждения базы |
-| Рабочие области / панели / навигация | Удобство ежедневной работы | Маршруты на каждый раздел; изменяемая ширина панелей; восстановление последнего документа и настроек графа | `ui/shell` | Ширина панелей и тема сохраняются между запусками |
-| История изменений (File recovery) | Защита от потери | Снапшот содержимого перед каждой перезаписью (дедупликация по хешу); просмотр, diff, восстановление | `core/history` | Тест: правка → восстановление предыдущей версии |
-| Импорт / экспорт / резервное копирование | Владение данными | Резервная копия БД (`VACUUM INTO`) + опционально архив vault; восстановление; проверка целостности; экспорт задач (MD/JSON/CSV), пакетов агентов (zip) | `core/backup`, `core/tasks/export`, `core/agents/package` | Тест: бэкап → восстановление → данные на месте |
+| Vault | Keep knowledge as plain files, not tied to the application | The user creates or opens a vault folder; every note is a `.md` file in that folder; external changes are picked up | `core/vault`, `core/index` | Creating a vault → the file appears on disk; an external change of a file shows in the index without a restart |
+| Markdown | Portability | CommonMark + GFM (tables, tasks, strikethrough) + wikilinks, `==highlight==`, `%%comment%%` in the link parser | `core/markdown`, `ui/markdown` | A document created in the application opens in any editor without losses |
+| Internal links | Link notes | `[[Note]]`, `[[Note\|alias]]`, `[[Note#Heading]]`, `[[Note#^block]]`, `![[embed]]`, `[text](Note.md)`; resolution: exact path → shortest path (file name) → `aliases`; case-insensitive | `core/markdown/links`, `core/index/resolver` | Link resolution tests; clicking a link opens the document |
+| Unresolved links | See the "gaps" of the knowledge base | A link to a document that does not exist = an `unresolved` node; clicking it offers to create the document | `core/graph` | An unresolved link is visible in the graph and in the links panel |
+| Updating links on rename | Do not break links | Before a rename, a **change plan** (which files and lines will change) → confirmation → application with a backup | `core/vault/rename` | Test: a rename updates `[[Old]]` → `[[New]]` in every linking file; the plan is shown before it is applied |
+| Backlinks | Who links to a document | A "Backlinks" panel (linked) + "Unlinked mentions" (by title and aliases) | `core/index`, `ui/knowledge` | Test: B links to A → A shows B among its backlinks |
+| Graph View | An overview of links | An interactive graph: zoom, pan, node search, filters, click → open | `core/graph`, `ui/graph` | The graph is built from real links and updates when a file changes |
+| Local Graph | The context of a document | Neighbours at depth 1–3 around the selected document | `core/graph.local()` | A BFS test by depth |
+| Properties | Structured metadata | YAML frontmatter; types text/list/number/checkbox/date/datetime/tags; the type is inferred and fixed per property name; a property editor in the UI | `core/markdown/frontmatter`, `core/index/properties` | Properties are available in search filters and in the table view |
+| Templates | Consistent documents | Built-in templates + user templates (`Templates/` in the vault); variables `{{title}}`, `{{date}}`, `{{time}}`, `{{date:FORMAT}}` | `core/vault/templates` | Creating a document from a template fills in the variables |
+| Search | Find things fast | FTS5 (BM25) + operators: `"phrase"`, `OR`, `-word`, `tag:`, `path:`, `file:`, `type:`, `project:`, `[prop]`, `[prop:value]`; snippets with highlights; jumping to the match | `core/search` | Query parser and result tests |
+| Tags | Topic classification | `#tag` in the text and `tags:` in the frontmatter; nested `a/b`; case-insensitive; `#1984` is not a tag | `core/markdown/tags` | Tag extraction tests |
+| Canvas | Spatial thinking | The JSON Canvas 1.0 format | — | ⏳ Later (see section 2) |
+| Bases | Tables over properties | A table view of documents with property columns, filters and sorting (no formulas, no `.base` files) | `ui/knowledge/table` | A property filter narrows the table |
+| Daily Notes | A journal, daily context | The "Daily note" command opens or creates `Daily/YYYY-MM-DD.md` from a template | `core/vault/daily` | Calling it again opens the same note |
+| Command Palette | Everything from the keyboard | `Ctrl/Cmd+K`: commands and navigation to documents, sections, actions | `ui/command-palette` | Every main action is available from the palette |
+| Workspaces / panels / navigation | Everyday convenience | A route for every section; resizable panels; the last document and the graph settings are restored | `ui/shell` | Panel widths and the theme are kept between launches |
+| Change history (File recovery) | Protection against loss | A snapshot of the content before every overwrite (deduplicated by hash); viewing, diff, restore | `core/history` | Test: an edit → restoring the previous version |
+| Import / export / backup | Data ownership | A database backup (`VACUUM INTO`) + optionally a vault archive; restore; integrity checks; export of tasks (MD/JSON/CSV) and agent packages (zip) | `core/backup`, `core/tasks/export`, `core/agents/package` | Test: backup → restore → the data is in place |
 
-## 2. Группировка по версиям
+## 2. Grouping by version
 
-### Обязательные функции первой версии
-Vault; Markdown; wikilinks и Markdown-ссылки; backlinks и unlinked mentions; неразрешённые ссылки; обновление ссылок при переименовании (с планом); properties и теги; шаблоны (10 встроенных + пользовательские); daily notes; полнотекстовый поиск с операторами; глобальный и локальный граф с типизированными связями; история версий и восстановление; командная палитра; подключение папок и Git-репозиториев (только чтение); инкрементальная индексация и наблюдение за ФС; AI Core (Ollama, OpenAI-совместимые, Anthropic); пакеты агентов и разрешения; workflow-движок; конвейер создания ТЗ; задачи; веб-исследования; журнал аудита; резервные копии; встроенное руководство.
+### Required in the first version
+Vault; Markdown; wikilinks and Markdown links; backlinks and unlinked mentions; unresolved links; updating links on rename (with a plan); properties and tags; templates (10 built-in + user ones); daily notes; full-text search with operators; a global and a local graph with typed links; version history and restore; the command palette; connecting folders and Git repositories (read only); incremental indexing and file system watching; AI Core (Ollama, OpenAI-compatible, Anthropic); agent packages and permissions; the workflow engine; the specification pipeline; tasks; web research; the audit log; backups; the built-in guide.
 
-### Расширенные функции для профессионального использования
-Семантический поиск и гибридный RRF (при наличии модели эмбеддингов); табличное представление по свойствам (Bases-lite); предложения связей от ИИ с подтверждением; проверка актуальности источников; отчёт о целостности базы знаний (битые ссылки, сироты, дубликаты); визуальный редактор workflow; канбан задач и граф зависимостей.
+### Extended features for professional use
+Semantic search and hybrid RRF (when an embedding model is available); a table view over properties (Bases-lite); AI link suggestions with confirmation; source freshness checks; a knowledge base integrity report (broken links, orphans, duplicates); the visual workflow editor; a task kanban and a dependency graph.
 
-### Дополнительные функции на будущее
-Canvas (JSON Canvas 1.0); PDF/DOCX/OCR-парсеры (кандидат — Docling как внешний локальный процесс); tree-sitter карта кода; MCP-адаптер инструментов в изолированном процессе; `.base`-файлы и формулы; синхронизация между устройствами; публикация; многооконность; мобильный клиент.
+### Possible future features
+Canvas (JSON Canvas 1.0); PDF/DOCX/OCR parsers (candidate: Docling as an external local process); a tree-sitter code map; an MCP tool adapter in an isolated process; `.base` files and formulas; sync between devices; publishing; multiple windows; a mobile client.

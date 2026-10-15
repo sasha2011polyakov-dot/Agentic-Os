@@ -1,102 +1,102 @@
-# Архитектура Agentic OS
+# Agentic OS architecture
 
-Статус: принято · Дата: 2026-10-12
+Status: accepted · Date: 2026-10-12
 
-## 1. Решение по стеку (ADR-001)
+## 1. Stack decision (ADR-001)
 
-### Контекст
-ТЗ предпочитает TypeScript + React + Tauri + SQLite и требует: локальное выполнение, доступ к ФС, SQLite, отделение UI от доменной логики, тестируемость модулей, отсутствие обязательного облака.
+### Context
+The specification prefers TypeScript + React + Tauri + SQLite and requires: local execution, file system access, SQLite, separation of the UI from the domain logic, testable modules, and no mandatory cloud.
 
-### Рассмотренные варианты
+### Options considered
 
-| Вариант | Плюсы | Минусы |
+| Option | Pros | Cons |
 |---|---|---|
-| **A. Tauri + ядро на Rust** | Маленький бинарник, сильная модель разрешений | Вся доменная логика на Rust — противоречит «TypeScript для основной логики»; два языка в каждой фиче |
-| **B. Tauri + ядро на TS в webview** | Один язык | Ядро работает в webview → UI получает все права ядра (нарушение разделения); SQLite и ФС только через плагины Tauri; тесты ядра требуют моков Tauri API |
-| **C. Tauri + Node-sidecar с ядром на TS** | Разделение процессов | Упаковка отдельного Node-бинарника под 3 ОС, IPC через stdio; удвоенная сложность сборки |
-| **D. Ядро на TS в Node + локальный HTTP API; desktop-оболочка Electron** | Один язык; ядро — обычный Node-модуль, тестируется без оболочки; `node:sqlite` встроен (FTS5 подтверждён); тот же сервер обслуживает браузерный режим и e2e-тесты | Размер Electron (~100+ МБ); нужно строго настроить безопасность renderer |
+| **A. Tauri + Rust core** | Small binary, strong permission model | All domain logic in Rust contradicts "TypeScript for the main logic"; two languages in every feature |
+| **B. Tauri + TS core in the webview** | One language | The core runs in the webview, so the UI gets all the rights of the core (no separation); SQLite and the file system only through Tauri plugins; core tests need mocks of the Tauri API |
+| **C. Tauri + Node sidecar with a TS core** | Process separation | A separate Node binary must be packaged for 3 OSes, IPC over stdio; twice the build complexity |
+| **D. TS core in Node + a local HTTP API; Electron desktop shell** | One language; the core is a plain Node module, tested without the shell; `node:sqlite` is built in (FTS5 confirmed); the same server serves the browser mode and the e2e tests | Electron size (~100+ MB); the renderer security must be configured strictly |
 
-### Решение: вариант D
-- **Ядро** (`packages/core`) — TypeScript, Node.js ≥ 22.13: в этой версии модуль `node:sqlite` доступен без флага. В среде разработки проверено: SQLite 3.50.4, FTS5, токенизатор `trigram`, JSON-функции.
-- **Сервер** (`apps/server`) — HTTP API на `127.0.0.1` со случайным портом и токеном запуска (действует до остановки сервера); раздаёт собранный UI; события — через SSE.
-- **UI** (`apps/ui`) — React 18 + TypeScript, сборка esbuild. Работает **только через HTTP API**, прямого доступа к ФС и БД не имеет.
-  - *Уточнение 2026-10-14:* вместо Vite используется esbuild — он уже применяется для сборки сервера, поэтому интерфейс не добавляет новых инструментов сборки. Горячая перезагрузка не нужна: `npm run dev:ui` пересобирает интерфейс при изменениях, сервер раздаёт `apps/ui/dist`.
-  - Интерфейс не использует `innerHTML`: Markdown превращается в React-элементы, поэтому HTML из заметок и подключённых репозиториев не исполняется; наружу ведут только ссылки `http(s)` и `mailto`, внешние картинки не загружаются.
-- **Desktop** (`apps/desktop`) — Electron: main-процесс запускает ядро и сервер, renderer изолирован (`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`). Через preload доступны ровно три функции: выбор папки (системный диалог), открытие внешней ссылки (только `https:`), сведения о платформе. Секреты — через `safeStorage` в main-процессе.
-- **Браузерный режим** (`npx aos serve`) — то же ядро без Electron. Системный диалог выбора папки вызывается сервером через нативные средства ОС (`zenity`/`kdialog` на Linux, `osascript` на macOS, PowerShell на Windows). Если они недоступны — встроенный обозреватель каталогов. Различия режимов перечислены в разделе 7.
+### Decision: option D
+- **Core** (`packages/core`): TypeScript, Node.js ≥ 22.13, where `node:sqlite` is available without a flag. Verified in the development environment: SQLite 3.50.4, FTS5, the `trigram` tokenizer, JSON functions.
+- **Server** (`apps/server`): an HTTP API on `127.0.0.1` with a random port and a launch token (valid until the server stops); it serves the built UI; events go over SSE.
+- **UI** (`apps/ui`): React 18 + TypeScript, built with esbuild. It works **only through the HTTP API** and has no direct access to the file system or the database.
+  - *Update 2026-10-14:* esbuild is used instead of Vite: it already builds the server, so the interface adds no new build tools. Hot reload is not needed: `npm run dev:ui` rebuilds the interface on changes, and the server serves `apps/ui/dist`.
+  - The interface does not use `innerHTML`: Markdown is turned into React elements, so HTML from notes and connected repositories is never executed; only `http(s)` and `mailto` links lead outside, and external images are not loaded.
+- **Desktop** (`apps/desktop`): Electron. The main process starts the core and the server; the renderer is isolated (`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`). The preload exposes exactly three functions: choosing a folder (the system dialog), opening an external link (`https:` only) and platform information. Secrets go through `safeStorage` in the main process.
+- **Browser mode** (`npx aos serve`): the same core without Electron. The server opens the system folder dialog with native OS tools (`zenity`/`kdialog` on Linux, `osascript` on macOS, PowerShell on Windows). If they are not available, a built-in directory browser is used. The differences between the modes are listed in section 7.
 
-### Последствия
-- `node:sqlite` в Node 22 помечен как *experimental* (выводит `ExperimentalWarning`). Риск смягчён: весь доступ к БД идёт через интерфейс `Db` (`core/db`), который можно перевести на `better-sqlite3` без изменения сервисов.
-- Сборка desktop-пакета (инсталляторов) в v1 описана, но артефакты установщиков не публикуются.
+### Consequences
+- In Node 22, `node:sqlite` is marked *experimental* (it prints an `ExperimentalWarning`). The risk is mitigated: all database access goes through the `Db` interface (`core/db`), which can be moved to `better-sqlite3` without changing the services.
+- Building the desktop package (installers) is described for v1, but installer artifacts are not published.
 
-## 2. Структура репозитория
+## 2. Repository structure
 
 ```
-packages/core/              доменная логика (без UI и HTTP)
+packages/core/              domain logic (no UI, no HTTP)
   src/
-    util/                   ID, хеши, ошибки, время, redaction
-    db/                     адаптер SQLite, миграции, транзакции
-    events/                 типизированная шина событий
-    log/                    логгер (JSONL) и журнал аудита
-    net/                    HttpClient + NetworkPolicy (единственный путь в сеть)
-    fs/                     PathGuard, SafeFs (атомарная запись, конфликты), правила игнорирования, детектор секретов
-    markdown/               frontmatter, ссылки, теги, заголовки, задачи, блоки
-    parsers/                реестр парсеров по типам файлов
-    sources/                подключение папок и vault, Git (только чтение), нативный диалог
-    index/                  индексатор (инкрементальный), наблюдатель ФС, резолвер ссылок
-    search/                 парсер запросов, FTS5, векторный поиск, RRF
-    graph/                  узлы, типизированные рёбра, локальный граф, пути, циклы, целостность
-    vault/                  документы, шаблоны, daily notes, переименование с планом, история
-    tasks/                  задачи, зависимости, статусы, экспорт
-    ai/                     AI Core: провайдеры, Model Router, бюджеты, секреты, эмбеддинги
-    agents/                 формат пакетов, реестр, разрешения, рантайм агентов
-    tools/                  реестр и исполнитель инструментов
-    research/               веб-исследования: SafeFetcher, извлечение текста, поиск, grounding
-    workflow/               определения, стейт-машина, движок, условия
-    pipelines/              встроенные процессы: ТЗ, веб-исследование
-    backup/                 резервные копии, восстановление, проверка целостности
-    app.ts                  composition root: сборка всех сервисов
-  agents-builtin/           встроенные пакеты агентов (декларативные)
+    util/                   IDs, hashes, errors, time, redaction
+    db/                     SQLite adapter, migrations, transactions
+    events/                 typed event bus
+    log/                    logger (JSONL) and audit log
+    net/                    HttpClient + NetworkPolicy (the only way to the network)
+    fs/                     PathGuard, SafeFs (atomic writes, conflicts), ignore rules, secret detector
+    markdown/               frontmatter, links, tags, headings, tasks, blocks
+    parsers/                parser registry by file type
+    sources/                connecting folders and the vault, Git (read only), native dialog
+    index/                  indexer (incremental), file system watcher, link resolver
+    search/                 query parser, FTS5, vector search, RRF
+    graph/                  nodes, typed edges, local graph, paths, cycles, integrity
+    vault/                  documents, templates, daily notes, rename with a plan, history
+    tasks/                  tasks, dependencies, statuses, export
+    ai/                     AI Core: providers, Model Router, budgets, secrets, embeddings
+    agents/                 package format, registry, permissions, agent runtime
+    tools/                  tool registry and executor
+    research/               web research: SafeFetcher, text extraction, search, grounding
+    workflow/               definitions, state machine, engine, conditions
+    pipelines/              built-in workflows: specification, web research
+    backup/                 backups, restore, integrity checks
+    app.ts                  composition root: wiring of all services
+  agents-builtin/           built-in agent packages (declarative)
   test/                     unit + integration (vitest)
-apps/server/                HTTP API, статика UI, CLI `aos`
-apps/ui/                    React-интерфейс + встроенное руководство (guide/*.md)
-apps/desktop/               Electron-оболочка
-e2e/                        сквозные тесты Playwright
-docs/                       исследование, архитектура, дизайн, спецификация
+apps/server/                HTTP API, UI static files, the `aos` CLI
+apps/ui/                    React interface + the built-in guide (guide/*.md)
+apps/desktop/               Electron shell
+e2e/                        Playwright end-to-end tests
+docs/                       research, architecture, design, specification
 ```
 
-## 3. Процессная модель
+## 3. Process model
 
 ```
- Desktop                                         Браузерный режим
+ Desktop                                         Browser mode
  ┌─────────────── Electron main ──────────────┐  ┌──────── node aos serve ───────┐
- │ AppCore (ядро) + HTTP API на 127.0.0.1:P   │  │ AppCore + HTTP API 127.0.0.1:P │
- │ адаптеры: safeStorage, dialog, shell       │  │ адаптеры: OS keychain CLI,     │
- └──────────────┬─────────────────────────────┘  │ нативный диалог через ОС       │
-                │ HTTP + cookie-сессия           └──────────────┬─────────────────┘
+ │ AppCore (core) + HTTP API on 127.0.0.1:P   │  │ AppCore + HTTP API 127.0.0.1:P │
+ │ adapters: safeStorage, dialog, shell       │  │ adapters: OS keychain CLI,     │
+ └──────────────┬─────────────────────────────┘  │ native dialog through the OS   │
+                │ HTTP + cookie session          └──────────────┬─────────────────┘
  ┌──────────────▼──────────────┐                 ┌──────────────▼──────────────┐
- │ Renderer (sandbox) — React  │                 │ Вкладка браузера — React    │
+ │ Renderer (sandbox): React   │                 │ Browser tab: React          │
  └─────────────────────────────┘                 └─────────────────────────────┘
 ```
 
-**Аутентификация локального API.** При старте сервер генерирует 256-битный токен. Клиент один раз открывает `/auth?token=…`, получает cookie `aos_session` (`HttpOnly`, `SameSite=Strict`, `Path=/`) и перенаправляется на `/`. Дополнительно:
-- проверка `Host` (только `127.0.0.1:P` и `localhost:P`) — защита от DNS rebinding;
-- изменяющие запросы требуют заголовок `X-AOS-Request: 1` и `Origin`, совпадающий с адресом сервера (защита от CSRF);
-- CSP для UI: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'`.
+**Local API authentication.** At startup the server generates a 256-bit token. The client opens `/auth?token=…` once, gets the `aos_session` cookie (`HttpOnly`, `SameSite=Strict`, `Path=/`) and is redirected to `/`. In addition:
+- the `Host` header is checked (only `127.0.0.1:P` and `localhost:P`) to protect against DNS rebinding;
+- requests that change data need the `X-AOS-Request: 1` header and an `Origin` that matches the server address (CSRF protection);
+- the UI CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'`.
 
-## 4. Слои и правила зависимостей
+## 4. Layers and dependency rules
 
 ```
 UI ──HTTP──▶ server(routes) ──▶ services(core) ──▶ db / fs / net
                                     │
                                     └──▶ events ──SSE──▶ UI
 ```
-- UI не импортирует ядро (только общие **типы** DTO из `packages/core/src/api-types.ts`).
-- Сервисы ядра не знают об HTTP.
-- **Доступ к файлам — только через `SafeFs` и `PathGuard`.** Доступ к сети — только через `HttpClient` (`core/net`). Правило проверяется тестом-линтом: поиск прямых импортов `node:fs`, `node:http(s)` и `fetch(` вне разрешённых модулей.
-- Все долгие операции (индексация, запуск workflow) асинхронны, отменяемы через `AbortSignal` и сообщают прогресс в `EventBus`.
+- The UI does not import the core (only the shared DTO **types** from `packages/core/src/api-types.ts`).
+- Core services know nothing about HTTP.
+- **File access goes only through `SafeFs` and `PathGuard`.** Network access goes only through `HttpClient` (`core/net`). A lint test enforces the rule by searching for direct imports of `node:fs`, `node:http(s)` and `fetch(` outside the allowed modules.
+- All long operations (indexing, workflow runs) are asynchronous, cancellable through an `AbortSignal`, and report progress to the `EventBus`.
 
-## 5. Ключевые интерфейсы
+## 5. Key interfaces
 
 ```ts
 // core/db
@@ -105,16 +105,16 @@ interface Db {
   get<T>(sql: string, ...params: SqlValue[]): T | undefined;
   all<T>(sql: string, ...params: SqlValue[]): T[];
   exec(sql: string): void;
-  transaction<T>(fn: () => T): T;            // BEGIN IMMEDIATE … COMMIT/ROLLBACK, поддерживает вложенность (SAVEPOINT)
+  transaction<T>(fn: () => T): T;            // BEGIN IMMEDIATE … COMMIT/ROLLBACK, supports nesting (SAVEPOINT)
 }
 
 // core/fs
 interface SafeFs {
   readText(abs: string, scope: AccessScope): Promise<{ text: string; hash: string; mtimeMs: number }>;
   writeText(abs: string, text: string, opts: { scope: AccessScope; expectedHash?: string | null; reason: string }): Promise<WriteResult>;
-  // атомарная запись (tmp + rename), снапшот прежней версии в history, проверка конфликта по expectedHash
+  // atomic write (tmp + rename), a snapshot of the previous version in history, a conflict check by expectedHash
   move(from: string, to: string, opts): Promise<void>;
-  trash(abs: string, opts): Promise<void>;   // перенос в <vault>/.trash, а не удаление
+  trash(abs: string, opts): Promise<void>;   // moves to <vault>/.trash instead of deleting
 }
 
 // core/ai
@@ -122,19 +122,19 @@ interface AIProvider {
   readonly id: string; readonly kind: ProviderKind; readonly locality: 'local' | 'cloud';
   health(signal?: AbortSignal): Promise<ProviderHealth>;
   listModels(signal?: AbortSignal): Promise<ModelInfo[]>;
-  chat(req: ChatRequest): Promise<ChatResponse>;            // structured output при req.jsonSchema
+  chat(req: ChatRequest): Promise<ChatResponse>;            // structured output when req.jsonSchema is set
   embed?(req: EmbedRequest): Promise<EmbedResponse>;
 }
 interface LocalModelProvider extends AIProvider {
   pullModel?(name: string, onProgress: (p: PullProgress) => void, signal?: AbortSignal): Promise<void>;
   deleteModel?(name: string): Promise<void>;
-  modelDetails?(name: string): Promise<ModelDetails>;       // контекст, размер, capabilities
+  modelDetails?(name: string): Promise<ModelDetails>;       // context, size, capabilities
 }
 
 // core/tools
 interface ToolDefinition<I, O> {
   name: string; description: string; inputSchema: JSONSchema; outputSchema?: JSONSchema;
-  permissions(input: I, ctx: ToolContext): PermissionRequirement[];  // что нужно для ЭТОГО вызова
+  permissions(input: I, ctx: ToolContext): PermissionRequirement[];  // what THIS call needs
   execute(input: I, ctx: ToolContext): Promise<O>;
 }
 
@@ -144,25 +144,25 @@ interface WorkflowEngine {
   cancel(runId: RunId): Promise<void>;
   pause(runId: RunId): Promise<void>; resume(runId: RunId): Promise<void>;
   approve(runId: RunId, stepId: string, decision: ApprovalDecision): Promise<void>;
-  recover(): Promise<void>;   // при старте: восстановление прерванных запусков
+  recover(): Promise<void>;   // at startup: recovers interrupted runs
 }
 ```
 
-## 6. Потоки данных
+## 6. Data flows
 
-**Индексация.** `SourceService.connect` → `Indexer.scan(source)` → обход с правилами игнорирования → сравнение `(size, mtime)` с `files` → хеш (SHA-256) для изменившихся → парсер по типу → транзакционно: `documents`, `fts`, `links`, `tags`, `properties`, `chunks` → `GraphService.rebuildEdgesFor(docIds)` → событие `index.progress` / `index.done`. Наблюдатель ФС (`fs.watch` recursive, debounce 300 мс) ставит изменённые пути в ту же очередь; собственные записи приложения подавляются по хешу, чтобы не возникали циклы.
+**Indexing.** `SourceService.connect` → `Indexer.scan(source)` → a walk with the ignore rules → `(size, mtime)` compared with `files` → a hash (SHA-256) for changed files → the parser for the file type → in one transaction: `documents`, `fts`, `links`, `tags`, `properties`, `chunks` → `GraphService.rebuildEdgesFor(docIds)` → the `index.progress` / `index.done` events. The file system watcher (recursive `fs.watch`, 300 ms debounce) puts changed paths into the same queue; the application's own writes are suppressed by hash so that no loops occur.
 
-**Запуск агента.** `WorkflowEngine` → `AgentRuntime.run(agent, input, scope)` → сборка сообщений (системная преамбула платформы + инструкции агента + вход + недоверенный контекст в `<untrusted_content>`) → `ModelRouter.select(policy, needs)` → `NetworkPolicy` → `AIProvider.chat` (structured output по схеме протокола) → при `tool_calls` вызывается `ToolExecutor` (валидация входа → `PermissionGuard` → выполнение → аудит) → итог валидируется Ajv по `output.schema.json` → при ошибке цикл repair (до N раз) → результат шага.
+**Running an agent.** `WorkflowEngine` → `AgentRuntime.run(agent, input, scope)` → the messages are assembled (the platform preamble + the agent instructions + the input + untrusted context in `<untrusted_content>`) → `ModelRouter.select(policy, needs)` → `NetworkPolicy` → `AIProvider.chat` (structured output by the protocol schema) → on `tool_calls` the `ToolExecutor` runs (input validation → `PermissionGuard` → execution → audit) → the final result is validated by Ajv against `output.schema.json` → on an error, a repair loop (up to N times) → the step result.
 
-## 7. Режимы работы
+## 7. Modes of operation
 
-| Возможность | Desktop (Electron) | Браузерный режим |
+| Capability | Desktop (Electron) | Browser mode |
 |---|---|---|
-| Выбор папки | Системный диалог (`dialog.showOpenDialog`) | Системный диалог через ОС (если доступен) или встроенный обозреватель каталогов |
-| Хранение API-ключей | `safeStorage` (Keychain / DPAPI / libsecret). Если `getSelectedStorageBackend() === 'basic_text'`, сохранение запрещается с объяснением | OS keychain CLI (`security` на macOS, `secret-tool` на Linux), переменные окружения `AOS_SECRET_*`, ключ только на сессию |
-| Открытие внешних ссылок | Системный браузер (`shell.openExternal`, только `https:`) | Новая вкладка (`rel=noopener noreferrer`) |
-| Всё остальное | Одинаково | Одинаково |
+| Choosing a folder | The system dialog (`dialog.showOpenDialog`) | The system dialog through the OS (if available) or the built-in directory browser |
+| Storing API keys | `safeStorage` (Keychain / DPAPI / libsecret). If `getSelectedStorageBackend() === 'basic_text'`, saving is refused with an explanation | OS keychain CLI (`security` on macOS, `secret-tool` on Linux), the `AOS_SECRET_*` environment variables, a key for the session only |
+| Opening external links | The system browser (`shell.openExternal`, `https:` only) | A new tab (`rel=noopener noreferrer`) |
+| Everything else | The same | The same |
 
-## 8. Ошибки
+## 8. Errors
 
-Ошибки ядра — `AppError { code, message, hint, guide?, details?, retryable }`. Код стабилен (например, `SOURCE_NOT_ACCESSIBLE`, `PERMISSION_DENIED`, `MODEL_UNAVAILABLE`, `OFFLINE_MODE`, `WRITE_CONFLICT`). `hint` — что сделать; `guide` — slug руководства, на которое UI ставит кнопку «Открыть инструкцию». Стек-трейс уходит только в лог, пользователю не показывается.
+Core errors are `AppError { code, message, hint, guide?, details?, retryable }`. The code is stable (for example `SOURCE_NOT_ACCESSIBLE`, `PERMISSION_DENIED`, `MODEL_UNAVAILABLE`, `OFFLINE_MODE`, `WRITE_CONFLICT`). `hint` says what to do; `guide` is the slug of the guide page the UI links with an "Open the guide" button. The stack trace goes only to the log and is never shown to the user.
