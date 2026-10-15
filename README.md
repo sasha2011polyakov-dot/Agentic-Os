@@ -56,6 +56,24 @@ Useful options: `npm start -- --port 4321 --data-dir ./my-data`. The data direct
 
 Install [Ollama](https://ollama.com), pull a model that handles structured (JSON) output well, and select it in the AI settings of the system. Small models (under ~7B parameters) often fail structured output; when a model fails a step, the engine tries another **local** model and asks you instead of switching to the cloud.
 
+**Context window.** The app asks Ollama for a 16k-token window (`num_ctx`). Ollama's own default is 4k, and it silently cuts longer prompts, which would drop the agents' instructions. A larger window needs more memory; set the provider option `contextLength` to change it. For LM Studio and llama.cpp, start the model with a window of at least 8k tokens: the app budgets for the window the server reports.
+
+### Check the AI with your model
+
+```bash
+ollama pull qwen2.5:7b                       # or any chat model you prefer
+npm run build
+node apps/server/dist/aos.mjs check-ai --provider ollama --model qwen2.5:7b
+```
+
+The check:
+1. connects to the model and gets one schema-bound answer;
+2. runs every built-in agent on its own test cases;
+3. runs two missions from a plain-language request to a result: a plan over the notes, and a task that must produce a document;
+4. writes `aos-live-check.md`.
+
+It runs in a temporary system, so your notes and settings are not touched. Other providers: `--provider lmstudio`, `--provider openai-compatible --base-url http://127.0.0.1:8080/v1` (llama.cpp server), or a cloud provider with `--api-key-env VAR`. On a CPU a full run takes from several minutes to an hour, depending on the model.
+
 ## Repository layout
 
 ```

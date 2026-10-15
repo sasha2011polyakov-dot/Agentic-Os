@@ -14,12 +14,30 @@ interface ShowResponse {
   capabilities?: string[];
   model_info?: Record<string, unknown>;
   details?: { parameter_size?: string; quantization_level?: string };
+  /** Thinking controls (docs.ollama.com/capabilities/thinking): `values: [false]` means no thinking. */
+  thinking?: { values?: unknown[]; default?: unknown };
 }
 
-/** Ollama native API (docs/api.md in github.com/ollama/ollama): /api/version, /api/tags, /api/show, /api/chat, /api/embed, /api/pull, /api/delete, /api/ps. */
+/**
+ * Context window the app asks Ollama for when the provider sets none. Ollama itself defaults to 4k on machines
+ * with less than 24 GiB of VRAM and SILENTLY drops the beginning of longer prompts (docs.ollama.com/context-length);
+ * agent prompts (rules + instructions + schema + data) regularly exceed 4k, so the app always sets `num_ctx`.
+ * 16k fits the agents with room for materials and keeps the KV cache of a 7–8B model around 1–2 GB.
+ */
+export const OLLAMA_DEFAULT_CONTEXT = 16_384;
+const MIN_CONTEXT = 2048;
+
+/** Rough prompt size in tokens; the same estimate as the agent runtime (≈3.5 characters per token). */
+function estimateTokens(s: string): number {
+  return Math.ceil(s.length / 3.5);
+}
+
+/** Ollama native API (docs.ollama.com/api): /api/version, /api/tags, /api/show, /api/chat, /api/embed, /api/pull, /api/delete, /api/ps. */
 export class OllamaProvider implements LocalModelProvider {
   private readonly base: string;
   private readonly detailsCache = new Map<string, ModelInfo>();
+  /** Models whose thinking can be switched off (`think: false`), from /api/show. */
+  private readonly canDisableThinking = new Map<string, boolean>();
 
   constructor(
     readonly config: ProviderConfig,
@@ -30,6 +48,16 @@ export class OllamaProvider implements LocalModelProvider {
 
   private get purpose() {
     return this.config.locality === 'local' ? ('ai-local' as const) : ('ai-cloud' as const);
+  }
+
+  /**
+   * The context window used for every request: the provider option `contextLength` (or the default), never more
+   * than the model supports. One stable value per model, because Ollama reloads a model whenever `num_ctx` changes.
+   */
+  effectiveContext(modelMax: number | null): number {
+    const opt = Number(this.config.options.contextLength);
+    const cap = Number.isInteger(opt) && opt >= MIN_CONTEXT ? opt : OLLAMA_DEFAULT_CONTEXT;
+    return Math.max(MIN_CONTEXT, modelMax && modelMax > 0 ? Math.min(modelMax, cap) : cap);
   }
 
   async health(signal?: AbortSignal): Promise<ProviderHealth> {
@@ -68,7 +96,7 @@ export class OllamaProvider implements LocalModelProvider {
           providerId: this.config.id,
           displayName: m.name,
           locality: this.config.locality,
-          contextLength: null,
+          contextLength: this.effectiveContext(null),
           sizeBytes: m.size ?? null,
           parameterSize: m.details?.parameter_size ?? null,
           quantization: m.details?.quantization_level ?? null,
@@ -94,12 +122,15 @@ export class OllamaProvider implements LocalModelProvider {
       if (k.endsWith('.context_length') && typeof v === 'number') ctx = v;
     }
     const isEmbedding = caps.includes('embedding') && !caps.includes('completion');
+    const thinkValues = res.data?.thinking?.values;
+    this.canDisableThinking.set(name, Array.isArray(thinkValues) && thinkValues.includes(false));
     const info: ModelInfo = {
       id: name,
       providerId: this.config.id,
       displayName: name,
       locality: this.config.locality,
-      contextLength: ctx,
+      // the window the app will actually request (num_ctx), not the architectural maximum
+      contextLength: this.effectiveContext(ctx),
       sizeBytes: null,
       parameterSize: res.data?.details?.parameter_size ?? null,
       quantization: res.data?.details?.quantization_level ?? null,
@@ -120,14 +151,32 @@ export class OllamaProvider implements LocalModelProvider {
   async chat(req: ChatRequest): Promise<ChatResponse> {
     const started = Date.now();
     const messages = [...(req.system ? [{ role: 'system', content: req.system }] : []), ...req.messages];
-    const options: Record<string, unknown> = {};
+    // the model's limits come from /api/show (cached); an unreachable /api/show falls back to the default window
+    const info = await this.modelDetails(req.model, req.signal).catch(() => null);
+    const numCtx = info?.contextLength ?? this.effectiveContext(null);
+    const promptTokens = estimateTokens(messages.map((m) => m.content).join('\n'));
+    const outputTokens = req.maxOutputTokens ?? 2048;
+    if (promptTokens + Math.min(outputTokens, 1024) > numCtx) {
+      // Ollama would silently drop the beginning of the prompt (the instructions): refuse instead of guessing
+      throw new AppError('CONTEXT_TOO_LARGE', `${this.config.name}: the request (≈${promptTokens} tokens) does not fit into the context window of ${numCtx} tokens of model "${req.model}".`, {
+        hint: 'Raise the context window in the provider settings (it needs more memory), choose a model with a larger window, or narrow the materials of the task.',
+        details: { promptTokens, numCtx },
+      });
+    }
+    const options: Record<string, unknown> = { num_ctx: numCtx };
     if (req.temperature !== undefined) options.temperature = req.temperature;
-    if (req.maxOutputTokens !== undefined) options.num_predict = req.maxOutputTokens;
+    if (req.maxOutputTokens !== undefined) options.num_predict = Math.min(req.maxOutputTokens, Math.max(256, numCtx - promptTokens));
     const payload: Record<string, unknown> = { model: req.model, messages, stream: false, options };
-    if (req.jsonSchema) payload.format = req.jsonSchema.schema;
+    if (req.jsonSchema) {
+      payload.format = req.jsonSchema.schema;
+      // Reasoning tokens count against num_predict and are slow on local hardware; schema-bound answers do not
+      // need them. Only sent when the model declares that thinking can be switched off (option think: "model" keeps
+      // the model default).
+      if (this.config.options.think !== 'model' && this.canDisableThinking.get(req.model)) payload.think = false;
+    }
     let res;
     try {
-      res = await this.deps.http.json<{ message?: { content?: string }; done_reason?: string; prompt_eval_count?: number; eval_count?: number }>({
+      res = await this.deps.http.json<{ message?: { content?: string; thinking?: string }; done_reason?: string; prompt_eval_count?: number; eval_count?: number }>({
         url: `${this.base}/api/chat`,
         method: 'POST',
         body: JSON.stringify(payload),

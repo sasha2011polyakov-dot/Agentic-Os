@@ -9,3 +9,4 @@ export type { SystemRecord, SystemStatus } from './systems/registry.ts';
 export { resolveDataDir } from './systems/paths.ts';
 export { SETTINGS } from './settings/schema.ts';
 export type { ResolvedSetting } from './settings/settings.ts';
+export { runLiveCheck, liveCheckMarkdown, LIVE_MISSIONS, type LiveCheckOptions, type LiveCheckReport, type LiveProvider } from './ai/live-check.ts';

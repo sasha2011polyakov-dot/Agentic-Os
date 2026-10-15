@@ -7,9 +7,19 @@ interface LmStudioModel {
   id: string;
   type?: 'llm' | 'vlm' | 'embeddings';
   state?: 'loaded' | 'not-loaded';
+  /** The model's architectural limit. */
   max_context_length?: number;
+  /** The window the running instance serves (newer LM Studio versions; null when not loaded). */
+  loaded_context_length?: number | null;
   quantization?: string;
 }
+
+/**
+ * Window assumed for a local model that is not loaded yet: LM Studio loads it on first use with the context
+ * length from its own settings (often 4096), not with `max_context_length`. Budgeting for the maximum would make
+ * the server cut the prompt; a provider option `contextLength` overrides this when the user loads models larger.
+ */
+const LOCAL_UNLOADED_CONTEXT = 4096;
 
 /**
  * OpenAI-compatible Chat Completions API: covers OpenAI and local servers such as LM Studio
@@ -36,6 +46,15 @@ export class OpenAICompatibleProvider implements LocalModelProvider {
     const org = this.config.options.organization;
     if (typeof org === 'string' && org) h['openai-organization'] = org;
     return h;
+  }
+
+  /** The window the app budgets for: an explicit option, else what the server reports as loaded, else a safe default. */
+  private contextFor(m: LmStudioModel): number | null {
+    const opt = Number(this.config.options.contextLength);
+    if (Number.isInteger(opt) && opt >= 1024) return m.max_context_length ? Math.min(opt, m.max_context_length) : opt;
+    if (m.loaded_context_length) return m.loaded_context_length;
+    if (this.config.locality !== 'local') return m.max_context_length ?? null;
+    return Math.min(m.max_context_length ?? LOCAL_UNLOADED_CONTEXT, LOCAL_UNLOADED_CONTEXT);
   }
 
   private get flavor(): 'lmstudio' | 'openai' | 'generic' {
@@ -69,7 +88,7 @@ export class OpenAICompatibleProvider implements LocalModelProvider {
             providerId: this.config.id,
             displayName: m.id,
             locality: this.config.locality,
-            contextLength: m.max_context_length ?? null,
+            contextLength: this.contextFor(m),
             sizeBytes: null,
             parameterSize: null,
             quantization: m.quantization ?? null,
@@ -88,6 +107,17 @@ export class OpenAICompatibleProvider implements LocalModelProvider {
       throw providerError(e, this.config.name);
     }
     if (!res.ok) throw httpError(res, this.config.name);
+    // llama.cpp server reports the per-request window in /props (default_generation_settings.n_ctx)
+    let served: number | null = null;
+    if (this.flavor === 'generic' && this.config.locality === 'local') {
+      try {
+        const props = await this.deps.http.json<{ default_generation_settings?: { n_ctx?: number } }>({ url: `${this.base.replace(/\/v1$/, '')}/props`, purpose: this.purpose, headers: this.headers(), timeoutMs: 5000, ...(signal ? { signal } : {}) });
+        const n = props.ok ? props.data?.default_generation_settings?.n_ctx : undefined;
+        if (typeof n === 'number' && n > 0) served = n;
+      } catch {
+        // not a llama.cpp server
+      }
+    }
     return (res.data?.data ?? []).map((m) => {
       const embedding = /embed/i.test(m.id);
       return {
@@ -95,7 +125,7 @@ export class OpenAICompatibleProvider implements LocalModelProvider {
         providerId: this.config.id,
         displayName: m.id,
         locality: this.config.locality,
-        contextLength: null,
+        contextLength: served ?? this.contextFor({ id: m.id }),
         sizeBytes: null,
         parameterSize: null,
         quantization: null,

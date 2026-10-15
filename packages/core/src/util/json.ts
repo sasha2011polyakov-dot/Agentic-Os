@@ -13,10 +13,21 @@ export function toJson(value: unknown): string {
 
 /**
  * Extracts the first balanced top-level JSON object or array from model output.
- * Handles ```json fences and leading prose. Returns undefined when nothing parseable is found.
+ * Handles ```json fences, leading prose and the reasoning blocks that local reasoning models put into the answer
+ * text (`<think>…</think>`, also unterminated when the output was cut). Returns undefined when nothing parseable
+ * is found.
  */
 export function extractJson(text: string): unknown {
-  const trimmed = text.trim();
+  try {
+    return JSON.parse(text.trim());
+  } catch {
+    // fall through
+  }
+  // only now drop reasoning blocks, so a valid JSON answer that merely mentions "<think>" is never altered
+  const trimmed = text
+    .replace(/^\s*<think>[\s\S]*?<\/think>/i, '')
+    .replace(/^\s*<think>[\s\S]*$/i, '')
+    .trim();
   try {
     return JSON.parse(trimmed);
   } catch {

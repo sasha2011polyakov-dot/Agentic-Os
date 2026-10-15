@@ -28,6 +28,29 @@ Status: accepted · Date: 2026-10-12 · Primary API sources: see section 6.
 | `anthropic` | Anthropic Messages API | `POST /v1/messages` (headers `x-api-key`, `anthropic-version: 2023-06-01`), `GET /v1/models` | `output_config.format = {type:"json_schema", schema}` | No | No |
 | `test` | A deterministic provider for automated tests | — | Yes | Yes | — |
 
+**The context window of local models** (checked against the providers' documentation on 2026-10-15). Local servers do not all behave the same when a prompt is longer than the loaded window.
+
+| Server | What it does with a long prompt | What the app does |
+|---|---|---|
+| Ollama | It defaults to a 4k window below 24 GiB of VRAM and **silently drops the beginning** of a longer prompt (docs.ollama.com/context-length) | It always sends `options.num_ctx`: the provider option `contextLength`, else 16384, capped by the model's own limit. The value is stable per model, because Ollama reloads a model when `num_ctx` changes. A prompt that would not fit is refused with `CONTEXT_TOO_LARGE` before the request |
+| LM Studio | It loads a model with the window from its own settings, not with `max_context_length` | It budgets for `loaded_context_length` when the server reports it. An unloaded local model is assumed to have 4096 tokens unless the option `contextLength` says otherwise |
+| llama.cpp server | It answers 400 `exceed_context_size_error` | It reads the window from `GET /props` (`default_generation_settings.n_ctx`) and maps the error to `CONTEXT_TOO_LARGE` |
+
+The agent runtime budgets for the same window:
+- it trims context materials;
+- it limits the answer length to a third of the window;
+- in tool loops it compacts the **oldest** tool results first, never the task itself.
+
+**Reasoning models.** For schema-bound requests to Ollama the app sends `think: false` when `/api/show` says the model can switch thinking off. Reasoning tokens count against the answer limit and are slow on local hardware. The provider option `think: "model"` keeps the model's default. Reasoning that a server puts into the answer text (`<think>…</think>`) is removed before the JSON is parsed.
+
+**The live check.** `aos check-ai` (`packages/core/src/ai/live-check.ts`) runs this whole path against a real model in a temporary system:
+1. the provider and the model;
+2. one schema-bound answer;
+3. the test cases of every built-in agent;
+4. two missions.
+
+It writes a report that separates passed, failed and not run. The automated tests cover the check itself with a server that answers with schema-minimal JSON. That proves the check drives every stage; it says nothing about model quality.
+
 **The test provider** is registered only with `AOS_ENABLE_TEST_PROVIDER=1`. In the UI it is labeled "Test provider (for automated tests)". It does not exist in normal use of the application, so it cannot stand in for a real result.
 
 ### 1.2. One request format

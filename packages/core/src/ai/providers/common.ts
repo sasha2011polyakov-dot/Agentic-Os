@@ -22,7 +22,9 @@ export function httpError(res: HttpResponse<unknown>, providerName: string, mode
   if (res.status === 404 || /model .*not found|no such model|unknown model|model_not_found|not_found_error/.test(lower)) {
     return new AppError('MODEL_UNAVAILABLE', `${providerName}: model ${model ? `"${model}" ` : ''}not found.`, { details: { message: msg } });
   }
-  if (res.status === 413 || /context length|context window|too many tokens|maximum context|prompt is too long/.test(lower)) {
+  // llama.cpp server: "request (N tokens) exceeds the available context size (M tokens)", type exceed_context_size_error;
+  // LM Studio: "…the model is loaded with context length of only M tokens"
+  if (res.status === 413 || /context length|context window|context size|exceed_context|too many tokens|maximum context|prompt is too long/.test(lower) || extractType(res.data) === 'exceed_context_size_error') {
     return new AppError('CONTEXT_TOO_LARGE', undefined, { details: { message: msg } });
   }
   return new AppError('PROVIDER_ERROR', `${providerName}: error ${res.status}: ${msg}`, { details: { status: res.status } });
@@ -33,6 +35,11 @@ export function isStructuredRejection(res: HttpResponse<unknown>): boolean {
   if (res.status !== 400 && res.status !== 422) return false;
   const msg = (extractMessage(res.data) ?? res.text).toLowerCase();
   return /response_format|json_schema|output_config|output_format|structured|format/.test(msg);
+}
+
+function extractType(data: unknown): string | null {
+  const e = (data as { error?: { type?: unknown } } | null)?.error;
+  return e && typeof e === 'object' && typeof e.type === 'string' ? e.type : null;
 }
 
 function extractMessage(data: unknown): string | null {
