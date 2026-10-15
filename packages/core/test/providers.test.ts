@@ -141,6 +141,28 @@ describe('OpenAI-compatible provider (LM Studio, llama.cpp server)', () => {
   });
 });
 
+describe('long requests to slow local models', () => {
+  it('waits as long as the request allows (no hidden 300 s limit) and keeps the fetch contract', async () => {
+    // found with a real model on a CPU: fetch() aborted after 300 s without headers (UND_ERR_HEADERS_TIMEOUT)
+    const { base } = await serve({
+      'POST /slow': (_q, s) => setTimeout(() => json(s, 200, { ok: true }), 1200),
+      'GET /fail': (_q, s) => json(s, 500, { error: { message: 'boom' } }),
+      'GET /moved': (_q, s) => s.writeHead(302, { location: 'http://example.com/' }).end(),
+    });
+    const long = { purpose: 'ai-local' as const, timeoutMs: 15 * 60_000 };
+    const ok = await http.json<{ ok: boolean }>({ ...long, url: `${base}/slow`, method: 'POST', body: '{"a":1}' });
+    expect(ok).toMatchObject({ status: 200, ok: true, data: { ok: true } });
+    expect(ok.headers.get('content-type')).toContain('application/json');
+    const fail = await http.json<{ error: { message: string } }>({ ...long, url: `${base}/fail` });
+    expect(fail).toMatchObject({ status: 500, ok: false, data: { error: { message: 'boom' } } });
+    await expect(http.request({ ...long, url: `${base}/moved` })).rejects.toMatchObject({ kind: 'network' });
+    await expect(http.request({ ...long, url: 'http://127.0.0.1:9/' })).rejects.toMatchObject({ kind: 'network', message: expect.stringContaining('ECONNREFUSED') });
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 100);
+    await expect(http.request({ ...long, url: `${base}/slow`, method: 'POST', body: '{}', signal: controller.signal })).rejects.toMatchObject({ kind: 'aborted' });
+  });
+});
+
 describe('robustness with local models', () => {
   it('parses an answer that starts with a reasoning block, and never alters valid JSON', () => {
     expect(extractJson('<think>The user wants {"a":1}… let me answer</think>\n{"ok":true}')).toEqual({ ok: true });

@@ -1,5 +1,15 @@
+import { request as httpRequest, type IncomingMessage } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { Readable } from 'node:stream';
 import { AppError } from '../util/errors.ts';
 import type { NetPurpose, NetworkPolicy } from './policy.ts';
+
+/**
+ * fetch() in Node (undici) gives up when the response headers take longer than 300 s, whatever our own timeout
+ * says (UND_ERR_HEADERS_TIMEOUT). A local model on a CPU answering a non-streamed request regularly needs longer,
+ * so requests that may legitimately wait longer go through node:http, where only our timeout applies.
+ */
+const FETCH_HEADERS_LIMIT_MS = 290_000;
 
 export interface HttpRequest {
   url: string;
@@ -51,6 +61,7 @@ export class HttpClient {
       else req.signal.addEventListener('abort', onAbort, { once: true });
     }
     try {
+      if (timeoutMs > FETCH_HEADERS_LIMIT_MS) return await nodeRequest(url, req.method ?? 'GET', req.headers ?? {}, req.body, controller.signal);
       const init: RequestInit = { method: req.method ?? 'GET', headers: req.headers ?? {}, signal: controller.signal, redirect: 'error' };
       if (req.body !== undefined) init.body = req.body;
       return await fetch(url, init);
@@ -79,9 +90,39 @@ export class HttpClient {
   }
 }
 
+/** The same contract as fetch() (a Response; redirects are not followed), without undici's headers timeout. */
+function nodeRequest(url: URL, method: string, headers: Record<string, string>, body: string | undefined, signal: AbortSignal): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const outgoing = send(url, { method, headers: { ...headers, ...(body !== undefined ? { 'content-length': String(Buffer.byteLength(body)) } : {}) }, signal }, (res: IncomingMessage) => {
+      const status = res.statusCode ?? 0;
+      if (status < 200 || status > 599) {
+        res.resume();
+        reject(new Error(`unexpected HTTP status ${status}`));
+        return;
+      }
+      if (status >= 300 && status < 400) {
+        // fetch() is called with redirect: 'error'; keep that contract
+        res.resume();
+        reject(new Error(`redirect to ${res.headers.location ?? 'another address'} refused`));
+        return;
+      }
+      const h = new Headers();
+      for (const [k, v] of Object.entries(res.headers)) if (v !== undefined) h.set(k, Array.isArray(v) ? v.join(', ') : String(v));
+      const noBody = status === 204 || status === 304 || method === 'HEAD';
+      resolve(new Response(noBody ? null : (Readable.toWeb(res) as ReadableStream<Uint8Array>), { status, statusText: res.statusMessage ?? '', headers: h }));
+    });
+    outgoing.on('error', reject);
+    if (body !== undefined) outgoing.write(body);
+    outgoing.end();
+  });
+}
+
 function describeFetchError(e: Error): string {
   const cause = (e as { cause?: { code?: string; message?: string } }).cause;
   if (cause?.code) return `${cause.code}: ${cause.message ?? e.message}`;
+  const code = (e as { code?: string }).code; // node:http errors carry the code themselves
+  if (code) return `${code}: ${e.message}`;
   return e.message;
 }
 

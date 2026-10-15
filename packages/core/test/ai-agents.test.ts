@@ -212,6 +212,22 @@ describe('agent runtime: tool loop, permissions, repair', () => {
     expect(usage.every((u) => u.agent_id === 'finder' && u.system_id === rt.systemId && u.provider_id === 'test')).toBe(true);
   });
 
+  it('does not re-run an identical tool call and makes a looping agent finish (seen with a real 3B model)', async () => {
+    const { s } = await setup();
+    await installTestAgent(s, { id: 'looper', tools: ['search_documents'], permissions: ['search.use'] });
+    const same = toolCall([{ tool: 'search_documents', args: { query: 'welcome' } }]);
+    // the model repeats the same call; it answers with a result only when it is told to finish
+    const script = scriptAgent('Test agent looper', [(req) => (req.messages.at(-1)!.content.includes('Return the final result now') ? final({ summary: 'done with what I had' }) : same)]);
+    cleanups.push(script.off);
+    const { pkg, config } = await s.agents.forRun('looper');
+    const res = await s.agentRuntime.run('looper', pkg, config, { task: 'find the welcome note' }, { scope: noScope });
+    expect(res.output.summary).toBe('done with what I had');
+    // executed once; the repeat got the earlier result back with a note, then the agent was asked to finish
+    expect(res.toolCalls).toHaveLength(1);
+    expect(script.calls[2]!.messages.at(-1)!.content).toContain('This exact call was already made');
+    expect(script.calls.length).toBe(3);
+  });
+
   it('denies tools without grants, outside the run scope or forbidden by the user — and audits the denial', async () => {
     const { s, rt, projectId } = await setup({ project: true });
     await installTestAgent(s, { id: 'reader', tools: ['read_project_file', 'create_document', 'web_search'], permissions: ['projects.read', 'documents.create', 'web.search', 'network.fetch'], grants: ['projects.read', 'documents.create'], grantScopes: { 'documents.create': { folders: ['Agent'] } } });
