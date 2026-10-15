@@ -14,12 +14,23 @@ export function toStrictSchema(schema: Record<string, unknown>, opts: { anthropi
   return convert(schema, opts) as Record<string, unknown>;
 }
 
+/**
+ * Keywords whose value is a map from NAMES to schemas. Their keys are field or definition names, not keywords:
+ * a field called "title", "format" or "default" must survive (dropping it removed required fields from the schema
+ * sent to the provider, so the model never produced them and local validation then failed every time).
+ */
+const NAME_MAPS = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas']);
+
 function convert(node: unknown, opts: { anthropic?: boolean }): unknown {
   if (Array.isArray(node)) return node.map((n) => convert(n, opts));
   if (!node || typeof node !== 'object') return node;
   const src = node as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(src)) {
+    if (NAME_MAPS.has(k) && v && typeof v === 'object' && !Array.isArray(v)) {
+      out[k] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([name, sub]) => [name, convert(sub, opts)]));
+      continue;
+    }
     if (DROP_ALWAYS.has(k)) continue;
     if (opts.anthropic && DROP_ANTHROPIC.has(k)) continue;
     if (!opts.anthropic && DROP_OPENAI.has(k)) continue;

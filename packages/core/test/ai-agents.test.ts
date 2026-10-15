@@ -117,6 +117,25 @@ describe('structured output helpers', () => {
     // the full original schema is still what the result is validated against
     expect(validator(schema)({ a: 'xx' })).toBe(false);
   });
+
+  it('keeps fields whose NAMES are schema keywords (title, format, default, pattern…)', async () => {
+    // found with a real model: "title" was dropped from the schema sent to the server, so the model never
+    // produced it and local validation rejected every answer of the mission analyst
+    const schema = { type: 'object', required: ['title', 'format', 'default'], properties: { title: { type: 'string', maxLength: 120 }, format: { enum: ['md', 'txt'] }, default: { type: 'boolean' }, pattern: { type: 'string' }, minimum: { type: 'integer' } } };
+    for (const s of [toStrictSchema(schema), toStrictSchema(schema, { anthropic: true })]) {
+      expect(Object.keys(s.properties as object)).toEqual(['title', 'format', 'default', 'pattern', 'minimum']);
+      expect(s.required).toEqual(expect.arrayContaining(['title', 'format', 'default']));
+      // keywords are still removed where they are keywords
+      expect(JSON.stringify((s.properties as Record<string, unknown>).title)).not.toContain('maxLength');
+    }
+    // every built-in agent: the strict copy keeps all fields of the original output schema
+    const { ai } = await setup();
+    for (const e of ai.catalog.builtinEntries()) {
+      const out = ai.catalog.builtinPackage(e.id)!.outputSchema;
+      const strict = toStrictSchema(out);
+      expect(Object.keys((strict.properties as object) ?? {}).sort(), e.id).toEqual(Object.keys((out.properties as object) ?? {}).sort());
+    }
+  });
 });
 
 describe('agent packages', () => {
